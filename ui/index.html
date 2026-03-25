@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Customs Intelligence — Phlo Systems</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #f1f0eb;
+    --surface:   #ffffff;
+    --border:    #e2e0d8;
+    --border-md: #ccc9bc;
+    --text:      #1a1916;
+    --text-2:    #6b6860;
+    --text-3:    #9e9b93;
+    --teal:      #0d6e5a;
+    --teal-bg:   #e8f5f1;
+    --teal-mid:  #1a9a7c;
+    --amber:     #92500a;
+    --amber-bg:  #fdf3e3;
+    --red:       #a01f1f;
+    --red-bg:    #fdf0f0;
+    --green:     #16623a;
+    --green-bg:  #edf7f0;
+    --mono:      'DM Mono', monospace;
+    --sans:      'Instrument Sans', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 14px;
+  }
+
+  /* ── Header ── */
+  header {
+    background: var(--text);
+    color: #fff;
+    padding: 0 32px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #fff;
+  }
+
+  .logo span {
+    color: var(--teal-mid);
+    margin-right: 8px;
+  }
+
+  .header-meta {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: rgba(255,255,255,0.4);
+    letter-spacing: 0.05em;
+  }
+
+  /* ── Nav ── */
+  nav {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 32px;
+    display: flex;
+    gap: 0;
+  }
+
+  .nav-tab {
+    padding: 14px 20px 12px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-2);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+    user-select: none;
+  }
+
+  .nav-tab:hover { color: var(--text); }
+
+  .nav-tab.active {
+    color: var(--text);
+    border-bottom-color: var(--text);
+  }
+
+  .nav-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--teal-bg);
+    color: var(--teal);
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 500;
+    padding: 1px 6px;
+    border-radius: 10px;
+    margin-left: 6px;
+    min-width: 20px;
+  }
+
+  /* ── Main ── */
+  main { padding: 28px 32px; max-width: 1200px; }
+
+  /* ── Summary bar ── */
+  .summary-bar {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 18px;
+  }
+
+  .stat-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    margin-bottom: 6px;
+  }
+
+  .stat-value {
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 500;
+    color: var(--text);
+    line-height: 1;
+  }
+
+  .stat-value.green { color: var(--green); }
+  .stat-value.teal  { color: var(--teal); }
+
+  .stat-sub {
+    font-size: 11px;
+    color: var(--text-3);
+    margin-top: 4px;
+    font-family: var(--mono);
+  }
+
+  /* ── Filters ── */
+  .filters {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .filter-label {
+    font-size: 12px;
+    color: var(--text-2);
+    font-weight: 500;
+    margin-right: 4px;
+  }
+
+  .filter-chip {
+    padding: 5px 12px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-2);
+    cursor: pointer;
+    background: var(--surface);
+    transition: all 0.12s;
+  }
+
+  .filter-chip:hover,
+  .filter-chip.active {
+    background: var(--text);
+    color: #fff;
+    border-color: var(--text);
+  }
+
+  /* ── Opportunity cards ── */
+  .opp-list { display: flex; flex-direction: column; gap: 10px; }
+
+  .opp-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    transition: border-color 0.12s;
+  }
+
+  .opp-card:hover { border-color: var(--border-md); }
+
+  .opp-card-main {
+    padding: 16px 20px;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 16px;
+    align-items: start;
+    cursor: pointer;
+  }
+
+  .saving-badge {
+    background: var(--green-bg);
+    border: 1px solid #b7e4c7;
+    border-radius: 6px;
+    padding: 8px 12px;
+    text-align: center;
+    min-width: 80px;
+  }
+
+  .saving-pct {
+    font-family: var(--mono);
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--green);
+    line-height: 1;
+  }
+
+  .saving-amt {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--green);
+    margin-top: 3px;
+    opacity: 0.75;
+  }
+
+  .opp-body { min-width: 0; }
+
+  .opp-route {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 5px;
+  }
+
+  .country-tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
+    padding: 2px 7px;
+    border-radius: 4px;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    letter-spacing: 0.04em;
+  }
+
+  .route-arrow {
+    font-size: 11px;
+    color: var(--text-3);
+  }
+
+  .opp-hs {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-2);
+  }
+
+  .opp-agreement {
+    display: inline-block;
+    background: var(--teal-bg);
+    color: var(--teal);
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    letter-spacing: 0.04em;
+    margin-left: 8px;
+    text-transform: uppercase;
+  }
+
+  .opp-headline {
+    font-size: 13px;
+    color: var(--text-2);
+    margin-top: 6px;
+    line-height: 1.5;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .opp-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+  }
+
+  .opp-type-tag {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-3);
+  }
+
+  .expand-btn {
+    font-size: 11px;
+    color: var(--teal);
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* ── AI Insight panel ── */
+  .ai-panel {
+    display: none;
+    border-top: 1px solid var(--border);
+    padding: 16px 20px 16px 116px;
+    background: #fafaf8;
+  }
+
+  .ai-panel.open { display: block; }
+
+  .ai-panel-label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--teal);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .ai-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--teal-mid);
+    display: inline-block;
+  }
+
+  .ai-text {
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--text);
+    max-width: 680px;
+  }
+
+  /* ── Tariff Lookup ── */
+  .lookup-grid {
+    display: grid;
+    grid-template-columns: 400px 1fr;
+    gap: 20px;
+    align-items: start;
+  }
+
+  .lookup-form {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px;
+  }
+
+  .form-title {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 20px;
+    color: var(--text);
+  }
+
+  .form-group {
+    margin-bottom: 14px;
+  }
+
+  .form-group label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    margin-bottom: 5px;
+  }
+
+  .form-group input, .form-group select {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-family: var(--mono);
+    font-size: 13px;
+    background: var(--bg);
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.12s;
+  }
+
+  .form-group input:focus, .form-group select:focus {
+    border-color: var(--teal-mid);
+    background: #fff;
+  }
+
+  .form-group .hint {
+    font-size: 11px;
+    color: var(--text-3);
+    margin-top: 3px;
+  }
+
+  .lookup-btn {
+    width: 100%;
+    padding: 11px;
+    background: var(--text);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 6px;
+    transition: opacity 0.12s;
+  }
+
+  .lookup-btn:hover { opacity: 0.85; }
+  .lookup-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ── Result panel ── */
+  .result-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px;
+  }
+
+  .result-empty {
+    color: var(--text-3);
+    font-size: 13px;
+    text-align: center;
+    padding: 40px 0;
+  }
+
+  .result-header {
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .result-route {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text-2);
+    margin-bottom: 4px;
+  }
+
+  .result-code {
+    font-family: var(--mono);
+    font-size: 20px;
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  .result-desc {
+    font-size: 12px;
+    color: var(--text-3);
+    margin-top: 4px;
+    line-height: 1.4;
+  }
+
+  .result-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .result-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+
+  .result-row:last-child { border-bottom: none; }
+
+  .result-key { color: var(--text-2); }
+
+  .result-val {
+    font-family: var(--mono);
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  .result-val.green { color: var(--green); }
+  .result-val.teal  { color: var(--teal); }
+  .result-val.amber { color: var(--amber); }
+
+  .result-total {
+    background: var(--bg);
+    border-radius: 6px;
+    padding: 14px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 12px;
+  }
+
+  .result-total-label {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-2);
+  }
+
+  .result-total-val {
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  .pref-banner {
+    background: var(--teal-bg);
+    border: 1px solid #a7d4c8;
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 12px;
+    color: var(--teal);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
+  }
+
+  .blocked-banner {
+    background: var(--red-bg);
+    border: 1px solid #f4a8a8;
+    border-radius: 6px;
+    padding: 14px 16px;
+    font-size: 13px;
+    color: var(--red);
+    font-weight: 500;
+  }
+
+  .spinner {
+    width: 18px; height: 18px;
+    border: 2px solid var(--border);
+    border-top-color: var(--teal-mid);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    margin: 40px auto;
+    display: block;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Loading ── */
+  .page-loader {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 40px 0;
+    color: var(--text-3);
+    font-size: 13px;
+  }
+
+  /* ── Screen management ── */
+  .screen { display: none; }
+  .screen.active { display: block; }
+
+  /* ── Empty state ── */
+  .empty {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-3);
+  }
+
+  .empty-title {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--text-2);
+    margin-bottom: 8px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo"><span>◆</span>Customs Intelligence</div>
+  <div class="header-meta" id="header-tenant">Loading tenant...</div>
+</header>
+
+<nav>
+  <div class="nav-tab active" onclick="showScreen('opportunities')">
+    Opportunities <span class="nav-badge" id="opp-count">—</span>
+  </div>
+  <div class="nav-tab" onclick="showScreen('lookup')">Tariff Lookup</div>
+  <div class="nav-tab" onclick="showScreen('alerts')">Alerts</div>
+</nav>
+
+<main>
+
+  <!-- ── Opportunities Screen ── -->
+  <div class="screen active" id="screen-opportunities">
+
+    <div class="summary-bar" id="summary-bar">
+      <div class="stat-card">
+        <div class="stat-label">Total Opportunities</div>
+        <div class="stat-value" id="stat-total">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Top Saving / ZAR 10K</div>
+        <div class="stat-value green" id="stat-top">—</div>
+        <div class="stat-sub" id="stat-top-hs">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Agreements Active</div>
+        <div class="stat-value teal" id="stat-agreements">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Import Market</div>
+        <div class="stat-value" id="stat-market">ZA</div>
+        <div class="stat-sub">South Africa</div>
+      </div>
+    </div>
+
+    <div class="filters">
+      <span class="filter-label">Filter:</span>
+      <div class="filter-chip active" onclick="filterOpps(this, null)">All</div>
+      <div class="filter-chip" onclick="filterOpps(this, 'DUTY_REDUCTION')">Duty Reduction</div>
+      <div class="filter-chip" onclick="filterOpps(this, 'COMPETITOR_DISADVANTAGE')">Competitor Edge</div>
+      <div class="filter-chip" onclick="filterOpps(this, 'NEW_MARKET')">New Markets</div>
+      <div class="filter-chip" onclick="filterOpps(this, 'EXPIRING_PREFERENCE')">Expiring</div>
+    </div>
+
+    <div id="opp-list" class="opp-list">
+      <div class="page-loader">
+        <div class="spinner" style="margin: 0;"></div>
+        Loading intelligence feed...
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Tariff Lookup Screen ── -->
+  <div class="screen" id="screen-lookup">
+    <div class="lookup-grid">
+      <div class="lookup-form">
+        <div class="form-title">Tariff Lookup</div>
+
+        <div class="form-group">
+          <label>Export Country</label>
+          <input type="text" id="l-export" value="GB" maxlength="2" placeholder="e.g. GB">
+        </div>
+        <div class="form-group">
+          <label>Import Country</label>
+          <input type="text" id="l-import" value="ZA" maxlength="2" placeholder="e.g. ZA">
+        </div>
+        <div class="form-group">
+          <label>Commodity Code</label>
+          <input type="text" id="l-code" value="20041010" placeholder="8-digit ZA code">
+          <div class="hint">8-digit ZA national commodity code</div>
+        </div>
+        <div class="form-group">
+          <label>Customs Value (optional)</label>
+          <input type="number" id="l-value" placeholder="e.g. 50000">
+          <div class="hint">Leave blank for rates only</div>
+        </div>
+        <div class="form-group">
+          <label>Currency</label>
+          <input type="text" id="l-currency" value="ZAR" maxlength="3">
+        </div>
+        <button class="lookup-btn" onclick="runLookup()" id="lookup-btn">Run Lookup</button>
+      </div>
+
+      <div class="result-panel" id="result-panel">
+        <div class="result-empty">Enter a commodity code and click Run Lookup</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Alerts Screen ── -->
+  <div class="screen" id="screen-alerts">
+    <div class="empty">
+      <div class="empty-title">No active alerts</div>
+      <div>Alerts will appear here when duty rates change, sanctions are issued, or preferential rates are expiring on your active routes.</div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+const API_BASE = 'https://epytgmksddhvwziwxhuq.supabase.co/functions/v1';
+const API_KEY  = 'ci_live_a7f3e2b1c9d4f8a2e6b0c3d7f1a4e8b2';
+
+const HEADERS = {
+  'Content-Type': 'application/json',
+  'X-API-Key': API_KEY,
+};
+
+const TYPE_LABELS = {
+  DUTY_REDUCTION:          'Duty Reduction',
+  COMPETITOR_DISADVANTAGE: 'Competitor Edge',
+  NEW_MARKET:              'New Market',
+  EXPIRING_PREFERENCE:     'Expiring Pref',
+  QUOTA_OPENED:            'Quota Opened',
+};
+
+let allOpps = [];
+let activeFilter = null;
+
+async function init() {
+  try {
+    const r = await fetch(`${API_BASE}/onboard`, { headers: HEADERS });
+    const ctx = await r.json();
+    if (ctx.tenantid) {
+      document.getElementById('header-tenant').textContent =
+        `${ctx.businesstype ?? 'TRADER'} · ${ctx.annualvolumerange ?? ''} · ZA Import Intelligence`;
+    }
+  } catch(e) {}
+  loadOpportunities();
+}
+
+async function loadOpportunities() {
+  try {
+    const r = await fetch(`${API_BASE}/opportunities?limit=200`, { headers: HEADERS });
+    const data = await r.json();
+    allOpps = data.opportunities ?? [];
+
+    document.getElementById('stat-total').textContent = data.summary?.total ?? 0;
+    document.getElementById('opp-count').textContent  = data.summary?.total ?? 0;
+
+    const top = data.opportunities?.[0];
+    if (top) {
+      document.getElementById('stat-top').textContent    = `ZAR ${Number(top.savingamtper10k).toLocaleString()}`;
+      document.getElementById('stat-top-hs').textContent = `HS ${top.subheadingcode} · ${top.exportcountrycode}→${top.importcountrycode}`;
+    }
+
+    const agreements = [...new Set(allOpps.map(o => o.agreementcode).filter(Boolean))];
+    document.getElementById('stat-agreements').textContent = agreements.length;
+
+    renderOpps(allOpps);
+  } catch(e) {
+    document.getElementById('opp-list').innerHTML =
+      '<div class="empty"><div class="empty-title">Could not load opportunities</div>' + e.message + '</div>';
+  }
+}
+
+function renderOpps(opps) {
+  const list = document.getElementById('opp-list');
+  if (!opps.length) {
+    list.innerHTML = '<div class="empty"><div class="empty-title">No opportunities match this filter</div></div>';
+    return;
+  }
+  list.innerHTML = opps.map((o, i) => oppCard(o, i)).join('');
+}
+
+function oppCard(o, i) {
+  const saving = Number(o.savingamtper10k ?? 0).toLocaleString();
+  const pct    = Number(o.savingpct ?? 0).toFixed(0);
+  const label  = TYPE_LABELS[o.opportunitytype] ?? o.opportunitytype;
+  const agr    = o.agreementcode ? `<span class="opp-agreement">${o.agreementcode}</span>` : '';
+  const insight = o.aiinsight
+    ? `<div class="ai-panel" id="ai-${i}">
+        <div class="ai-panel-label"><span class="ai-dot"></span>AI Insight</div>
+        <div class="ai-text">${o.aiinsight}</div>
+      </div>`
+    : '';
+
+  return `
+    <div class="opp-card">
+      <div class="opp-card-main" onclick="toggleInsight(${i})">
+        <div class="saving-badge">
+          <div class="saving-pct">${pct}<span style="font-size:12px">%</span></div>
+          ${o.savingamtper10k ? `<div class="saving-amt">ZAR ${saving}</div>` : ''}
+        </div>
+        <div class="opp-body">
+          <div class="opp-route">
+            <span class="country-tag">${o.exportcountrycode}</span>
+            <span class="route-arrow">→</span>
+            <span class="country-tag">${o.importcountrycode}</span>
+            <span class="opp-hs">· HS ${o.subheadingcode}</span>
+            ${agr}
+          </div>
+          <div class="opp-headline">${o.headline}</div>
+        </div>
+        <div class="opp-actions">
+          <div class="opp-type-tag">${label}</div>
+          ${o.aiinsight ? '<div class="expand-btn" id="btn-'+i+'">Insight ▾</div>' : ''}
+        </div>
+      </div>
+      ${insight}
+    </div>`;
+}
+
+function toggleInsight(i) {
+  const panel = document.getElementById(`ai-${i}`);
+  const btn   = document.getElementById(`btn-${i}`);
+  if (!panel) return;
+  const open = panel.classList.toggle('open');
+  if (btn) btn.textContent = open ? 'Insight ▴' : 'Insight ▾';
+}
+
+function filterOpps(el, type) {
+  document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  activeFilter = type;
+  const filtered = type ? allOpps.filter(o => o.opportunitytype === type) : allOpps;
+  renderOpps(filtered);
+}
+
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(`screen-${name}`).classList.add('active');
+  event.currentTarget.classList.add('active');
+}
+
+async function runLookup() {
+  const btn  = document.getElementById('lookup-btn');
+  const panel = document.getElementById('result-panel');
+  const exportC = document.getElementById('l-export').value.trim().toUpperCase();
+  const importC = document.getElementById('l-import').value.trim().toUpperCase();
+  const code    = document.getElementById('l-code').value.trim();
+  const val     = document.getElementById('l-value').value.trim();
+  const curr    = document.getElementById('l-currency').value.trim().toUpperCase() || 'ZAR';
+
+  if (!exportC || !importC || !code) {
+    panel.innerHTML = '<div class="result-empty">Please fill in export country, import country and commodity code.</div>';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Looking up...';
+  panel.innerHTML = '<div class="spinner"></div>';
+
+  try {
+    const body = { export_country: exportC, import_country: importC, commodity_code: code, currency: curr };
+    if (val) body.customs_value = Number(val);
+
+    const r    = await fetch(`${API_BASE}/tariff-lookup`, { method: 'POST', headers: HEADERS, body: JSON.stringify(body) });
+    const data = await r.json();
+    panel.innerHTML = renderResult(data);
+  } catch(e) {
+    panel.innerHTML = `<div class="result-empty">Error: ${e.message}</div>`;
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Run Lookup';
+}
+
+function renderResult(d) {
+  if (d.status === 'BLOCKED') {
+    return `<div class="blocked-banner">⚠ Trade blocked — ${d.blocked_reason}: ${d.message}</div>`;
+  }
+  if (d.status === 'error') {
+    return `<div class="result-empty">${d.error}</div>`;
+  }
+
+  const inp = d.input;
+  const duty = d.duty;
+  const sum  = d.summary;
+  const isRates = d.mode === 'rates_only';
+  const curr = inp.currency ?? 'ZAR';
+
+  const fmt = n => n != null ? Number(n).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '—';
+  const pct  = n => n != null ? `${Number(n).toFixed(2)}%` : '—';
+
+  const prefBanner = duty.pref_agreement
+    ? `<div class="pref-banner">✓ Preferential rate applies — ${duty.pref_agreement} (${pct(duty.pref_rate_pct)} vs MFN ${pct(duty.mfn_rate_pct)})</div>`
+    : '';
+
+  const ratesSection = `
+    <div class="result-row"><span class="result-key">MFN rate</span><span class="result-val">${pct(duty.mfn_rate_pct)}</span></div>
+    <div class="result-row"><span class="result-key">Effective duty rate</span><span class="result-val teal">${pct(duty.effective_rate_pct)}</span></div>
+    <div class="result-row"><span class="result-key">VAT rate</span><span class="result-val">${pct(d.indirect_tax?.vat_rate_pct)}</span></div>
+    <div class="result-row"><span class="result-key">Total border rate</span><span class="result-val green">${pct(sum.total_border_rate_pct)}</span></div>
+  `;
+
+  const amountsSection = !isRates ? `
+    <div class="result-row"><span class="result-key">Customs value</span><span class="result-val">${curr} ${fmt(sum.customs_value)}</span></div>
+    <div class="result-row"><span class="result-key">Duty</span><span class="result-val">${curr} ${fmt(sum.duty_amount)}</span></div>
+    <div class="result-row"><span class="result-key">VAT</span><span class="result-val">${curr} ${fmt(sum.vat_amount)}</span></div>
+    ${sum.ad_surcharge > 0 ? `<div class="result-row"><span class="result-key">AD surcharge</span><span class="result-val amber">${curr} ${fmt(sum.ad_surcharge)}</span></div>` : ''}
+    <div class="result-row"><span class="result-key">Total border cost</span><span class="result-val">${curr} ${fmt(sum.total_border_cost)}</span></div>
+    <div class="result-total">
+      <div class="result-total-label">Total Landed Cost</div>
+      <div class="result-total-val">${curr} ${fmt(sum.total_landed_cost)}</div>
+    </div>
+  ` : `<div style="font-size:12px; color: var(--text-3); margin-top: 12px; padding: 10px 12px; background: var(--bg); border-radius: 6px;">Add a customs value to calculate currency amounts.</div>`;
+
+  const desc = inp.commodity_description
+    ? `<div class="result-desc">${inp.commodity_description.substring(0, 120)}${inp.commodity_description.length > 120 ? '…' : ''}</div>`
+    : '';
+
+  return `
+    <div class="result-header">
+      <div class="result-route">${inp.export_country_name} → ${inp.import_country_name} · ${inp.valuation_basis} basis</div>
+      <div class="result-code">HS ${inp.commodity_code}</div>
+      ${desc}
+    </div>
+    ${prefBanner}
+    ${ratesSection}
+    ${amountsSection}
+  `;
+}
+
+init();
+</script>
+</body>
+</html>
