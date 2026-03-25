@@ -19,6 +19,7 @@ from typing import Optional
 import requests
 
 from tariff_parser.parsers.za_parser import TariffRow, RateValue
+from tariff_parser.parsers.gb_parser import GBCommodity
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +97,104 @@ class SupabaseWriter:
             len(commodity_batch), len(mfn_batch), len(tariff_batch),
         )
         return stats
+
+    # ── GB writer ─────────────────────────────────────────────────────────────
+
+    def write_gb_rows(
+        self,
+        commodities: list[GBCommodity],
+        hs_version: str = "HS 2022",
+        batch_size: int = 200,
+    ) -> dict:
+        """
+        Write a list of parsed GBCommodity objects to Supabase.
+        Returns summary stats: {inserted, updated, errored}
+        """
+        stats = {"inserted": 0, "updated": 0, "errored": 0}
+
+        commodity_batch = []
+        mfn_batch = []
+        tariff_batch = []
+        vat_batch = []
+
+        for c in commodities:
+            commodity_batch.append({
+                "commoditycode": c.commodity_code,
+                "countrycode": "GB",
+                "subheadingcode": c.subheading_code,
+                "hsversion": hs_version,
+                "nationaldescription": c.description[:500],
+                "supplementaryunit": c.supplementary_unit,
+                "codelength": "10-digit",
+                "isactive": True,
+            })
+
+            duty_basis = self._duty_basis_type_str(c.mfn_duty_type)
+            mfn_batch.append({
+                "commoditycode": c.commodity_code,
+                "countrycode": "GB",
+                "ratecategory": "APPLIED",
+                "dutybasistype": duty_basis,
+                "appliedmfnrate": c.mfn_duty_pct,
+                "specificdutyamt": c.mfn_specific_amt,
+                "specificdutyuom": c.mfn_specific_uom,
+                "dutyexpression": c.mfn_duty_expression,
+                "valuationbasis": "CIF",
+                "effectivefrom": self.effective_date,
+                "effectiveto": None,
+            })
+
+            tariff_batch.append({
+                "commoditycode": c.commodity_code,
+                "countrycode": "GB",
+                "subheadingcode": c.subheading_code,
+                "appliedmfnrate": c.mfn_duty_pct,
+                "valuationbasis": "CIF",
+                "dutyexpression": c.mfn_duty_expression,
+                "effectivefrom": self.effective_date,
+                "effectiveto": None,
+                "lastreviewedat": self.effective_date,
+            })
+
+            vat_batch.append({
+                "commoditycode": c.commodity_code,
+                "countrycode": "GB",
+                "vatrate": c.vat_rate_pct,
+                "vatcategory": "ZERO" if c.vat_rate_pct == 0.0 else "STANDARD",
+                "effectivefrom": self.effective_date,
+                "effectiveto": None,
+            })
+
+        # Write in batches
+        for i in range(0, len(commodity_batch), batch_size):
+            result = self._upsert("commodity_code", commodity_batch[i:i + batch_size])
+            stats["inserted"] += result.get("count", 0)
+
+        for i in range(0, len(mfn_batch), batch_size):
+            self._upsert("mfn_rate", mfn_batch[i:i + batch_size])
+
+        for i in range(0, len(tariff_batch), batch_size):
+            self._upsert("tariff_rate", tariff_batch[i:i + batch_size])
+
+        for i in range(0, len(vat_batch), batch_size):
+            self._upsert("vat_rate", vat_batch[i:i + batch_size])
+
+        logger.info(
+            "GB: wrote %d rows — commodity=%d mfn=%d tariff=%d vat=%d",
+            len(commodities),
+            len(commodity_batch), len(mfn_batch), len(tariff_batch), len(vat_batch),
+        )
+        return stats
+
+    def _duty_basis_type_str(self, duty_type: str) -> str:
+        """Map duty type string to DB enum value."""
+        mapping = {
+            "FREE": "AD_VALOREM",
+            "AD_VALOREM": "AD_VALOREM",
+            "SPECIFIC": "SPECIFIC",
+            "COMPOUND": "COMPOUND",
+        }
+        return mapping.get(duty_type, "AD_VALOREM")
 
     # ── Row builders ─────────────────────────────────────────────────────────
 

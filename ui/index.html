@@ -595,6 +595,145 @@
   }
 
   .example-chip:hover { border-color: var(--teal-mid); color: var(--teal); background: var(--teal-bg); }
+
+  /* ── Admin Upload ── */
+  .upload-zone {
+    border: 2px dashed var(--border-md);
+    border-radius: 8px;
+    padding: 40px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.15s;
+    background: var(--surface);
+    margin-bottom: 16px;
+  }
+
+  .upload-zone:hover, .upload-zone.dragover {
+    border-color: var(--teal-mid);
+    background: var(--teal-bg);
+  }
+
+  .upload-zone-icon { font-size: 28px; margin-bottom: 8px; color: var(--text-3); }
+  .upload-zone-text { font-size: 13px; color: var(--text-2); font-weight: 500; }
+  .upload-zone-hint { font-size: 11px; color: var(--text-3); margin-top: 4px; }
+
+  .upload-file-info {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin-bottom: 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+  }
+
+  .upload-file-name { font-family: var(--mono); font-weight: 500; color: var(--text); }
+  .upload-file-size { font-family: var(--mono); color: var(--text-3); }
+  .upload-file-remove { color: var(--red); cursor: pointer; font-weight: 600; margin-left: 12px; }
+
+  .upload-progress {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin-top: 16px;
+  }
+
+  .upload-progress-bar {
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+    margin: 12px 0;
+  }
+
+  .upload-progress-fill {
+    height: 100%;
+    background: var(--teal-mid);
+    border-radius: 3px;
+    transition: width 0.4s ease;
+  }
+
+  .upload-step {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    font-size: 12px;
+    color: var(--text-2);
+  }
+
+  .upload-step .step-icon { width: 18px; text-align: center; }
+  .upload-step.done  { color: var(--green); }
+  .upload-step.active { color: var(--teal); font-weight: 500; }
+  .upload-step.pending { color: var(--text-3); }
+
+  .upload-result {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin-top: 16px;
+  }
+
+  .upload-result-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .upload-result-title { font-size: 14px; font-weight: 600; }
+  .upload-result-status { font-family: var(--mono); font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 4px; }
+  .upload-result-status.success { background: var(--green-bg); color: var(--green); }
+  .upload-result-status.failed  { background: var(--red-bg); color: var(--red); }
+
+  .upload-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  .upload-stat {
+    background: var(--bg);
+    border-radius: 6px;
+    padding: 10px 12px;
+    text-align: center;
+  }
+
+  .upload-stat-val { font-family: var(--mono); font-size: 18px; font-weight: 500; color: var(--text); }
+  .upload-stat-label { font-size: 10px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; margin-top: 2px; }
+
+  .sample-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+
+  .sample-table th {
+    text-align: left;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-3);
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .sample-table td {
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-2);
+  }
+
+  .sample-table td:first-child { font-weight: 500; color: var(--text); }
 </style>
 </head>
 <body>
@@ -611,6 +750,7 @@
   <div class="nav-tab" onclick="showScreen('lookup', this)">Tariff Lookup</div>
   <div class="nav-tab" onclick="showScreen('classify', this)">Classify</div>
   <div class="nav-tab" onclick="showScreen('alerts', this)">Alerts</div>
+  <div class="nav-tab" onclick="showScreen('admin', this)">Admin</div>
 </nav>
 
 <main>
@@ -736,6 +876,83 @@
     <div class="empty">
       <div class="empty-title">No active alerts</div>
       <div>Alerts appear when duty rates change, sanctions are issued, or preferential rates on your active routes are expiring.</div>
+    </div>
+  </div>
+
+  <!-- ── Admin: Upload Tariff Docs ── -->
+  <div class="screen" id="screen-admin">
+    <div class="lookup-grid">
+      <div class="lookup-form">
+        <div class="form-title">Upload Tariff Document</div>
+
+        <div class="form-group">
+          <label>Country</label>
+          <select id="u-country">
+            <option value="">Select country...</option>
+            <option value="IN">IN — India</option>
+            <option value="BR">BR — Brazil</option>
+            <option value="AU">AU — Australia</option>
+            <option value="TH">TH — Thailand</option>
+            <option value="MX">MX — Mexico</option>
+            <option value="CL">CL — Chile</option>
+            <option value="PH">PH — Philippines</option>
+            <option value="AR">AR — Argentina</option>
+            <option value="UY">UY — Uruguay</option>
+            <option value="SA">SA — Saudi Arabia</option>
+            <option value="AE">AE — UAE</option>
+            <option value="OM">OM — Oman</option>
+            <option value="DO">DO — Dominican Republic</option>
+            <option value="AO">AO — Angola</option>
+            <option value="MU">MU — Mauritius</option>
+            <option value="ZA">ZA — South Africa</option>
+            <option value="GB">GB — United Kingdom</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Document Type</label>
+          <select id="u-doctype">
+            <option value="TARIFF_SCHEDULE">Tariff Schedule (full)</option>
+            <option value="NOTIFICATION">Notification / Amendment</option>
+            <option value="AMENDMENT">Rate Change Amendment</option>
+          </select>
+        </div>
+
+        <div id="upload-zone" class="upload-zone"
+             onclick="document.getElementById('u-file').click()"
+             ondragover="event.preventDefault(); this.classList.add('dragover')"
+             ondragleave="this.classList.remove('dragover')"
+             ondrop="handleDrop(event)">
+          <div class="upload-zone-icon">+</div>
+          <div class="upload-zone-text">Drop file here or click to browse</div>
+          <div class="upload-zone-hint">PDF, CSV, or XLSX — max 50 MB</div>
+        </div>
+        <input type="file" id="u-file" accept=".pdf,.csv,.xlsx" style="display:none" onchange="handleFileSelect(this)">
+
+        <div id="upload-file-info" style="display:none">
+          <div class="upload-file-info">
+            <div>
+              <span class="upload-file-name" id="u-file-name">—</span>
+              <span class="upload-file-size" id="u-file-size">—</span>
+            </div>
+            <span class="upload-file-remove" onclick="clearFile()">Remove</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Notes (optional)</label>
+          <textarea id="u-notes" rows="2" placeholder="e.g. CBIC Customs Tariff 2025-26, Chapters 1-20"></textarea>
+        </div>
+
+        <button class="lookup-btn" onclick="runUpload()" id="upload-btn">Upload & Parse</button>
+      </div>
+
+      <div id="upload-result-panel">
+        <div class="classify-empty">
+          <div class="classify-empty-title">Upload a tariff document</div>
+          <div>Supports customs tariff schedules (PDF), duty rate spreadsheets (CSV/XLSX), and gazette notifications. Claude AI will extract commodity codes, MFN rates, and VAT rates.</div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -1110,6 +1327,156 @@ async function confirmCode(i, commodityCode, description, country) {
   document.querySelectorAll('.classify-card').forEach((c, idx) => {
     if (idx !== i) c.style.opacity = '0.4';
   });
+}
+
+// ── Admin Upload ─────────────────────────────────────────────────────────────
+let uploadFile = null;
+
+function handleFileSelect(input) {
+  if (input.files.length > 0) setUploadFile(input.files[0]);
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  e.target.closest('.upload-zone').classList.remove('dragover');
+  if (e.dataTransfer.files.length > 0) setUploadFile(e.dataTransfer.files[0]);
+}
+
+function setUploadFile(file) {
+  uploadFile = file;
+  document.getElementById('upload-file-info').style.display = 'block';
+  document.getElementById('upload-zone').style.display = 'none';
+  document.getElementById('u-file-name').textContent = file.name;
+  document.getElementById('u-file-size').textContent = ` (${(file.size / (1024 * 1024)).toFixed(2)} MB)`;
+}
+
+function clearFile() {
+  uploadFile = null;
+  document.getElementById('u-file').value = '';
+  document.getElementById('upload-file-info').style.display = 'none';
+  document.getElementById('upload-zone').style.display = '';
+}
+
+async function runUpload() {
+  const btn     = document.getElementById('upload-btn');
+  const panel   = document.getElementById('upload-result-panel');
+  const country = document.getElementById('u-country').value;
+  const docType = document.getElementById('u-doctype').value;
+  const notes   = document.getElementById('u-notes').value.trim();
+
+  if (!country) {
+    panel.innerHTML = `<div class="classify-empty"><div class="classify-empty-title">Select a country</div></div>`;
+    return;
+  }
+  if (!uploadFile) {
+    panel.innerHTML = `<div class="classify-empty"><div class="classify-empty-title">Select a file to upload</div></div>`;
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Uploading...';
+
+  // Show progress steps
+  panel.innerHTML = `
+    <div class="upload-progress">
+      <div style="font-size:14px;font-weight:600;margin-bottom:4px;">Processing ${uploadFile.name}</div>
+      <div style="font-size:12px;color:var(--text-3);margin-bottom:12px;">${country} — ${docType.replace(/_/g, ' ').toLowerCase()}</div>
+      <div class="upload-progress-bar"><div class="upload-progress-fill" id="progress-fill" style="width:10%"></div></div>
+      <div id="upload-steps">
+        <div class="upload-step active"><span class="step-icon">&#9679;</span> Uploading file...</div>
+        <div class="upload-step pending"><span class="step-icon">&#9675;</span> Extracting tariff data with AI</div>
+        <div class="upload-step pending"><span class="step-icon">&#9675;</span> Writing to database</div>
+      </div>
+    </div>`;
+
+  // Animate progress
+  const fill = document.getElementById('progress-fill');
+  setTimeout(() => { if (fill) fill.style.width = '30%'; }, 500);
+  setTimeout(() => {
+    if (fill) fill.style.width = '60%';
+    const steps = document.getElementById('upload-steps');
+    if (steps) steps.innerHTML = `
+      <div class="upload-step done"><span class="step-icon">&#10003;</span> File uploaded</div>
+      <div class="upload-step active"><span class="step-icon">&#9679;</span> Extracting tariff data with AI...</div>
+      <div class="upload-step pending"><span class="step-icon">&#9675;</span> Writing to database</div>`;
+  }, 2000);
+
+  try {
+    const form = new FormData();
+    form.append('file', uploadFile);
+    form.append('country_code', country);
+    form.append('document_type', docType);
+    if (notes) form.append('notes', notes);
+
+    const r = await fetch(`${API_BASE}/upload-tariff`, {
+      method: 'POST',
+      headers: { 'X-API-Key': API_KEY },
+      body: form,
+    });
+
+    const data = await r.json();
+    panel.innerHTML = renderUploadResult(data);
+  } catch (e) {
+    panel.innerHTML = `<div class="classify-empty"><div class="classify-empty-title">Upload failed</div><div>${e.message}</div></div>`;
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Upload & Parse';
+}
+
+function renderUploadResult(data) {
+  if (data.error && !data.rows_extracted) {
+    return `<div class="classify-empty"><div class="classify-empty-title">Error</div><div>${data.error}</div></div>`;
+  }
+
+  const isSuccess  = data.status === 'SUCCESS';
+  const statusCls  = isSuccess ? 'success' : 'failed';
+  const statusText = isSuccess ? 'SUCCESS' : data.status;
+
+  const w = data.rows_written || {};
+
+  const sampleRows = (data.sample || []).map(s => `
+    <tr>
+      <td>${s.commodity_code || '—'}</td>
+      <td style="font-family:var(--sans);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${s.description || '—'}</td>
+      <td>${s.mfn_rate != null ? s.mfn_rate + '%' : '—'}</td>
+      <td>${s.vat_rate != null ? s.vat_rate + '%' : '—'}</td>
+    </tr>`).join('');
+
+  const sampleTable = data.sample?.length ? `
+    <div style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;margin-top:14px;">Sample Extracted Rows</div>
+    <table class="sample-table">
+      <tr><th>Code</th><th>Description</th><th>MFN</th><th>VAT</th></tr>
+      ${sampleRows}
+    </table>` : '';
+
+  return `
+    <div class="upload-result">
+      <div class="upload-result-header">
+        <div class="upload-result-title">${data.file_name || 'Upload'} — ${data.country_code}</div>
+        <div class="upload-result-status ${statusCls}">${statusText}</div>
+      </div>
+      <div class="upload-stats">
+        <div class="upload-stat">
+          <div class="upload-stat-val">${data.rows_extracted ?? 0}</div>
+          <div class="upload-stat-label">Extracted</div>
+        </div>
+        <div class="upload-stat">
+          <div class="upload-stat-val">${w.commodity_code ?? 0}</div>
+          <div class="upload-stat-label">Commodities</div>
+        </div>
+        <div class="upload-stat">
+          <div class="upload-stat-val">${w.mfn_rate ?? 0}</div>
+          <div class="upload-stat-label">MFN Rates</div>
+        </div>
+        <div class="upload-stat">
+          <div class="upload-stat-val">${w.vat_rate ?? 0}</div>
+          <div class="upload-stat-label">VAT Rates</div>
+        </div>
+      </div>
+      ${data.error ? `<div style="background:var(--red-bg);border-radius:6px;padding:10px 14px;font-size:12px;color:var(--red);margin-bottom:12px;">${data.error}</div>` : ''}
+      ${sampleTable}
+    </div>`;
 }
 
 init();

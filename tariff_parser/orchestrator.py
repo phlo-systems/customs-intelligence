@@ -101,6 +101,52 @@ def run_za(mode: str = "daily_sync") -> dict:
     return result
 
 
+def run_gb(mode: str = "daily_sync", headings: list[str] | None = None) -> dict:
+    """Run the GB tariff parser against the UK Trade Tariff API."""
+    from tariff_parser.parsers.gb_parser import GBParser
+    from tariff_parser.writers.db_writer import SupabaseWriter
+
+    # Default: Chapter 20 headings (frozen potato products = test case)
+    if headings is None:
+        headings = [f"20{str(i).zfill(2)}" for i in range(1, 10)]
+        # Chapter 20: 2001–2009
+
+    result = {
+        "country": "GB",
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "status": "UNKNOWN",
+        "rows_parsed": 0,
+        "rows_written": 0,
+        "headings": headings,
+    }
+
+    try:
+        # 1. Fetch and parse from API
+        parser = GBParser(sleep_seconds=1.0)
+        commodities = parser.parse_headings(headings)
+        result["rows_parsed"] = len(commodities)
+        logger.info("GB: parsed %d commodities from headings %s", len(commodities), headings)
+
+        if not commodities:
+            logger.warning("GB: no commodities found — check API or heading codes")
+            result["status"] = "PARTIAL"
+            return result
+
+        # 2. Write to Supabase
+        writer = SupabaseWriter()
+        stats = writer.write_gb_rows(commodities)
+        result["rows_written"] = stats.get("inserted", 0)
+        result["status"] = "SUCCESS"
+
+    except Exception as exc:
+        logger.exception("GB parser failed: %s", exc)
+        result["status"] = "FAILED"
+        result["error"] = str(exc)
+
+    result["completed_at"] = datetime.now(timezone.utc).isoformat()
+    return result
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Tariff parser orchestrator")
     parser.add_argument(
@@ -113,6 +159,11 @@ def main() -> None:
         default="daily_sync",
         choices=["initial_load", "daily_sync"],
         help="initial_load = force re-parse even if hash unchanged",
+    )
+    parser.add_argument(
+        "--headings",
+        nargs="+",
+        help="GB only: specific 4-digit heading codes to parse (default: Chapter 20)",
     )
     args = parser.parse_args()
 
@@ -129,7 +180,10 @@ def main() -> None:
     if country in ("ZA", "ALL"):
         results.append(run_za(mode=args.mode))
 
-    if country not in ("ZA", "ALL"):
+    if country in ("GB", "ALL"):
+        results.append(run_gb(mode=args.mode, headings=args.headings))
+
+    if country not in ("ZA", "GB", "ALL"):
         logger.error("Parser not yet implemented for country: %s", country)
         sys.exit(1)
 
