@@ -1,5 +1,9 @@
 // supabase/functions/tariff-lookup/index.ts
 // Deploy: supabase functions deploy tariff-lookup --no-verify-jwt
+//
+// customs_value is now optional:
+//   - Omit for rates-only response (duty %, VAT %, total border rate %)
+//   - Include for full calculation with currency amounts
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -11,12 +15,8 @@ const corsHeaders = {
 Deno.serve(async (req: Request) => {
   const startTime = Date.now();
 
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
-  if (req.method !== "POST") {
-    return json({ error: "POST required" }, 405);
-  }
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (req.method !== "POST")    return json({ error: "POST required" }, 405);
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -25,66 +25,55 @@ Deno.serve(async (req: Request) => {
 
   // ── Step 1: Validate API key ───────────────────────────────────────────────
   const rawKey = req.headers.get("x-api-key");
-  if (!rawKey) {
-    return json({ error: "Missing X-API-Key header" }, 401);
-  }
+  if (!rawKey) return json({ error: "Missing X-API-Key header" }, 401);
 
   const keyHash = await sha256hex(rawKey);
 
-  // NOTE: all column names lowercase — Postgres lowercases unquoted identifiers
   const { data: keyRow, error: keyErr } = await supabase
     .from("api_key")
-    .select("keyid, tenantid, tenantname, scopes, ratelimitperminute, isactive, expiresat")
+    .select("keyid, tenantid, scopes, isactive, expiresat")
     .eq("keyhash", keyHash)
     .eq("isactive", true)
     .maybeSingle();
 
-  if (keyErr || !keyRow) {
-    return json({ error: "Invalid API key" }, 401);
-  }
+  if (keyErr || !keyRow) return json({ error: "Invalid API key" }, 401);
+  if (keyRow.expiresat && new Date(keyRow.expiresat) < new Date()) return json({ error: "API key expired" }, 401);
+  if (!keyRow.scopes?.includes("tariff:lookup")) return json({ error: "Insufficient scope" }, 403);
 
-  if (keyRow.expiresat && new Date(keyRow.expiresat) < new Date()) {
-    return json({ error: "API key expired" }, 401);
-  }
+  supabase.from("api_key").update({ lastuseda: new Date().toISOString() }).eq("keyid", keyRow.keyid).then(() => {});
 
-  if (!keyRow.scopes?.includes("tariff:lookup")) {
-    return json({ error: "API key does not have tariff:lookup scope" }, 403);
-  }
-
-  // Fire and forget — update last used
-  supabase
-    .from("api_key")
-    .update({ lastuseda: new Date().toISOString() })
-    .eq("keyid", keyRow.keyid)
-    .then(() => {});
-
-  // ── Step 2: Parse request body ─────────────────────────────────────────────
+  // ── Step 2: Parse request ──────────────────────────────────────────────────
   let body: Record<string, unknown>;
-  try {
-    body = await req.json();
-  } catch {
-    return json({ error: "Invalid JSON body" }, 400);
-  }
+  try { body = await req.json(); }
+  catch { return json({ error: "Invalid JSON body" }, 400); }
 
   const exportCountry = str(body.export_country);
   const importCountry = str(body.import_country);
   const commodityCode = str(body.commodity_code);
-  const customsValue  = num(body.customs_value);
+  const customsValue  = body.customs_value !== undefined ? num(body.customs_value) : null;
   const currency      = str(body.currency) || "ZAR";
 
   if (!exportCountry || exportCountry.length !== 2) return json({ error: "export_country must be a 2-letter ISO code" }, 400);
   if (!importCountry || importCountry.length !== 2) return json({ error: "import_country must be a 2-letter ISO code" }, 400);
   if (!commodityCode) return json({ error: "commodity_code is required" }, 400);
-  if (customsValue === null || customsValue <= 0) return json({ error: "customs_value must be a positive number" }, 400);
+  if (body.customs_value !== undefined && (customsValue === null || customsValue <= 0)) {
+    return json({ error: "customs_value must be a positive number" }, 400);
+  }
 
   // ── Step 3: Call get_landed_cost() ────────────────────────────────────────
-  const { data, error } = await supabase.rpc("get_landed_cost", {
+  const rpcParams: Record<string, unknown> = {
     p_export_country: exportCountry.toUpperCase(),
     p_import_country: importCountry.toUpperCase(),
     p_commodity_code: commodityCode,
-    p_customs_value:  customsValue,
     p_currency:       currency.toUpperCase(),
-  });
+  };
+
+  // Only pass customs_value if provided — NULL triggers rates-only mode
+  if (customsValue !== null) {
+    rpcParams.p_customs_value = customsValue;
+  }
+
+  const { data, error } = await supabase.rpc("get_landed_cost", rpcParams);
 
   if (error) {
     console.error("RPC error:", error);
@@ -138,16 +127,13 @@ async function logUsage(
 ): Promise<void> {
   try {
     await supabase.from("api_usage_log").insert({
-      keyid:          keyRow.keyid,
-      tenantid:       keyRow.tenantid,
-      endpoint:       "tariff-lookup",
-      exportcountry:  exportCountry?.toUpperCase(),
-      importcountry:  importCountry?.toUpperCase(),
-      commoditycode:  commodityCode,
+      keyid: keyRow.keyid, tenantid: keyRow.tenantid,
+      endpoint: "tariff-lookup",
+      exportcountry: exportCountry?.toUpperCase(),
+      importcountry: importCountry?.toUpperCase(),
+      commoditycode: commodityCode,
       responsestatus: responseStatus,
       responsetimems: responseTimeMs,
     });
-  } catch (e) {
-    console.error("Usage log failed:", e);
-  }
+  } catch (e) { console.error("Usage log failed:", e); }
 }
