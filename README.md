@@ -21,10 +21,11 @@
 
 ## How to use this repo with Claude
 
-At the start of each session paste these two URLs:
+At the start of each session paste these three URLs:
 ```
 README:  https://raw.githubusercontent.com/phlo-systems/customs-intelligence/main/README.md
 Session: https://raw.githubusercontent.com/phlo-systems/customs-intelligence/main/SESSION.md
+Ref:     https://raw.githubusercontent.com/phlo-systems/customs-intelligence/main/CUSTOMS_INTELLIGENCE_1.md
 ```
 
 Then paste only the specific file(s) relevant to the day's task.  
