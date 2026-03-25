@@ -132,6 +132,6 @@ Claude does not need the full codebase — only the files for the current task.
 
 ---
 
-## Key Reference Files
+## Key Reference Files (not in this repo)
 - `Customs_Data_Model_WCO_v4.xlsx` — full data model with sample data and SQL queries
 - `CUSTOMS_INTELLIGENCE_1.md` — complete developer reference v5.0

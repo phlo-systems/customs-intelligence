@@ -2,13 +2,37 @@
 
 ---
 
+## Session: 25 Mar 2026 — Documentation & Data Model Update
+
+### What we did
+- Updated `Customs_Data_Model_WCO_v4.xlsx` — upgraded from v3.0 (21 tables, 6 groups) to v5.0 (29 tables, 9 groups)
+  - Added 9 new table sheets: OPPORTUNITIES, ALERTS, TENANT_CONTEXT, TENANT_BEHAVIOUR_LOG, HS_DESCRIPTION_EMBEDDING, CLASSIFICATION_REQUEST, PRODUCT_CLASSIFICATION_CACHE, ERP_INTEGRATION, EMAIL_CONTEXT_EXTRACT
+  - Deleted orphan Sheet1, updated README and DEVELOPER_NOTES headers
+  - New tab colours: blue (Group 7), purple (Group 8), cyan (Group 9)
+- Updated `CUSTOMS_INTELLIGENCE_1.md` — upgraded from v4.0 to v5.0
+  - Added Intelligence Engine section (DB rules engine + AI enrichment pattern)
+  - Added Tenant Context 5-layer section
+  - Added Email Integration section (architecture, keyword filter, privacy)
+  - Added /v1/opportunities and /v1/alerts to API endpoints table
+  - Fixed SQL syntax: DATEADD/GETDATE → PostgreSQL NOW() - INTERVAL
+  - Updated build sequence from 12 phases to 18 phases
+  - Updated xlsx reference v3 → v4, architecture diagram updated
+
+### Files changed
+| File | Change |
+|---|---|
+| `Customs_Data_Model_WCO_v4.xlsx` | v3.0 → v5.0, 21 → 29 tables, 6 → 9 groups |
+| `CUSTOMS_INTELLIGENCE_1.md` | v4.0 → v5.0, 3 new sections, SQL fixes, 18-phase build sequence |
+
+---
+
 ## Session: 25 Mar 2026 — Initial Design Sprint
 
 ### What we built
 - Complete data model — 29 tables across 9 groups (see `database/ddl/`)
 - Full DDL scripts — all tables, indexes, RLS policies, DB trigger for TARIFF_RATE_HIST
-- `CUSTOMS_INTELLIGENCE.md` v5.0 — complete developer reference (494 lines)
-- `Customs_Data_Model_WCO_v3.xlsx` — 27 sheets with sample data and TARIFF_LOOKUP_QUERY sheet
+- `CUSTOMS_INTELLIGENCE_1.md` v5.0 — complete developer reference
+- `Customs_Data_Model_WCO_v4.xlsx` — 36 sheets with sample data and TARIFF_LOOKUP_QUERY sheet
 - UI mockups — 8 screens including Dashboard, Opportunities feed, Product upload flow
 - GitHub repo structure and file organisation
 
@@ -51,15 +75,18 @@ Group 9 — ERP & Email:      ERP_INTEGRATION, EMAIL_CONTEXT_EXTRACT
 ## Next Session — What to do first
 
 ### Immediate task (Phase 1 + 2)
-1. Run DDL against Supabase `ci-phlo` project in order: `01_` → `11_`
+1. Run DDL against Supabase `ci-phlo` project in order: `00_` → `11_`
 2. Verify all 29 tables created — check in Supabase dashboard
-3. Seed `COUNTRY` table (17 rows — data in `Customs_Data_Model_WCO_v3.xlsx` COUNTRY sheet)
+3. Seed `COUNTRY` table (17 rows — data in `Customs_Data_Model_WCO_v4.xlsx` COUNTRY sheet)
 4. Seed `HS_SECTION`, `HS_HEADING`, `HS_SUBHEADING` (WCO HS 2022 — static reference data)
+
+**Note:** Enable pgvector extension in Supabase dashboard (Database → Extensions) before running `00_extensions.sql`
 
 ### Files to load for next session
 ```
 README:  https://raw.githubusercontent.com/phlo-systems/customs-intelligence/main/README.md
 Session: https://raw.githubusercontent.com/phlo-systems/customs-intelligence/main/SESSION.md
+Ref:     https://raw.githubusercontent.com/phlo-systems/customs-intelligence/main/CUSTOMS_INTELLIGENCE_1.md
 DDL:     https://raw.githubusercontent.com/phlo-systems/customs-intelligence/main/database/ddl/01_hs_hierarchy.sql
          https://raw.githubusercontent.com/phlo-systems/customs-intelligence/main/database/ddl/02_commodity_rates.sql
 ```
