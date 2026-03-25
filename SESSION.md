@@ -2,6 +2,32 @@
 
 ---
 
+## Session: 25 Mar 2026 — Database Deployment
+
+### What we did
+- Created Supabase project `ci-phlo` (eu-west-2, PhloCN org)
+- Ran all 12 DDL files in order (`00_` → `11_`) — all 29 tables created successfully
+- Added **India (IN)** to countries in scope — now 18 countries
+- Seeded `COUNTRY` table — 18 rows, 13 CIF / 5 FOB
+
+### Decisions made
+| Decision | What was decided | Why |
+|---|---|---|
+| India added | `IN` added to COUNTRY — CIF, INR, CBIC | Large import market, GST complexity, growing FTA activity with UK/EU |
+| India tariff source | HTML scraper — cbic.gov.in. No public API | Phase 18 alongside other HTML scrapers |
+| India indirect tax | IGST stacks on BCD — 4 rates: 5/12/18/28% | Simpler than Brazil cascade but needs own VAT_RATE rows |
+
+### Build phases completed
+| Phase | Task | Status |
+|---|---|---|
+| 1 | Run DDL — all 29 tables | ✅ Done |
+| 2 | Seed COUNTRY (18 rows) | ✅ Done |
+
+### Countries in scope (18)
+`AO` `AR` `AU` `BR` `CL` `DO` `GB` `IN` `MU` `MX` `NA` `OM` `PH` `SA` `TH` `AE` `UY` `ZA`
+
+---
+
 ## Session: 25 Mar 2026 — Documentation & Data Model Update
 
 ### What we did
@@ -67,37 +93,36 @@ Group 8 — Classification:   HS_DESCRIPTION_EMBEDDING, CLASSIFICATION_REQUEST, 
 Group 9 — ERP & Email:      ERP_INTEGRATION, EMAIL_CONTEXT_EXTRACT
 ```
 
-### Countries in scope (17)
-`AO` `AR` `AU` `BR` `CL` `DO` `GB` `MU` `MX` `NA` `OM` `PH` `SA` `TH` `AE` `UY` `ZA`
+### Countries in scope (18)
+`AO` `AR` `AU` `BR` `CL` `DO` `GB` `IN` `MU` `MX` `NA` `OM` `PH` `SA` `TH` `AE` `UY` `ZA`
 
 ---
 
 ## Next Session — What to do first
 
-### Immediate task (Phase 1 + 2)
-1. Run DDL against Supabase `ci-phlo` project in order: `00_` → `11_`
-2. Verify all 29 tables created — check in Supabase dashboard
-3. Seed `COUNTRY` table (17 rows — data in `Customs_Data_Model_WCO_v4.xlsx` COUNTRY sheet)
-4. Seed `HS_SECTION`, `HS_HEADING`, `HS_SUBHEADING` (WCO HS 2022 — static reference data)
-
-**Note:** Enable pgvector extension in Supabase dashboard (Database → Extensions) before running `00_extensions.sql`
+### Immediate task (Phase 3)
+Build `tariff_parser/gb_parser.py` — UK Trade Tariff API parser:
+- Fetch from `https://www.trade-tariff.service.gov.uk/api/v2/commodities/{code}`
+- Parse JSON → CommodityCodeRow, MFNRateRow, TariffRateRow dataclasses
+- Write to Supabase via REST API
+- Run for HS Chapter 20 first (frozen potato chips HS 2004.10 — our test case)
 
 ### Files to load for next session
 ```
 README:  https://raw.githubusercontent.com/phlo-systems/customs-intelligence/main/README.md
 Session: https://raw.githubusercontent.com/phlo-systems/customs-intelligence/main/SESSION.md
 Ref:     https://raw.githubusercontent.com/phlo-systems/customs-intelligence/main/CUSTOMS_INTELLIGENCE_1.md
-DDL:     https://raw.githubusercontent.com/phlo-systems/customs-intelligence/main/database/ddl/01_hs_hierarchy.sql
-         https://raw.githubusercontent.com/phlo-systems/customs-intelligence/main/database/ddl/02_commodity_rates.sql
+DDL:     https://raw.githubusercontent.com/phlo-systems/customs-intelligence/main/database/ddl/02_commodity_rates.sql
+Parser:  https://raw.githubusercontent.com/phlo-systems/customs-intelligence/main/tariff_parser/PARSER.md
 ```
 
-### After DDL is deployed — Phase 3
-Build the UK tariff parser (`tariff_parser/gb_parser.py`):
-- Fetch from `https://www.trade-tariff.service.gov.uk/api/v2/commodities/{code}`
-- Parse JSON response → CommodityCodeRow, MFNRateRow, TariffRateRow dataclasses
-- Write to Supabase via REST API
-- Run for HS subheadings in Chapter 20 first (frozen potato chips — our test case)
-- Load `database/ddl/02_commodity_rates.sql` and `tariff_parser/PARSER.md` for this task
+### India — future work notes
+- **Tariff source:** CBIC HTML scraper — `cbic.gov.in`. Phase 18.
+- **Indirect tax structure:** Basic Customs Duty (BCD) + IGST stacks sequentially on CIF value
+  - IGST rates: 5% / 12% / 18% / 28% depending on HS chapter
+  - Example HS 2004.10: BCD ~30% + IGST 12% = ~45.6% effective rate
+- **Trade agreements:** UK-India FTA (UIFTA) under negotiation — monitor for preferential rates
+- **Anti-dumping:** Active cases on several food/agri HS chapters — check AD_MEASURE on load
 
 ---
 
