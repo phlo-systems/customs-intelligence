@@ -48,101 +48,112 @@ Group 9 — ERP & Email:      ERP_INTEGRATION, EMAIL_CONTEXT_EXTRACT
 
 ---
 
-## Session: 25 Mar 2026 — Build Sprint 1
+## Session: 25 Mar 2026 — Build Sprint 1 + 2
 
 ### What we built
-- ZA tariff parser — full SARS Schedule 1 Part 1 PDF parsed (703 pages, 8,589 rows)
-- NA tariff data — written from same SACU PDF (same 8,589 rows, `CountryCode='NA'`)
-- `get_landed_cost()` — 10-step Postgres RPC function deployed to `ci-phlo`
-- VAT seed — ZA standard 15% VAT seeded across all 8,589 commodity codes
-- `TRADE_AGREEMENT` seed — 6 agreements: UK-SACU-EPA, EU-SACU-EPA, EFTA-SACU, SADC-FTA, SACU-MERCOSUR, AFCFTA
-- `pref_rate_writer.py` — new module writing 35,946 preferential rate rows for ZA
-- `orchestrator.py` updated — pref rate writer called after MFN write
-- Supabase Edge Function `tariff-lookup` deployed — live REST API at `/functions/v1/tariff-lookup`
+- ZA + NA tariff parser — 8,589 rows each from SARS Schedule 1 PDF (703 pages)
+- `pref_rate_writer.py` — 35,946 preferential rate rows across UK-SACU-EPA, SADC-FTA, SACU-MERCOSUR, AFCFTA
+- `get_landed_cost()` Postgres RPC function — 10-step landed cost calculation
+- VAT seed — ZA 15% standard VAT across all 8,589 commodity codes
+- TRADE_AGREEMENT seed — 6 agreements seeded
+- Supabase Edge Functions deployed:
+  - `POST /tariff-lookup` — full landed cost or rates-only (customs_value optional)
+  - `POST /onboard` + `GET /onboard` — tenant context Layer 1
+  - `GET /opportunities` — AI-enriched opportunity feed
+  - `POST /enrich-opportunities` — Claude AIInsight generation
+  - `POST /classify` — top 3 HS code suggestions from product description
+  - `POST /classify` (confirm) — writes confirmed code to cache
+- Rules engine `run_rules_engine()` — 127 opportunities generated for GTM tenant
+- AI enrichment — Claude 2-3 sentence personalised insight per opportunity card
+- API auth — `API_KEY` + `API_USAGE_LOG` tables, X-API-Key validation, usage logging
+- Onboarding — `TENANT_CONTEXT` Layer 1 for GTM tenant
+- Frontend dashboard — `ui/index.html` — Opportunities feed, Tariff Lookup, Alerts screens
 - Supabase CLI installed and linked to `ci-phlo`
+- GTM API key issued and integration spec sent
 
 ### Key decisions made
 | Decision | What was decided | Why |
 |---|---|---|
 | API layer | Supabase Edge Functions (Deno) | Zero infra, 2M free invocations/month, auto-scales |
-| Landed cost logic | Postgres function `get_landed_cost()` called via RPC | All query logic close to data — no network hops |
-| ZA-first strategy | Full ZA loaded before other countries | Unlocks complete import cost for any commodity into ZA |
-| VAT seeding | Bulk INSERT from COMMODITY_CODE rather than parser | ZA VAT is flat 15% — faster to seed than parse |
-| Pref rate writer | Separate module `pref_rate_writer.py` | Clean separation — reusable for other country parsers |
-| API auth | Legacy JWT anon key for Edge Functions | New `sb_publishable_` keys not yet supported by Edge runtime |
+| Landed cost logic | Postgres RPC `get_landed_cost()` | All query logic close to data — no network hops |
+| customs_value optional | NULL triggers rates-only mode | GTM can query before invoice value is known |
+| API auth | JWT disabled, custom X-API-Key validation | New sb_publishable_ keys not yet supported by Edge runtime |
+| Intelligence engine | DB rules SQL → OPPORTUNITIES, Claude enriches AIInsight separately | 99% DB, 1% AI — no live LLM on page load |
+| Classifier | Claude-only for now, upgrade to pgvector Stage 1 later | Embeddings not yet populated — Claude-only is working well |
+| Frontend | Standalone HTML file served locally | No framework needed for internal demo; easy to iterate |
 
 ### Data loaded (Supabase `ci-phlo`)
 | Table | Rows | Notes |
 |---|---|---|
 | COMMODITY_CODE | 17,178 | 8,589 ZA + 8,589 NA |
-| MFN_RATE | 17,178 | APPLIED rate, EffectiveTo=NULL |
+| MFN_RATE | 17,178 | APPLIED, EffectiveTo=NULL |
 | TARIFF_RATE | 17,178 | Summary rate table |
-| VAT_RATE | 8,589 | ZA only — 15% standard, basis=CUSTOMS_VALUE_PLUS_DUTY |
+| VAT_RATE | 8,589 | ZA 15% standard |
 | TRADE_AGREEMENT | 6 | UK-SACU-EPA, EU-SACU-EPA, EFTA-SACU, SADC-FTA, SACU-MERCOSUR, AFCFTA |
-| PREFERENTIAL_RATE | 35,946 | ZA pref rates across 4 active agreements |
+| PREFERENTIAL_RATE | 35,946 | ZA pref rates |
+| API_KEY | 1 | GTM key |
+| TENANT_CONTEXT | 1 | GTM tenant — Layer 1 onboarded |
+| OPPORTUNITIES | 127 | All DUTY_REDUCTION, all AI-enriched |
 
-### Verified test result (GB → ZA, commodity 20041010, ZAR 10,000 CIF)
+### Live endpoints
 ```
-MFN rate:          20%
-UK-SACU-EPA rate:  0%   (free under agreement)
-Duty:              ZAR 0
-VAT (15%):         ZAR 1,500
-Total border cost: ZAR 1,500  (15%)
-Total landed cost: ZAR 11,500
+POST   /functions/v1/tariff-lookup          — landed cost (full or rates-only)
+POST   /functions/v1/onboard                — write tenant context
+GET    /functions/v1/onboard                — read tenant context
+GET    /functions/v1/opportunities          — opportunity feed
+POST   /functions/v1/enrich-opportunities   — generate AIInsight per card
+POST   /functions/v1/classify              — top 3 HS code suggestions
 ```
 
-### Live endpoint
+### API key (GTM)
 ```
-POST https://epytgmksddhvwziwxhuq.supabase.co/functions/v1/tariff-lookup
-Authorization: Bearer <anon_jwt_key>
-Content-Type: application/json
+X-API-Key: ci_live_a7f3e2b1c9d4f8a2e6b0c3d7f1a4e8b2
+TenantUID: a0000000-0000-0000-0000-000000000001
+```
 
-{
-  "export_country": "GB",
-  "import_country": "ZA",
-  "commodity_code": "20041010",
-  "customs_value": 10000,
-  "currency": "ZAR"
-}
+### LAST_HASH_ZA (skip re-download if PDF unchanged)
+```
+LAST_HASH_ZA=06efaac9c8e554edc17f2f32de71d6631fbab592478bb5070300bc7e8e07beb2
 ```
 
 ### Build phases completed
 | Phase | Task | Status |
 |---|---|---|
-| 1 | Run DDL against Supabase ci-phlo | ✅ |
-| 2 | Seed static reference data (COUNTRY, VAT, trade agreements) | ✅ Partial — ZA/NA only |
-| 3 | ZA + NA tariff sync worker | ✅ |
-| 4 | `/v1/tariff/lookup` API endpoint (Edge Function) | ✅ |
+| 1 | DDL deployed to Supabase ci-phlo | ✅ |
+| 2 | ZA + NA data loaded — MFN, VAT, pref rates | ✅ |
+| 3 | ZA tariff sync worker | ✅ |
+| 4 | /v1/tariff/lookup Edge Function | ✅ |
+| 5 | API auth + usage logging | ✅ |
+| 6 | Onboarding → TENANT_CONTEXT Layer 1 | ✅ |
+| 8 | DB rules engine → OPPORTUNITIES | ✅ |
+| 9 | AI enrichment → AIInsight per card | ✅ |
+| 11 | /v1/classify — Claude classification | ✅ Partial (no pgvector yet) |
+| 16 | CI frontend dashboard | ✅ Partial (3 screens, no classify screen yet) |
 
 ---
 
 ## Next Session — What to do first
 
-### Phase 5 — API auth + tenant isolation
-Add API key validation to the Edge Function:
-- Create `API_KEYS` table (or use Supabase's built-in key management)
-- Validate `X-API-Key` header in `tariff-lookup/index.ts`
-- Rate limit: 100 req/min per key
-- Usage logging to `SOURCE_SYNC_JOB` or a new `API_USAGE_LOG` table
+### Priority 1 — Add classify screen to frontend
+Add a 4th screen to `ui/index.html`:
+- Text input for product description
+- "Classify" button → calls `POST /v1/classify`
+- Shows top 3 results with confidence bars and MFN rates
+- "Confirm" button on each result → calls confirm endpoint, caches the result
 
-### Phase 6 — GB tariff parser
+### Priority 2 — GB tariff parser
 Build `tariff_parser/parsers/gb_parser.py`:
 - Fetch from `https://www.trade-tariff.service.gov.uk/api/v2/commodities/{code}`
-- Unlocks GB as an import country (currently only ZA/NA work as import destinations)
-- Start with Chapter 20 (frozen potato products — known test case)
+- Unlocks GB as an import country
+- Start with Chapter 20 (same test case)
 
-### Phase 7 — Onboarding + TENANT_CONTEXT Layer 1
-Build the onboarding flow that populates `TENANT_CONTEXT`:
-- Business type, primary HS chapters, target markets, volume range
-- Required before intelligence engine can generate personalised opportunities
+### Priority 3 — pgvector embeddings for classification
+- Pre-compute embeddings for all ZA HS subheading descriptions
+- Load into `HS_DESCRIPTION_EMBEDDING` table
+- Upgrade `/v1/classify` to Stage 1 vector search + Stage 2 LLM re-rank
 
 ### Upcoming decisions needed
-- [ ] API auth: custom `API_KEYS` table vs Supabase built-in key management
 - [ ] Confirm first ERP integration: Xero (faster cert) or Acumatica (cleaner write-back)?
-- [ ] Confirm paid tier pricing before Phase 5 (API auth)
-- [ ] NA pref rates — should we also write PREFERENTIAL_RATE rows for NA import country?
-
-### LAST_HASH_ZA (save this — skip re-download if PDF unchanged)
-```
-LAST_HASH_ZA=06efaac9c8e554edc17f2f32de71d6631fbab592478bb5070300bc7e8e07beb2
-```
+- [ ] NA pref rates — write PREFERENTIAL_RATE rows for NA as import country too?
+- [ ] Frontend hosting — keep as local HTML or deploy to Vercel/Netlify?
+- [ ] Paid tier pricing before adding payment-gated features

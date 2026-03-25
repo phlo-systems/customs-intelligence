@@ -1,30 +1,48 @@
 # Changelog
 
+## [0.3.0] — 25 Mar 2026 — Build Sprint 2
+
+### Added
+- `supabase/functions/opportunities/index.ts` — GET opportunities feed endpoint
+- `supabase/functions/enrich-opportunities/index.ts` — Claude AIInsight generation
+- `supabase/functions/classify/index.ts` — top 3 HS code classification via Claude
+- `supabase/functions/onboard/index.ts` — tenant onboarding GET + POST
+- `database/functions/run_rules_engine.sql` — 7-rule DB intelligence engine
+- `ui/index.html` — frontend dashboard (Opportunities, Tariff Lookup, Alerts)
+
+### Changed
+- `supabase/functions/tariff-lookup/index.ts` — `customs_value` now optional (rates-only mode)
+- `database/functions/get_landed_cost.sql` — v2, supports NULL customs_value
+
+### Data
+- 127 OPPORTUNITIES generated for GTM tenant
+- All 127 enriched with Claude AIInsight
+- 1 TENANT_CONTEXT row (GTM, Layer 1)
+- 1 API_KEY row (GTM)
+
+---
+
 ## [0.2.0] — 25 Mar 2026 — Build Sprint 1
 
 ### Added
-- `tariff_parser/parsers/za_parser.py` — SARS Schedule 1 PDF parser (703 pages, 8,589 rows)
-- `tariff_parser/pref_rate_writer.py` — preferential rate writer for all 6 ZA pref columns
-- `supabase/functions/tariff-lookup/index.ts` — Edge Function REST API for landed cost
+- `tariff_parser/parsers/za_parser.py` — SARS Schedule 1 PDF parser
+- `tariff_parser/pref_rate_writer.py` — preferential rate writer
+- `supabase/functions/tariff-lookup/index.ts` — Edge Function REST API
 - `database/functions/get_landed_cost.sql` — 10-step Postgres RPC function
-- `database/seeds/seed_trade_agreements.sql` — 6 ZA trade agreements seeded
-- `database/seeds/seed_za_vat.sql` — ZA 15% standard VAT across all commodity codes
+- `database/seeds/seed_trade_agreements.sql` — 6 ZA trade agreements
+- `database/seeds/seed_za_vat.sql` — ZA 15% standard VAT
+- `database/auth/api_auth_setup.sql` — API_KEY + API_USAGE_LOG tables
 
 ### Changed
-- `tariff_parser/orchestrator.py` — added pref rate writer call after MFN write
+- `tariff_parser/orchestrator.py` — added pref rate writer call
 
-### Data loaded to Supabase `ci-phlo`
+### Data loaded
 - 17,178 COMMODITY_CODE rows (ZA + NA)
 - 17,178 MFN_RATE rows
 - 17,178 TARIFF_RATE rows
 - 8,589 VAT_RATE rows (ZA)
 - 6 TRADE_AGREEMENT rows
-- 35,946 PREFERENTIAL_RATE rows (ZA)
-
-### Infrastructure
-- Supabase CLI installed and linked to `ci-phlo`
-- Edge Function `tariff-lookup` deployed and live
-- Live endpoint: `POST https://epytgmksddhvwziwxhuq.supabase.co/functions/v1/tariff-lookup`
+- 35,946 PREFERENTIAL_RATE rows
 
 ---
 
