@@ -1666,6 +1666,8 @@ function renderTradeInsights(insights) {
   }
 
   const fmtNum = n => Number(n).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0});
+  const fmtCurr = (n, c) => c + ' ' + Number(n).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0});
+  const COUNTRY_NAMES = {GB:'United Kingdom',US:'United States',IN:'India',NG:'Nigeria',ZA:'South Africa',BR:'Brazil',AU:'Australia',GH:'Ghana',EU:'Europe',SG:'Singapore',AE:'UAE',CN:'China',JP:'Japan',DE:'Germany',FR:'France',NL:'Netherlands',CA:'Canada',KE:'Kenya'};
 
   // Stats bar
   const statsHtml = `
@@ -1702,16 +1704,31 @@ function renderTradeInsights(insights) {
   const currencies = (insights.currencies || []);
   const countries = (insights.buying_countries || []);
 
-  const sideHtml = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
-    ${currencies.length ? `<div class="result-panel" style="padding:16px 20px;">
+  // Countries with spend
+  const countriesHtml = countries.length ? `
+    <div class="result-panel" style="padding:16px 20px;margin-bottom:14px;">
+      <div style="font-size:13px;font-weight:600;margin-bottom:10px;">Top Buying Countries by Spend</div>
+      <table class="sample-table">
+        <tr><th>#</th><th>Country</th><th>Total Spend</th><th>Suppliers</th></tr>
+        ${countries.slice(0, 10).map((c, i) => `<tr>
+          <td>${i+1}</td>
+          <td style="font-family:var(--sans);"><span class="country-tag">${c.country}</span> ${COUNTRY_NAMES[c.country] || ''}</td>
+          <td>${c.total_spend ? fmtNum(c.total_spend) : '—'}</td>
+          <td>${c.supplier_count || '—'}</td>
+        </tr>`).join('')}
+      </table>
+    </div>` : '';
+
+  const currenciesHtml = currencies.length ? `
+    <div class="result-panel" style="padding:16px 20px;margin-bottom:14px;">
       <div style="font-size:13px;font-weight:600;margin-bottom:10px;">Transaction Currencies</div>
-      ${currencies.map(c => `<div class="result-row"><span class="result-key">${c.currency}</span><span class="result-val">${fmtNum(c.total)}</span></div>`).join('')}
-    </div>` : ''}
-    ${countries.length ? `<div class="result-panel" style="padding:16px 20px;">
-      <div style="font-size:13px;font-weight:600;margin-bottom:10px;">Buying Countries</div>
-      ${countries.map(c => `<div class="result-row"><span class="country-tag">${c.country}</span><span class="result-val">${c.supplier_count} suppliers</span></div>`).join('')}
-    </div>` : ''}
-  </div>`;
+      <table class="sample-table">
+        <tr><th>Currency</th><th>Total Value</th></tr>
+        ${currencies.map(c => `<tr><td>${c.currency}</td><td>${fmtNum(c.total)}</td></tr>`).join('')}
+      </table>
+    </div>` : '';
+
+  const sideHtml = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">${countriesHtml}${currenciesHtml}</div>`;
 
   const syncTime = insights.synced_at ? `<div style="font-size:11px;color:var(--text-3);margin-top:10px;">Data from Xero sync: ${new Date(insights.synced_at).toLocaleString()}</div>` : '';
 
@@ -1946,8 +1963,9 @@ async function runXeroSync() {
 
   btn.disabled = false;
   btn.textContent = 'Sync Invoices';
-  // Refresh last sync time without overwriting sync results panel
+  // Refresh profile to show new trade insights
   refreshXeroLastSync();
+  setTimeout(loadProfile, 1000);
 }
 
 function renderXeroSyncResult(data) {

@@ -242,14 +242,36 @@ Deno.serve(async (req: Request) => {
     .sort((a, b) => b[1] - a[1])
     .map(([code, total]) => ({ currency: code, total }));
 
-  // Countries from supplier addresses
-  const countryCounts = new Map<string, number>();
+  // Countries — from supplier addresses + inferred from currencies
+  const CURRENCY_COUNTRY: Record<string, string> = {
+    GBP: "GB", USD: "US", EUR: "EU", INR: "IN", ZAR: "ZA", NGN: "NG",
+    BRL: "BR", AUD: "AU", THB: "TH", MXN: "MX", CLP: "CL", PHP: "PH",
+    ARS: "AR", UYU: "UY", SAR: "SA", AED: "AE", OMR: "OM", AOA: "AO",
+    MUR: "MU", NAD: "NA", DOP: "DO", GHS: "GH", KES: "KE", SGD: "SG",
+    MYR: "MY", IDR: "ID", JPY: "JP", KRW: "KR", CNY: "CN", CAD: "CA",
+    NZD: "NZ", CHF: "CH", SEK: "SE", NOK: "NO", DKK: "DK", PLN: "PL",
+    TRY: "TR", EGP: "EG", BGN: "BG", RON: "RO", CZK: "CZ", HUF: "HU",
+  };
+
+  // Merge address-based and currency-based countries
+  const countryCounts = new Map<string, { suppliers: number; spend: number }>();
   for (const c of supplierCountries.values()) {
-    countryCounts.set(c, (countryCounts.get(c) || 0) + 1);
+    const existing = countryCounts.get(c) || { suppliers: 0, spend: 0 };
+    existing.suppliers++;
+    countryCounts.set(c, existing);
+  }
+  // Add currency-inferred countries with spend
+  for (const [curr, total] of currencyTotals.entries()) {
+    const country = CURRENCY_COUNTRY[curr];
+    if (country) {
+      const existing = countryCounts.get(country) || { suppliers: 0, spend: 0 };
+      existing.spend = total;
+      countryCounts.set(country, existing);
+    }
   }
   const buyingCountries = Array.from(countryCounts.entries())
-    .sort((a, b) => b[1] - a[1])
-    .map(([code, count]) => ({ country: code, supplier_count: count }));
+    .sort((a, b) => b[1].spend - a[1].spend)
+    .map(([code, data]) => ({ country: code, supplier_count: data.suppliers, total_spend: data.spend }));
 
   const tradeInsights = {
     total_invoices: stats.invoices_fetched,
