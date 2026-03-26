@@ -207,20 +207,80 @@ Deno.serve(async (req: Request) => {
       supplier_country: item.supplier_country,
     }));
 
+  // ── Aggregate trade insights ─────────────────────────────────────────────
+  // Top sellers by total spend
+  const sellerSpend = new Map<string, number>();
+  for (const item of lineItems) {
+    sellerSpend.set(item.supplier, (sellerSpend.get(item.supplier) || 0) + item.amount);
+  }
+  const topSellers = Array.from(sellerSpend.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([name, total]) => ({ name, total_spend: total }));
+
+  // Top products by total spend (group similar descriptions)
+  const productSpend = new Map<string, { total: number; count: number }>();
+  for (const item of lineItems) {
+    const key = item.description.substring(0, 60).toLowerCase().trim();
+    const existing = productSpend.get(key) || { total: 0, count: 0 };
+    existing.total += item.amount;
+    existing.count++;
+    productSpend.set(key, existing);
+  }
+  const topProducts = Array.from(productSpend.entries())
+    .sort((a, b) => b[1].total - a[1].total)
+    .slice(0, 10)
+    .map(([desc, data]) => ({ description: desc, total_spend: data.total, invoice_count: data.count }));
+
+  // Currency breakdown
+  const currencyTotals = new Map<string, number>();
+  for (const inv of allInvoices) {
+    const curr = inv.CurrencyCode || "GBP";
+    currencyTotals.set(curr, (currencyTotals.get(curr) || 0) + (inv.Total || 0));
+  }
+  const currencies = Array.from(currencyTotals.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([code, total]) => ({ currency: code, total }));
+
+  // Countries from supplier addresses
+  const countryCounts = new Map<string, number>();
+  for (const c of supplierCountries.values()) {
+    countryCounts.set(c, (countryCounts.get(c) || 0) + 1);
+  }
+  const buyingCountries = Array.from(countryCounts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([code, count]) => ({ country: code, supplier_count: count }));
+
+  const tradeInsights = {
+    total_invoices: stats.invoices_fetched,
+    total_line_items: stats.line_items_found,
+    total_suppliers: supplierNames.size,
+    top_sellers: topSellers,
+    top_products: topProducts,
+    buying_countries: buyingCountries,
+    currencies,
+    synced_at: new Date().toISOString(),
+  };
+
   // ── Update last sync timestamp ───────────────────────────────────────────
   await supabase.from("erp_integration")
     .update({ lastsyncat: new Date().toISOString() })
     .eq("integrationid", integration.integrationid);
 
-  // ── Log to TENANT_BEHAVIOUR_LOG ──────────────────────────────────────────
+  // ── Store trade insights ───────────────────────────────────────────────
+  await supabase.from("tenant_behaviour_log").insert({
+    tenantid: tenantId,
+    eventtype: "TRADE_INSIGHTS",
+    eventdata: tradeInsights,
+  }).then(() => {});
+
+  // ── Log sync event ─────────────────────────────────────────────────────
   await supabase.from("tenant_behaviour_log").insert({
     tenantid: tenantId,
     eventtype: "XERO_SYNC",
     eventdata: {
       invoices: stats.invoices_fetched,
       line_items: stats.line_items_found,
-      classified: stats.items_classified,
-      routes: stats.trade_routes_found,
     },
   }).then(() => {});
 

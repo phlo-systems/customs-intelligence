@@ -1,0 +1,241 @@
+// supabase/functions/tenant-profile/index.ts
+// Deploy: supabase functions deploy tenant-profile --no-verify-jwt
+//
+// GET  /tenant-profile  — full profile: company info + Xero-derived insights + docs
+// POST /tenant-profile  — update profile fields or upload context document
+//
+// POST body options:
+//   { "action": "update", ...profile fields }
+//   { "action": "upload_context", "document_text": "...", "document_name": "..." }
+//     — Claude extracts trade context from document text
+
+import Anthropic from "https://esm.sh/@anthropic-ai/sdk@0.27.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-api-key, content-type",
+};
+
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") return json({ ok: true }, 200);
+
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+  );
+
+  // ── Auth ─────────────────────────────────────────────────────────────────
+  const rawKey = req.headers.get("x-api-key");
+  if (!rawKey) return json({ error: "Missing X-API-Key" }, 401);
+
+  const keyHash = await sha256hex(rawKey);
+  const { data: keyRow } = await supabase
+    .from("api_key")
+    .select("keyid, tenantid, tenantuid, isactive")
+    .eq("keyhash", keyHash)
+    .eq("isactive", true)
+    .maybeSingle();
+
+  if (!keyRow) return json({ error: "Invalid API key" }, 401);
+  const tenantId = keyRow.tenantuid || keyRow.tenantid;
+
+  // ── GET — return full profile ────────────────────────────────────────────
+  if (req.method === "GET") {
+    // Fetch tenant context
+    const { data: ctx } = await supabase
+      .from("tenant_context")
+      .select("*")
+      .eq("tenantid", tenantId)
+      .maybeSingle();
+
+    // Fetch Xero connection status
+    const { data: erp } = await supabase
+      .from("erp_integration")
+      .select("erptenantid, mappingconfig, lastsyncat, isactive")
+      .eq("tenantid", tenantId)
+      .eq("erptype", "XERO")
+      .eq("isactive", true)
+      .maybeSingle();
+
+    const erpConfig = erp?.mappingconfig as Record<string, unknown> || {};
+
+    // Fetch trade insights (stored by xero-sync)
+    const { data: insights } = await supabase
+      .from("tenant_behaviour_log")
+      .select("eventdata")
+      .eq("tenantid", tenantId)
+      .eq("eventtype", "TRADE_INSIGHTS")
+      .order("createdat", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    // Fetch context documents
+    const { data: docs } = await supabase
+      .from("tenant_behaviour_log")
+      .select("eventdata, createdat")
+      .eq("tenantid", tenantId)
+      .eq("eventtype", "CONTEXT_DOCUMENT")
+      .order("createdat", { ascending: false })
+      .limit(20);
+
+    return json({
+      profile: {
+        business_type: ctx?.businesstype || null,
+        annual_volume_range: ctx?.annualvolumerange || null,
+        primary_hs_chapters: ctx?.primaryhschapters || [],
+        active_origins: ctx?.activeorigincountries || [],
+        active_destinations: ctx?.activedestcountries || [],
+        target_markets: ctx?.targetmarkets || [],
+        updated_at: ctx?.updatedat || null,
+      },
+      xero: {
+        connected: !!erp?.isactive,
+        tenant_name: erpConfig?.xero_tenant_name || null,
+        last_sync_at: erp?.lastsyncat || null,
+      },
+      trade_insights: insights?.eventdata || null,
+      context_documents: (docs || []).map((d: any) => ({
+        name: d.eventdata?.document_name,
+        summary: d.eventdata?.summary,
+        extracted_at: d.createdat,
+      })),
+    });
+  }
+
+  // ── POST — update profile or upload context ──────────────────────────────
+  if (req.method !== "POST") return json({ error: "GET or POST required" }, 405);
+
+  let body: Record<string, unknown>;
+  try { body = await req.json(); }
+  catch { return json({ error: "Invalid JSON" }, 400); }
+
+  const action = String(body.action || "update");
+
+  // ── Update profile fields ──
+  if (action === "update") {
+    const payload: Record<string, unknown> = {
+      tenantid: tenantId,
+      updatedat: new Date().toISOString(),
+    };
+
+    if (body.business_type !== undefined) payload.businesstype = body.business_type;
+    if (body.annual_volume_range !== undefined) payload.annualvolumerange = body.annual_volume_range;
+    if (body.primary_hs_chapters !== undefined) payload.primaryhschapters = body.primary_hs_chapters;
+    if (body.active_origins !== undefined) payload.activeorigincountries = body.active_origins;
+    if (body.active_destinations !== undefined) payload.activedestcountries = body.active_destinations;
+    if (body.target_markets !== undefined) payload.targetmarkets = body.target_markets;
+
+    const { error } = await supabase
+      .from("tenant_context")
+      .upsert(payload, { onConflict: "tenantid" });
+
+    if (error) return json({ error: error.message }, 500);
+    return json({ status: "ok", message: "Profile updated" });
+  }
+
+  // ── Upload context document ──
+  if (action === "upload_context") {
+    const docText = String(body.document_text || "");
+    const docName = String(body.document_name || "Untitled");
+
+    if (!docText || docText.length < 20) {
+      return json({ error: "document_text must be at least 20 characters" }, 400);
+    }
+
+    // Use Claude to extract trade context
+    const anthropic = new Anthropic({ apiKey: Deno.env.get("ANTHROPIC_API_KEY")! });
+
+    const message = await anthropic.messages.create({
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 2000,
+      messages: [{
+        role: "user",
+        content: `Extract trade intelligence context from this document. Return a JSON object with these fields:
+- "summary": one paragraph summary of what this document tells us about the company's trade activities
+- "products": array of product descriptions mentioned (e.g. "frozen potato chips", "stainless steel coils")
+- "hs_chapters": array of likely HS chapter numbers (2-digit) based on the products
+- "countries": array of country ISO codes mentioned or implied
+- "suppliers": array of supplier/company names mentioned
+- "buyers": array of buyer/customer names mentioned
+- "trade_routes": array of objects {from: "XX", to: "YY"} for trade routes mentioned
+- "key_facts": array of important facts about the company's trade (volumes, values, frequencies)
+
+Return ONLY the JSON object, no markdown.
+
+Document "${docName}":
+${docText.substring(0, 8000)}`,
+      }],
+    });
+
+    let extracted: Record<string, unknown> = {};
+    const raw = message.content[0].type === "text" ? message.content[0].text.trim() : "{}";
+    try {
+      const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+      extracted = JSON.parse(cleaned);
+    } catch {
+      extracted = { summary: raw, error: "Could not parse structured extraction" };
+    }
+
+    // Store as context document
+    await supabase.from("tenant_behaviour_log").insert({
+      tenantid: tenantId,
+      eventtype: "CONTEXT_DOCUMENT",
+      eventdata: {
+        document_name: docName,
+        summary: extracted.summary || "",
+        products: extracted.products || [],
+        hs_chapters: extracted.hs_chapters || [],
+        countries: extracted.countries || [],
+        suppliers: extracted.suppliers || [],
+        buyers: extracted.buyers || [],
+        trade_routes: extracted.trade_routes || [],
+        key_facts: extracted.key_facts || [],
+        raw_length: docText.length,
+      },
+    });
+
+    // Auto-enrich tenant context with extracted data
+    const { data: existingCtx } = await supabase
+      .from("tenant_context")
+      .select("primaryhschapters, activeorigincountries, activedestcountries")
+      .eq("tenantid", tenantId)
+      .maybeSingle();
+
+    if (existingCtx) {
+      const mergedChapters = [...new Set([
+        ...(existingCtx.primaryhschapters || []),
+        ...((extracted.hs_chapters as string[]) || []).map(String),
+      ])];
+      const mergedOrigins = [...new Set([
+        ...(existingCtx.activeorigincountries || []),
+        ...((extracted.countries as string[]) || []),
+      ])];
+
+      await supabase.from("tenant_context").update({
+        primaryhschapters: mergedChapters,
+        activeorigincountries: mergedOrigins,
+        updatedat: new Date().toISOString(),
+      }).eq("tenantid", tenantId);
+    }
+
+    return json({
+      status: "ok",
+      extracted,
+    });
+  }
+
+  return json({ error: "Unknown action" }, 400);
+});
+
+function json(data: unknown, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+async function sha256hex(input: string): Promise<string> {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
