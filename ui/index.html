@@ -909,10 +909,14 @@
       <div id="profile-xero-badge"></div>
     </div>
 
-    <!-- Xero Connection + Sync (inline) -->
-    <div style="display:flex;gap:14px;align-items:center;margin-bottom:20px;">
+    <!-- ERP Connections (inline) -->
+    <div style="display:flex;gap:14px;align-items:center;margin-bottom:10px;">
       <div id="xero-status" style="flex:1;"></div>
       <div id="xero-actions"></div>
+    </div>
+    <div style="display:flex;gap:14px;align-items:center;margin-bottom:20px;">
+      <div id="acumatica-status" style="flex:1;"></div>
+      <div id="acumatica-actions"></div>
     </div>
 
     <!-- Trade Insights from ERP (auto-derived) -->
@@ -2037,6 +2041,167 @@ async function refreshXeroLastSync() {
 
 // Check Xero status on page load (after admin tab is available)
 setTimeout(checkXeroStatus, 1000);
+
+// ── Acumatica Integration ────────────────────────────────────────────────────
+async function checkAcumaticaStatus() {
+  try {
+    const r = await fetch(`${API_BASE}/acumatica-connect`, {
+      method: 'POST', headers: HEADERS, body: JSON.stringify({ action: 'status' }),
+    });
+    const data = await r.json();
+    const statusDiv = document.getElementById('acumatica-status');
+    const actionsDiv = document.getElementById('acumatica-actions');
+
+    if (data.connected) {
+      const lastSync = data.last_sync_at ? new Date(data.last_sync_at).toLocaleString() : 'Never';
+      statusDiv.innerHTML = `
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="background:var(--green-bg);border:1px solid #b7e4c7;border-radius:6px;padding:8px 14px;font-size:12px;color:var(--green);font-weight:500;">
+            Acumatica: <strong>${data.company_name || data.instance_url}</strong>
+          </div>
+          <span style="font-size:11px;color:var(--text-3);">Last sync: ${lastSync}</span>
+        </div>`;
+      actionsDiv.innerHTML = `
+        <div style="display:flex;gap:8px;">
+          <button class="lookup-btn" onclick="runAcumaticaSync()" id="acumatica-sync-btn" style="padding:8px 16px;font-size:12px;">Sync New</button>
+          <button class="lookup-btn" onclick="runAcumaticaSync(true)" style="background:var(--text-2);padding:8px 12px;font-size:11px;">Full Refresh</button>
+          <button class="lookup-btn" onclick="disconnectAcumatica()" style="background:var(--red);padding:8px 12px;font-size:11px;">Disconnect</button>
+        </div>`;
+    } else {
+      statusDiv.innerHTML = `<span style="font-size:12px;color:var(--text-3);">Acumatica not connected</span>`;
+      actionsDiv.innerHTML = `<button class="lookup-btn" onclick="showAcumaticaConnect()" style="background:var(--teal);padding:8px 16px;font-size:12px;">Connect Acumatica</button>`;
+    }
+  } catch {
+    const s = document.getElementById('acumatica-status');
+    if (s) s.innerHTML = '';
+  }
+}
+
+function showAcumaticaConnect() {
+  const panel = document.getElementById('xero-sync-panel');
+  panel.innerHTML = `
+    <div class="lookup-form" style="max-width:400px;">
+      <div class="form-title">Connect Acumatica</div>
+      <div style="font-size:12px;color:var(--text-2);margin-bottom:14px;line-height:1.5;">
+        Enter your Acumatica instance details. You'll need to create a Connected Application in Acumatica first (System > Integration > Connected Applications).
+      </div>
+      <div class="form-group">
+        <label>Instance URL</label>
+        <input type="text" id="acm-url" placeholder="https://yourcompany.acumatica.com">
+        <div class="hint">Your Acumatica cloud or on-prem URL</div>
+      </div>
+      <div class="form-group">
+        <label>Client ID</label>
+        <input type="text" id="acm-client-id" placeholder="From Connected Application settings">
+      </div>
+      <div class="form-group">
+        <label>Client Secret</label>
+        <input type="password" id="acm-client-secret" placeholder="From Connected Application settings">
+      </div>
+      <div class="form-group">
+        <label>Company Name (optional)</label>
+        <input type="text" id="acm-company" placeholder="e.g. ACME Corp">
+      </div>
+      <button class="lookup-btn" onclick="connectAcumatica()" id="acm-connect-btn" style="background:var(--teal);">Connect</button>
+      <div id="acm-connect-status" style="margin-top:8px;font-size:12px;"></div>
+    </div>`;
+}
+
+async function connectAcumatica() {
+  const btn = document.getElementById('acm-connect-btn');
+  const status = document.getElementById('acm-connect-status');
+  const url = document.getElementById('acm-url').value.trim();
+  const clientId = document.getElementById('acm-client-id').value.trim();
+  const clientSecret = document.getElementById('acm-client-secret').value.trim();
+  const company = document.getElementById('acm-company').value.trim();
+
+  if (!url || !clientId || !clientSecret) {
+    status.textContent = 'Instance URL, Client ID, and Client Secret are required.';
+    status.style.color = 'var(--red)';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Connecting...';
+  status.textContent = 'Testing connection to Acumatica...';
+  status.style.color = 'var(--teal)';
+
+  try {
+    const r = await fetch(`${API_BASE}/acumatica-connect`, {
+      method: 'POST', headers: HEADERS,
+      body: JSON.stringify({
+        action: 'connect_credentials',
+        instance_url: url,
+        client_id: clientId,
+        client_secret: clientSecret,
+        company_name: company,
+      }),
+    });
+    const data = await r.json();
+
+    if (data.connected) {
+      status.textContent = 'Connected to ' + (data.company_name || url);
+      status.style.color = 'var(--green)';
+      document.getElementById('xero-sync-panel').innerHTML = '';
+      checkAcumaticaStatus();
+      loadProfile();
+    } else {
+      status.textContent = data.error || 'Connection failed';
+      status.style.color = 'var(--red)';
+    }
+  } catch (e) {
+    status.textContent = 'Failed: ' + e.message;
+    status.style.color = 'var(--red)';
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Connect';
+}
+
+async function disconnectAcumatica() {
+  if (!confirm('Disconnect Acumatica?')) return;
+  await fetch(`${API_BASE}/acumatica-connect`, {
+    method: 'POST', headers: HEADERS, body: JSON.stringify({ action: 'disconnect' }),
+  });
+  checkAcumaticaStatus();
+}
+
+async function runAcumaticaSync(full = false) {
+  const btn = document.getElementById('acumatica-sync-btn');
+  const panel = document.getElementById('xero-sync-panel');
+  if (btn) { btn.disabled = true; btn.textContent = full ? 'Full sync...' : 'Syncing...'; }
+
+  panel.innerHTML = `
+    <div class="upload-progress">
+      <div style="font-size:14px;font-weight:600;margin-bottom:8px;">Syncing Acumatica...</div>
+      <div style="font-size:12px;color:var(--text-3);">Pulling purchase orders and sales orders.</div>
+      <div class="upload-progress-bar" style="margin-top:12px;"><div class="upload-progress-fill" style="width:30%;"></div></div>
+    </div>`;
+
+  try {
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), 180000);
+    const r = await fetch(`${API_BASE}/acumatica-sync`, {
+      method: 'POST', headers: HEADERS, body: JSON.stringify(full ? { full: true } : {}),
+      signal: controller.signal,
+    });
+    const data = await r.json();
+
+    if (data.error && !data.stats) {
+      panel.innerHTML = `<div class="classify-empty"><div class="classify-empty-title">Sync Error</div><div>${data.error}</div></div>`;
+    } else {
+      panel.innerHTML = renderXeroSyncResult(data); // Same format as Xero
+    }
+  } catch (e) {
+    const msg = e.name === 'AbortError' ? 'Sync timed out.' : e.message;
+    panel.innerHTML = `<div class="classify-empty"><div class="classify-empty-title">Sync failed</div><div>${msg}</div></div>`;
+  }
+
+  if (btn) { btn.disabled = false; btn.textContent = 'Sync New'; }
+  setTimeout(loadProfile, 1000);
+}
+
+setTimeout(checkAcumaticaStatus, 1500);
 
 init();
 </script>

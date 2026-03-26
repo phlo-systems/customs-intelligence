@@ -49,19 +49,20 @@ Deno.serve(async (req: Request) => {
       .eq("tenantid", tenantId)
       .maybeSingle();
 
-    // Fetch Xero connection status
-    const { data: erp } = await supabase
+    // Fetch all active ERP connections
+    const { data: erps } = await supabase
       .from("erp_integration")
-      .select("erptenantid, mappingconfig, lastsyncat, isactive")
+      .select("erptype, erptenantid, mappingconfig, lastsyncat, isactive")
       .eq("tenantid", tenantId)
-      .eq("erptype", "XERO")
-      .eq("isactive", true)
-      .maybeSingle();
+      .eq("isactive", true);
 
-    const erpConfig = erp?.mappingconfig as Record<string, unknown> || {};
+    const xeroErp = (erps || []).find((e: any) => e.erptype === "XERO");
+    const acumaticaErp = (erps || []).find((e: any) => e.erptype === "ACUMATICA");
 
-    // Trade insights are stored in erp_integration.mappingconfig.trade_insights
-    const tradeInsights = erpConfig?.trade_insights || null;
+    // Get trade insights from whichever ERP has them
+    const xeroConfig = xeroErp?.mappingconfig as Record<string, unknown> || {};
+    const acuConfig = acumaticaErp?.mappingconfig as Record<string, unknown> || {};
+    const tradeInsights = (xeroConfig?.trade_insights || acuConfig?.trade_insights || null) as Record<string, unknown> | null;
 
     // Context documents stored in tenant_context.conversationcontext
     const contextDocs = (ctx?.conversationcontext as any)?.documents || [];
@@ -77,9 +78,14 @@ Deno.serve(async (req: Request) => {
         updated_at: ctx?.updatedat || null,
       },
       xero: {
-        connected: !!erp?.isactive,
-        tenant_name: erpConfig?.xero_tenant_name || null,
-        last_sync_at: erp?.lastsyncat || null,
+        connected: !!xeroErp?.isactive,
+        tenant_name: xeroConfig?.xero_tenant_name || null,
+        last_sync_at: xeroErp?.lastsyncat || null,
+      },
+      acumatica: {
+        connected: !!acumaticaErp?.isactive,
+        company_name: acuConfig?.company_name || acuConfig?.instance_url || null,
+        last_sync_at: acumaticaErp?.lastsyncat || null,
       },
       trade_insights: tradeInsights,
       context_documents: contextDocs,
