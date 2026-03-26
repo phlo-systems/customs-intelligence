@@ -30,12 +30,121 @@ const OUTLOOK_SCOPE = "https://graph.microsoft.com/Mail.Read offline_access";
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return json({ ok: true }, 200);
-  if (req.method !== "POST") return json({ error: "POST required" }, 405);
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
+
+  // ── GET: OAuth callback from Gmail/Outlook ─────────────────────────────
+  if (req.method === "GET") {
+    const url = new URL(req.url);
+    const code = url.searchParams.get("code");
+    const state = url.searchParams.get("state");
+
+    if (!code || !state) return json({ error: "Missing code or state" }, 400);
+
+    let stateData: Record<string, string>;
+    try { stateData = JSON.parse(atob(state)); }
+    catch { return json({ error: "Invalid state" }, 400); }
+
+    const platform = stateData.platform || "";
+    const apiKey = stateData.api_key || "";
+
+    // Resolve tenant from API key
+    const keyHash = await sha256hex(apiKey);
+    const { data: keyRow } = await supabase
+      .from("api_key")
+      .select("tenantuid")
+      .eq("keyhash", keyHash)
+      .eq("isactive", true)
+      .maybeSingle();
+
+    const tenantId = keyRow?.tenantuid || "a0000000-0000-0000-0000-000000000001";
+    const redirectUri = Deno.env.get("SUPABASE_URL") + "/functions/v1/email-connect";
+
+    if (platform === "gmail") {
+      const clientId = Deno.env.get("GOOGLE_CLIENT_ID")!;
+      const clientSecret = Deno.env.get("GOOGLE_CLIENT_SECRET")!;
+
+      const tokenResp = await fetch("https://oauth2.googleapis.com/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          code, client_id: clientId, client_secret: clientSecret,
+          redirect_uri: redirectUri, grant_type: "authorization_code",
+        }),
+      });
+
+      if (!tokenResp.ok) {
+        const err = await tokenResp.text();
+        return json({ error: "Gmail token exchange failed", detail: err.substring(0, 200) }, 502);
+      }
+
+      const tokens = await tokenResp.json();
+      const profileResp = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/profile", {
+        headers: { Authorization: "Bearer " + tokens.access_token },
+      });
+      const profile = profileResp.ok ? await profileResp.json() : {};
+
+      await supabase.from("erp_integration").upsert({
+        tenantid: tenantId, erptype: "GMAIL",
+        erptenantid: profile.emailAddress || "gmail",
+        authtokenref: "gmail_oauth", syncenabled: true, isactive: true,
+        mappingconfig: {
+          access_token: tokens.access_token, refresh_token: tokens.refresh_token,
+          expires_at: Date.now() + ((tokens.expires_in || 3600) * 1000),
+          email: profile.emailAddress, history_id: profile.historyId,
+        },
+      }, { onConflict: "tenantid,erptype,erptenantid" });
+
+      return json({ status: "ok", connected: true, platform: "gmail", email: profile.emailAddress, callback: true });
+    }
+
+    if (platform === "outlook") {
+      const clientId = Deno.env.get("OUTLOOK_CLIENT_ID")!;
+      const clientSecret = Deno.env.get("OUTLOOK_CLIENT_SECRET")!;
+
+      const tokenResp = await fetch("https://login.microsoftonline.com/common/oauth2/v2.0/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          code, client_id: clientId, client_secret: clientSecret,
+          redirect_uri: redirectUri, grant_type: "authorization_code",
+          scope: "https://graph.microsoft.com/Mail.Read offline_access",
+        }),
+      });
+
+      if (!tokenResp.ok) {
+        const err = await tokenResp.text();
+        return json({ error: "Outlook token exchange failed", detail: err.substring(0, 200) }, 502);
+      }
+
+      const tokens = await tokenResp.json();
+      const meResp = await fetch("https://graph.microsoft.com/v1.0/me", {
+        headers: { Authorization: "Bearer " + tokens.access_token },
+      });
+      const me = meResp.ok ? await meResp.json() : {};
+
+      await supabase.from("erp_integration").upsert({
+        tenantid: tenantId, erptype: "OUTLOOK",
+        erptenantid: me.mail || me.userPrincipalName || "outlook",
+        authtokenref: "outlook_oauth", syncenabled: true, isactive: true,
+        mappingconfig: {
+          access_token: tokens.access_token, refresh_token: tokens.refresh_token,
+          expires_at: Date.now() + ((tokens.expires_in || 3600) * 1000),
+          email: me.mail || me.userPrincipalName, delta_link: null,
+        },
+      }, { onConflict: "tenantid,erptype,erptenantid" });
+
+      return json({ status: "ok", connected: true, platform: "outlook", email: me.mail || me.userPrincipalName, callback: true });
+    }
+
+    return json({ error: "Unknown platform in state" }, 400);
+  }
+
+  // ── POST: actions ──────────────────────────────────────────────────────
+  if (req.method !== "POST") return json({ error: "GET or POST required" }, 405);
 
   const rawKey = req.headers.get("x-api-key");
   if (!rawKey) return json({ error: "Missing X-API-Key" }, 401);
