@@ -224,11 +224,18 @@ async function generateAlerts(
         max_tokens: 1000,
         messages: [{
           role: "user",
-          content: `You are a customs trade intelligence analyst. Generate 3-5 alerts for a company with this profile:
+          content: `You are a customs trade intelligence analyst. Today is ${new Date().toISOString().split("T")[0]}. Generate 3-5 CURRENT alerts for a company with this profile:
 - Business type: trader/importer
 - HS chapters of interest: ${hsChapters.join(", ")}
 - Source countries: ${origins.join(", ")}
 - Destination countries: ${destinations.join(", ")}
+
+IMPORTANT: All alerts must be about current or upcoming events (March 2026 onwards). Do NOT reference past events. Focus on:
+- Upcoming regulatory changes or duty reviews
+- Current anti-dumping investigations
+- Trade agreements under negotiation
+- Seasonal quota openings
+- Recent or imminent tariff schedule changes
 
 Generate realistic, actionable trade alerts. Return ONLY a JSON array, no markdown. Each alert:
 {
