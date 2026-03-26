@@ -267,22 +267,16 @@ Deno.serve(async (req: Request) => {
     .update({ lastsyncat: new Date().toISOString() })
     .eq("integrationid", integration.integrationid);
 
-  // ── Store trade insights ───────────────────────────────────────────────
-  await supabase.from("tenant_behaviour_log").insert({
-    tenantid: tenantId,
-    eventtype: "TRADE_INSIGHTS",
-    eventdata: tradeInsights,
-  }).then(() => {});
-
-  // ── Log sync event ─────────────────────────────────────────────────────
-  await supabase.from("tenant_behaviour_log").insert({
-    tenantid: tenantId,
-    eventtype: "XERO_SYNC",
-    eventdata: {
-      invoices: stats.invoices_fetched,
-      line_items: stats.line_items_found,
-    },
-  }).then(() => {});
+  // ── Store trade insights in ERP_INTEGRATION.mappingconfig ─────────────
+  const existingConfig = integration.mappingconfig as Record<string, unknown> || {};
+  await supabase.from("erp_integration")
+    .update({
+      mappingconfig: {
+        ...existingConfig,
+        trade_insights: tradeInsights,
+      },
+    })
+    .eq("integrationid", integration.integrationid);
 
   return json({
     status: "ok",

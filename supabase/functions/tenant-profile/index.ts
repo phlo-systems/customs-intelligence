@@ -60,24 +60,11 @@ Deno.serve(async (req: Request) => {
 
     const erpConfig = erp?.mappingconfig as Record<string, unknown> || {};
 
-    // Fetch trade insights (stored by xero-sync)
-    const { data: insights } = await supabase
-      .from("tenant_behaviour_log")
-      .select("eventdata")
-      .eq("tenantid", tenantId)
-      .eq("eventtype", "TRADE_INSIGHTS")
-      .order("createdat", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    // Trade insights are stored in erp_integration.mappingconfig.trade_insights
+    const tradeInsights = erpConfig?.trade_insights || null;
 
-    // Fetch context documents
-    const { data: docs } = await supabase
-      .from("tenant_behaviour_log")
-      .select("eventdata, createdat")
-      .eq("tenantid", tenantId)
-      .eq("eventtype", "CONTEXT_DOCUMENT")
-      .order("createdat", { ascending: false })
-      .limit(20);
+    // Context documents stored in tenant_context.conversationcontext
+    const contextDocs = (ctx?.conversationcontext as any)?.documents || [];
 
     return json({
       profile: {
@@ -94,12 +81,8 @@ Deno.serve(async (req: Request) => {
         tenant_name: erpConfig?.xero_tenant_name || null,
         last_sync_at: erp?.lastsyncat || null,
       },
-      trade_insights: insights?.eventdata || null,
-      context_documents: (docs || []).map((d: any) => ({
-        name: d.eventdata?.document_name,
-        summary: d.eventdata?.summary,
-        extracted_at: d.createdat,
-      })),
+      trade_insights: tradeInsights,
+      context_documents: contextDocs,
     });
   }
 
@@ -177,47 +160,42 @@ ${docText.substring(0, 8000)}`,
       extracted = { summary: raw, error: "Could not parse structured extraction" };
     }
 
-    // Store as context document
-    await supabase.from("tenant_behaviour_log").insert({
-      tenantid: tenantId,
-      eventtype: "CONTEXT_DOCUMENT",
-      eventdata: {
-        document_name: docName,
-        summary: extracted.summary || "",
-        products: extracted.products || [],
-        hs_chapters: extracted.hs_chapters || [],
-        countries: extracted.countries || [],
-        suppliers: extracted.suppliers || [],
-        buyers: extracted.buyers || [],
-        trade_routes: extracted.trade_routes || [],
-        key_facts: extracted.key_facts || [],
-        raw_length: docText.length,
-      },
-    });
-
-    // Auto-enrich tenant context with extracted data
+    // Store context document + auto-enrich tenant context
     const { data: existingCtx } = await supabase
       .from("tenant_context")
-      .select("primaryhschapters, activeorigincountries, activedestcountries")
+      .select("*")
       .eq("tenantid", tenantId)
       .maybeSingle();
 
-    if (existingCtx) {
-      const mergedChapters = [...new Set([
-        ...(existingCtx.primaryhschapters || []),
-        ...((extracted.hs_chapters as string[]) || []).map(String),
-      ])];
-      const mergedOrigins = [...new Set([
-        ...(existingCtx.activeorigincountries || []),
-        ...((extracted.countries as string[]) || []),
-      ])];
+    const existingDocs = (existingCtx?.conversationcontext as any)?.documents || [];
+    const newDoc = {
+      name: docName,
+      summary: extracted.summary || "",
+      products: extracted.products || [],
+      hs_chapters: extracted.hs_chapters || [],
+      countries: extracted.countries || [],
+      suppliers: extracted.suppliers || [],
+      buyers: extracted.buyers || [],
+      trade_routes: extracted.trade_routes || [],
+      key_facts: extracted.key_facts || [],
+      extracted_at: new Date().toISOString(),
+    };
 
-      await supabase.from("tenant_context").update({
-        primaryhschapters: mergedChapters,
-        activeorigincountries: mergedOrigins,
-        updatedat: new Date().toISOString(),
-      }).eq("tenantid", tenantId);
-    }
+    const mergedChapters = [...new Set([
+      ...(existingCtx?.primaryhschapters || []),
+      ...((extracted.hs_chapters as string[]) || []).map(String),
+    ])];
+    const mergedOrigins = [...new Set([
+      ...(existingCtx?.activeorigincountries || []),
+      ...((extracted.countries as string[]) || []),
+    ])];
+
+    await supabase.from("tenant_context").update({
+      primaryhschapters: mergedChapters,
+      activeorigincountries: mergedOrigins,
+      conversationcontext: { documents: [newDoc, ...existingDocs].slice(0, 20) },
+      updatedat: new Date().toISOString(),
+    }).eq("tenantid", tenantId);
 
     return json({
       status: "ok",
