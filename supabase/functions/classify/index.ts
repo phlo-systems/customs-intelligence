@@ -2,35 +2,15 @@
 // Deploy: supabase functions deploy classify --no-verify-jwt
 //
 // POST /functions/v1/classify
-// Takes a product description, returns top 3 ZA commodity code matches.
+// Takes a product description, returns top 3 commodity code matches.
 //
-// Stage 1: Check PRODUCT_CLASSIFICATION_CACHE (instant, confidence=1.0)
-// Stage 2: Claude LLM classification (< 3s)
+// Pipeline:
+//   Stage 0: Check PRODUCT_CLASSIFICATION_CACHE (instant, confidence=1.0)
+//   Stage 1: pgvector similarity search on HS_DESCRIPTION_EMBEDDING (< 100ms)
+//            → Returns if top match similarity >= 0.90
+//   Stage 2: Claude LLM classification (< 3s) — fallback when vector confidence low
+//
 // Logs every request to CLASSIFICATION_REQUEST for accuracy tracking.
-//
-// Request:
-// {
-//   "description": "frozen potato chips for retail sale",
-//   "confirm_code": "20041010"   // optional — confirms a previous suggestion, writes to cache
-// }
-//
-// Response:
-// {
-//   "status": "ok",
-//   "source": "cache" | "ai",
-//   "request_id": 42,
-//   "suggestions": [
-//     {
-//       "rank": 1,
-//       "commodity_code": "20041010",
-//       "subheading_code": "200410",
-//       "description": "Frozen potato products...",
-//       "confidence": 0.95,
-//       "reasoning": "Frozen potato chips for retail sale...",
-//       "mfn_rate_pct": 20
-//     }
-//   ]
-// }
 
 import Anthropic from "https://esm.sh/@anthropic-ai/sdk@0.27.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -39,6 +19,10 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-api-key, content-type",
 };
+
+const VECTOR_CONFIDENCE_THRESHOLD = 0.90;
+const OPENAI_EMBEDDING_MODEL = "text-embedding-3-small";
+const EMBEDDING_DIM = 1536;
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -96,7 +80,7 @@ Deno.serve(async (req: Request) => {
     return json({ status: "ok", message: "Classification confirmed and cached", commodity_code: confirmCode });
   }
 
-  // ── Stage 1: Check cache ───────────────────────────────────────────────────
+  // ── Stage 0: Check cache ─────────────────────────────────────────────────
   const { data: cached } = await supabase
     .from("product_classification_cache")
     .select("commoditycode, subheadingcode, confirmedby, usecount")
@@ -105,14 +89,12 @@ Deno.serve(async (req: Request) => {
     .maybeSingle();
 
   if (cached) {
-    // Increment use count
     await supabase
       .from("product_classification_cache")
       .update({ usecount: cached.usecount + 1, lastusedsat: new Date().toISOString() })
       .eq("tenantid", keyRow.tenantuid)
       .eq("normaliseddescription", normalised);
 
-    // Fetch rate for the cached code
     const { data: rateRow } = await supabase
       .from("mfn_rate")
       .select("appliedmfnrate, dutyexpression")
@@ -139,41 +121,153 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  // ── Stage 2: Claude classification ────────────────────────────────────────
-  const anthropic = new Anthropic({ apiKey: Deno.env.get("ANTHROPIC_API_KEY")! });
+  // ── Stage 1: Vector similarity search ────────────────────────────────────
+  const openaiKey = Deno.env.get("OPENAI_API_KEY");
+  let vectorMatches: any[] = [];
+  let usedVector = false;
 
-  // Fetch all ZA commodity codes for context (sample of relevant ones)
-  // We get codes that might match the description based on simple keyword matching
-  const keywords = normalised.split(" ").filter(w => w.length > 3).slice(0, 5);
-  let commoditySample: any[] = [];
+  if (openaiKey) {
+    try {
+      // Compute embedding for the query description
+      const queryEmbedding = await computeEmbedding(description, openaiKey);
 
-  for (const kw of keywords) {
-    const { data } = await supabase
-      .from("commodity_code")
-      .select("commoditycode, subheadingcode, nationaldescription")
-      .eq("countrycode", importCountry)
-      .ilike("nationaldescription", `%${kw}%`)
-      .limit(20);
-    if (data) commoditySample = [...commoditySample, ...data];
+      if (queryEmbedding) {
+        // Call the match_hs_codes SQL function
+        const { data: matches, error: matchErr } = await supabase.rpc("match_hs_codes", {
+          query_embedding: queryEmbedding,
+          match_count: 10,
+          min_similarity: 0.5,
+        });
+
+        if (!matchErr && matches && matches.length > 0) {
+          vectorMatches = matches;
+          const topSimilarity = matches[0].similarity;
+
+          console.log(`Vector search: ${matches.length} matches, top=${topSimilarity.toFixed(3)}`);
+
+          // If top match is high-confidence, return vector results directly
+          if (topSimilarity >= VECTOR_CONFIDENCE_THRESHOLD) {
+            usedVector = true;
+
+            // Deduplicate by subheading, take top 3
+            const seen = new Set<string>();
+            const top3 = matches.filter((m: any) => {
+              if (seen.has(m.subheading_code)) return false;
+              seen.add(m.subheading_code);
+              return true;
+            }).slice(0, 3);
+
+            // Enrich with MFN rates and find best commodity code per subheading
+            const suggestions = await Promise.all(top3.map(async (m: any, i: number) => {
+              // Find best matching commodity code for this subheading
+              const { data: commRow } = await supabase
+                .from("commodity_code")
+                .select("commoditycode, nationaldescription")
+                .eq("countrycode", importCountry)
+                .eq("subheadingcode", m.subheading_code)
+                .eq("isactive", true)
+                .limit(1)
+                .maybeSingle();
+
+              const commodityCode = commRow?.commoditycode ?? (m.subheading_code + "00");
+
+              const { data: rateRow } = await supabase
+                .from("mfn_rate")
+                .select("appliedmfnrate, dutyexpression")
+                .eq("commoditycode", commodityCode)
+                .eq("countrycode", importCountry)
+                .eq("ratecategory", "APPLIED")
+                .is("effectiveto", null)
+                .maybeSingle();
+
+              return {
+                rank:            i + 1,
+                commodity_code:  commodityCode,
+                subheading_code: m.subheading_code,
+                confidence:      Math.round(m.similarity * 100) / 100,
+                reasoning:       m.description_text,
+                mfn_rate_pct:    rateRow?.appliedmfnrate ?? null,
+                duty_expression: rateRow?.dutyexpression ?? null,
+              };
+            }));
+
+            // Log request
+            const { data: logRow } = await supabase
+              .from("classification_request")
+              .insert({
+                tenantid:              keyRow.tenantuid,
+                erpsource:             "CI_FRONTEND",
+                productdescription:    description,
+                normaliseddescription: normalised,
+                requestedat:           new Date().toISOString(),
+                responsetimems:        Date.now() - startTime,
+                modelused:             "pgvector",
+                topsuggestioncode:     suggestions[0]?.commodity_code,
+                topconfidence:         suggestions[0]?.confidence,
+                classificationtype:    "AI_INFERRED",
+              })
+              .select("requestid")
+              .single();
+
+            return json({
+              status:     "ok",
+              source:     "vector",
+              request_id: logRow?.requestid ?? null,
+              suggestions,
+              note: `To confirm a code, POST with confirm_code: "${suggestions[0]?.commodity_code}"`,
+            });
+          }
+        }
+      }
+    } catch (e) {
+      console.error("Vector search failed, falling back to Claude:", e);
+    }
   }
 
-  // Deduplicate
-  const seen = new Set<string>();
-  const uniqueCodes = commoditySample.filter(c => {
-    if (seen.has(c.commoditycode)) return false;
-    seen.add(c.commoditycode);
-    return true;
-  }).slice(0, 60);
+  // ── Stage 2: Claude classification (fallback) ───────────────────────────
+  const anthropic = new Anthropic({ apiKey: Deno.env.get("ANTHROPIC_API_KEY")! });
 
-  const codeListText = uniqueCodes.length > 0
-    ? uniqueCodes.map(c => `${c.commoditycode} — ${c.nationaldescription}`).join("\n")
-    : "No pre-filtered codes available — use your HS classification knowledge.";
+  // Use vector matches as context if available, otherwise fall back to keyword search
+  let codeListText: string;
 
-  const prompt = `You are an expert customs classifier specialising in the South African tariff schedule (SARS Schedule 1 Part 1).
+  if (vectorMatches.length > 0) {
+    // Use vector search results as context for Claude
+    const vectorContext = vectorMatches.slice(0, 20).map(
+      (m: any) => `${m.subheading_code} (similarity: ${m.similarity.toFixed(2)}) — ${m.description_text}`
+    ).join("\n");
+    codeListText = vectorContext;
+  } else {
+    // Fallback: keyword-based search
+    const keywords = normalised.split(" ").filter((w: string) => w.length > 3).slice(0, 5);
+    let commoditySample: any[] = [];
+
+    for (const kw of keywords) {
+      const { data } = await supabase
+        .from("commodity_code")
+        .select("commoditycode, subheadingcode, nationaldescription")
+        .eq("countrycode", importCountry)
+        .ilike("nationaldescription", `%${kw}%`)
+        .limit(20);
+      if (data) commoditySample = [...commoditySample, ...data];
+    }
+
+    const seen = new Set<string>();
+    const uniqueCodes = commoditySample.filter(c => {
+      if (seen.has(c.commoditycode)) return false;
+      seen.add(c.commoditycode);
+      return true;
+    }).slice(0, 60);
+
+    codeListText = uniqueCodes.length > 0
+      ? uniqueCodes.map(c => `${c.commoditycode} — ${c.nationaldescription}`).join("\n")
+      : "No pre-filtered codes available — use your HS classification knowledge.";
+  }
+
+  const prompt = `You are an expert customs classifier. The import country is ${importCountry}.
 
 Product description to classify: "${description}"
 
-Relevant ZA commodity codes from the tariff schedule:
+Relevant commodity codes from the tariff schedule:
 ${codeListText}
 
 Classify this product and return ONLY a valid JSON array with exactly 3 objects, ranked by confidence. No other text.
@@ -202,7 +296,10 @@ Rules:
     messages:   [{ role: "user", content: prompt }],
   });
 
-  const raw = message.content[0].type === "text" ? message.content[0].text.trim() : "[]";
+  let raw = message.content[0].type === "text" ? message.content[0].text.trim() : "[]";
+
+  // Strip markdown fences if present (```json ... ```)
+  raw = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
 
   let suggestions: any[] = [];
   try {
@@ -243,7 +340,7 @@ Rules:
       normaliseddescription: normalised,
       requestedat:           new Date().toISOString(),
       responsetimems:        Date.now() - startTime,
-      modelused:             "claude-sonnet",
+      modelused:             vectorMatches.length > 0 ? "claude-sonnet+vector" : "claude-sonnet",
       topsuggestioncode:     topCode,
       topconfidence:         topConf,
       classificationtype:    "AI_INFERRED",
@@ -253,7 +350,7 @@ Rules:
 
   return json({
     status:     "ok",
-    source:     "ai",
+    source:     vectorMatches.length > 0 ? "vector+ai" : "ai",
     request_id: logRow?.requestid ?? null,
     suggestions: enriched,
     note: `To confirm a code, POST with confirm_code: "${topCode}" and request_id: ${logRow?.requestid}`,
@@ -262,6 +359,34 @@ Rules:
 
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+async function computeEmbedding(text: string, openaiKey: string): Promise<number[] | null> {
+  try {
+    const resp = await fetch("https://api.openai.com/v1/embeddings", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${openaiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: OPENAI_EMBEDDING_MODEL,
+        input: text,
+        dimensions: EMBEDDING_DIM,
+      }),
+    });
+
+    if (!resp.ok) {
+      console.error("OpenAI embedding error:", resp.status, await resp.text());
+      return null;
+    }
+
+    const data = await resp.json();
+    return data.data?.[0]?.embedding ?? null;
+  } catch (e) {
+    console.error("Embedding computation failed:", e);
+    return null;
+  }
+}
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
