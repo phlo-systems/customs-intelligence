@@ -337,6 +337,38 @@ Deno.serve(async (req: Request) => {
     return json({ status: "disconnected" });
   }
 
+  // ── Review extract (accept/reject) ──────────────────────────────────────
+  if (action === "accept_extract" || action === "reject_extract") {
+    const extractId = Number(body.extract_id);
+    if (!extractId) return json({ error: "extract_id required" }, 400);
+
+    if (action === "accept_extract") {
+      await supabase.from("email_context_extract")
+        .update({ reviewedbyuser: true })
+        .eq("extractid", extractId)
+        .eq("tenantid", tenantId);
+      return json({ status: "accepted" });
+    } else {
+      await supabase.from("email_context_extract")
+        .delete()
+        .eq("extractid", extractId)
+        .eq("tenantid", tenantId);
+      return json({ status: "rejected" });
+    }
+  }
+
+  // ── List pending extracts ──────────────────────────────────────────────
+  if (action === "list_extracts") {
+    const { data: extracts } = await supabase
+      .from("email_context_extract")
+      .select("extractid, emailtype, counterpartyname, counterpartycountry, commodities, subheadingcodes, origincountries, destinationcountries, incoterm, emaildate, reviewedbyuser")
+      .eq("tenantid", tenantId)
+      .order("extractedat", { ascending: false })
+      .limit(50);
+
+    return json({ extracts: extracts || [] });
+  }
+
   return json({ error: "Unknown action" }, 400);
 });
 

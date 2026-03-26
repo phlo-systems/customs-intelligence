@@ -199,7 +199,16 @@ For each email return:
     })
     .eq("tenantid", tenantId);
 
-  return json({ status: "ok", platform, stats });
+  // Fetch saved extracts for display
+  const { data: savedExtracts } = await supabase
+    .from("email_context_extract")
+    .select("extractid, emailtype, counterpartyname, counterpartycountry, commodities, subheadingcodes, origincountries, destinationcountries, incoterm, emaildate, reviewedbyuser")
+    .eq("tenantid", tenantId)
+    .eq("reviewedbyuser", false)
+    .order("extractedat", { ascending: false })
+    .limit(20);
+
+  return json({ status: "ok", platform, stats, extracts: savedExtracts || [] });
 });
 
 

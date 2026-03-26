@@ -2371,26 +2371,49 @@ async function runEmailSync(platform) {
     const data = await r.json();
     const s = data.stats || {};
 
-    panel.innerHTML = `
-      <div class="upload-result">
-        <div class="upload-result-header">
-          <div class="upload-result-title">${platform} Email Scan Complete</div>
-          <div class="upload-result-status success">DONE</div>
-        </div>
-        <div class="upload-stats">
-          <div class="upload-stat"><div class="upload-stat-val">${s.emails_found ?? 0}</div><div class="upload-stat-label">Emails Found</div></div>
-          <div class="upload-stat"><div class="upload-stat-val">${s.emails_processed ?? 0}</div><div class="upload-stat-label">Trade-Related</div></div>
-          <div class="upload-stat"><div class="upload-stat-val">${s.extracts_saved ?? 0}</div><div class="upload-stat-label">Extracts Saved</div></div>
-        </div>
-        ${s.errors?.length ? `<div style="background:var(--amber-bg);border-radius:6px;padding:8px 12px;font-size:11px;color:var(--amber);">${s.errors.join('; ')}</div>` : ''}
-        <div style="font-size:12px;color:var(--text-2);margin-top:8px;">Trade context extracted and added to your profile. No email content was stored.</div>
-      </div>`;
+    panel.innerHTML = renderEmailExtracts(platform, s, data.extracts || []);
   } catch (e) {
     const msg = e.name === 'AbortError' ? 'Scan timed out.' : e.message;
     panel.innerHTML = `<div class="classify-empty"><div class="classify-empty-title">Scan failed</div><div>${msg}</div></div>`;
   }
 
   if (btn) { btn.disabled = false; btn.textContent = platform === 'GMAIL' ? 'Scan Gmail' : 'Scan Outlook'; }
+}
+
+function renderEmailExtracts(platform, stats, extracts) {
+  const typeLabels = { SUPPLIER_QUOTE:'Supplier Quote', CUSTOMER_RFQ:'Customer RFQ', SHIPPING_CONF:'Shipping', CUSTOMS_ENTRY:'Customs Entry', TRADE_INQUIRY:'Trade Inquiry', REGULATORY:'Regulatory', TRADE_FINANCE:'Trade Finance', FREIGHT:'Freight', OTHER:'Other' };
+  const cards = extracts.map(function(e) {
+    var tags = [];
+    if (e.counterpartyname) tags.push('<strong>' + e.counterpartyname + '</strong>');
+    if (e.counterpartycountry) tags.push('<span class="country-tag">' + e.counterpartycountry + '</span>');
+    if (e.incoterm) tags.push(e.incoterm);
+    (e.commodities || []).forEach(function(c) { tags.push('<span style="background:var(--teal-bg);color:var(--teal);padding:1px 6px;border-radius:3px;font-size:10px;">' + c + '</span>'); });
+    (e.origincountries || []).forEach(function(c) { tags.push('<span class="country-tag">' + c + '</span> origin'); });
+    (e.destinationcountries || []).forEach(function(c) { tags.push('<span class="country-tag">' + c + '</span> dest'); });
+    var btns = e.reviewedbyuser
+      ? '<span style="color:var(--green);font-size:11px;font-weight:600;">Accepted</span>'
+      : '<button class="confirm-btn" style="font-size:10px;padding:5px 10px;" onclick="reviewExtract(' + e.extractid + ',\'accept\')">Accept</button> <button style="font-size:10px;padding:5px 10px;background:none;border:1px solid var(--border);border-radius:6px;color:var(--text-3);cursor:pointer;" onclick="reviewExtract(' + e.extractid + ',\'reject\')">Reject</button>';
+    return '<div class="opp-card" id="extract-' + e.extractid + '" style="margin-bottom:8px;"><div class="opp-card-main" style="grid-template-columns:auto 1fr auto;padding:12px 16px;"><div style="min-width:70px;"><div style="font-size:10px;font-weight:600;color:var(--teal);text-transform:uppercase;letter-spacing:0.05em;">' + (typeLabels[e.emailtype] || e.emailtype) + '</div><div style="font-size:10px;color:var(--text-3);margin-top:2px;">' + (e.emaildate||'') + '</div></div><div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12px;">' + tags.join(' ') + '</div><div style="display:flex;gap:6px;align-items:center;" id="extract-actions-' + e.extractid + '">' + btns + '</div></div></div>';
+  }).join('');
+  var errHtml = (stats.errors && stats.errors.length) ? '<div style="background:var(--amber-bg);border-radius:6px;padding:8px 12px;font-size:11px;color:var(--amber);">' + stats.errors.join('; ') + '</div>' : '';
+  var extractSection = extracts.length
+    ? '<div style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:0.06em;margin:14px 0 8px;">Extracted Trade Context</div><div style="font-size:11px;color:var(--text-2);margin-bottom:10px;">No email content stored. Accept extracts to add to your trade profile, or reject irrelevant ones.</div>' + cards
+    : '<div style="font-size:12px;color:var(--text-3);margin-top:8px;">No trade-related emails found in the last 30 days.</div>';
+  return '<div class="upload-result"><div class="upload-result-header"><div class="upload-result-title">' + platform + ' Email Scan Complete</div><div class="upload-result-status success">DONE</div></div><div class="upload-stats"><div class="upload-stat"><div class="upload-stat-val">' + (stats.emails_found||0) + '</div><div class="upload-stat-label">Emails Found</div></div><div class="upload-stat"><div class="upload-stat-val">' + (stats.emails_processed||0) + '</div><div class="upload-stat-label">Trade-Related</div></div><div class="upload-stat"><div class="upload-stat-val">' + (stats.extracts_saved||0) + '</div><div class="upload-stat-label">Extracts Saved</div></div></div>' + errHtml + extractSection + '</div>';
+}
+
+async function reviewExtract(extractId, action) {
+  var apiAction = action === 'accept' ? 'accept_extract' : 'reject_extract';
+  await fetch(API_BASE + '/email-connect', { method:'POST', headers:HEADERS, body:JSON.stringify({ action:apiAction, extract_id:extractId }) });
+  var actionsEl = document.getElementById('extract-actions-' + extractId);
+  var cardEl = document.getElementById('extract-' + extractId);
+  if (action === 'accept' && actionsEl) {
+    actionsEl.innerHTML = '<span style="color:var(--green);font-size:11px;font-weight:600;">Accepted</span>';
+    if (cardEl) cardEl.style.borderColor = 'var(--teal-mid)';
+  } else if (cardEl) {
+    cardEl.style.opacity = '0.3';
+    setTimeout(function() { cardEl.remove(); }, 500);
+  }
 }
 
 function toggleSetupHelp(id) {
