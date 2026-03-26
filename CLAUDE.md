@@ -47,13 +47,15 @@ Group 9 — ERP & Email:      ERP_INTEGRATION, EMAIL_CONTEXT_EXTRACT
 ## Data loaded (Supabase ci-phlo)
 | Table | Rows | Notes |
 |---|---|---|
-| COMMODITY_CODE | 17,178 | ZA + NA only so far |
-| MFN_RATE | 17,178 | |
-| TARIFF_RATE | 17,178 | |
-| VAT_RATE | 8,589 | ZA 15% standard |
+| COMMODITY_CODE | 30,745 | ZA + NA + GB (13,567 GB) |
+| MFN_RATE | 30,745 | |
+| TARIFF_RATE | 30,745 | |
+| VAT_RATE | 22,156 | ZA 15% standard, GB 0%/20% |
 | TRADE_AGREEMENT | 6 | UK-SACU-EPA, EU-SACU-EPA, EFTA-SACU, SADC-FTA, SACU-MERCOSUR, AFCFTA |
 | PREFERENTIAL_RATE | 35,946 | ZA pref rates |
+| HS_DESCRIPTION_EMBEDDING | 16,814 | 5,613 international (UN Comtrade) + 11,201 national |
 | OPPORTUNITIES | 127 | All AI-enriched with Claude |
+| ERP_INTEGRATION | 1 | Xero OAuth2 connected (Phlo Systems Ltd) |
 | TENANT_CONTEXT | 1 | GTM tenant — Layer 1 |
 | API_KEY | 1 | GTM key |
 
@@ -64,6 +66,10 @@ POST   /functions/v1/classify              — top 3 HS code suggestions + cache
 POST   /functions/v1/onboard              — GET/POST tenant context Layer 1
 GET    /functions/v1/opportunities         — opportunity feed with AI insights
 POST   /functions/v1/enrich-opportunities  — generate Claude AIInsight per card
+POST   /functions/v1/upload-tariff         — admin upload PDF/CSV, Claude extraction
+GET    /functions/v1/xero-connect          — Xero OAuth2 connect + callback
+POST   /functions/v1/xero-connect          — status/refresh/disconnect
+POST   /functions/v1/xero-sync             — pull Xero purchase invoices
 ```
 
 ## GTM API key (for testing)
@@ -83,48 +89,24 @@ TenantUID: a0000000-0000-0000-0000-000000000001
 | 6 | Onboarding → TENANT_CONTEXT Layer 1 | ✅ |
 | 8 | DB rules engine → OPPORTUNITIES | ✅ |
 | 9 | AI enrichment → AIInsight per card | ✅ |
-| 11 | /classify — Claude classification + cache | ✅ Partial (no pgvector yet) |
-| 16 | Frontend — 4 screens (Opportunities, Lookup, Classify, Alerts) | ✅ |
-| **3b** | **GB tariff parser — NEXT TASK** | **⬜** |
-| 10 | pgvector embeddings → HS_DESCRIPTION_EMBEDDING | ⬜ |
-| 12 | Xero connector | ⬜ |
+| 11 | /classify — 3-stage pipeline (cache → vector → Claude) | ✅ |
+| 16 | Frontend — 5 screens (Opportunities, Lookup, Classify, Alerts, Admin) | ✅ |
+| 3b | GB tariff parser — 13,567 commodities loaded | ✅ |
+| 10 | pgvector embeddings — 16,814 vectors (UN Comtrade + national) | ✅ |
+| 12 | Xero connector — OAuth2 + invoice sync | ✅ |
+| -- | Admin upload screen — PDF/CSV → Claude AI extraction | ✅ |
 | 13 | Acumatica connector | ⬜ |
 | 14 | Email connection (Gmail + Outlook) | ⬜ |
-| 17 | BR, CL, ZA, AU, TH, MX parsers | ⬜ |
+| 17 | BR, CL, AU, TH, MX parsers (admin upload covers these) | ⬜ |
 
-## NEXT TASK — GB tariff parser
-
-Build `tariff_parser/parsers/gb_parser.py`:
-
-**Source:** UK Trade Tariff API — `https://www.trade-tariff.service.gov.uk/api/v2/`
-- No auth required
-- Rate limit: 1 request/second (be polite — add sleep)
-- Commodity endpoint: `GET /api/v2/commodities/{10-digit-code}`
-- Headings endpoint: `GET /api/v2/headings/{4-digit-code}` — use to discover all commodities under a heading
-
-**What to parse:**
-- `commodity.data.attributes.goods_nomenclature_item_id` → CommodityCode (10-digit)
-- `commodity.data.attributes.description` → NationalDescription
-- MFN duty from `commodity.data.relationships.import_measures` where `measure_type.id == '103'`
-- Preferential rates from measures with measure_type ids: `'142'`, `'145'`, `'146'`
-- VAT from measure_type `'305'` (UK VAT — 20% standard, 0% food/children's)
-
-**Tables to write:**
-1. `COMMODITY_CODE` — (CommodityCode, CountryCode='GB')
-2. `MFN_RATE` — APPLIED rate, EffectiveTo=NULL
-3. `TARIFF_RATE` — summary rate table
-4. `VAT_RATE` — 0% or 20% per commodity
-
-**Start with Chapter 20** (HS heading 2004 = frozen potato products — our test case)
-- Heading 2004: `GET /api/v2/headings/2004`
-- This returns all commodity codes under that heading
-
-**Follow the pattern in `tariff_parser/parsers/za_parser.py`** for how rows are
-structured and written to Supabase. Use the same orchestrator pattern.
-
-**ZA hash for reference (skip re-download):**
+## Key scripts
 ```
-LAST_HASH_ZA=06efaac9c8e554edc17f2f32de71d6631fbab592478bb5070300bc7e8e07beb2
+python3 -m tariff_parser.orchestrator --country GB              # GB sync (Chapter 20 default)
+python3 -m tariff_parser.orchestrator --country GB --headings 2004 2009  # specific headings
+python3 -m tariff_parser.gb_full_load                           # all 98 GB chapters (~99 min)
+python3 -m tariff_parser.gb_full_load --resume-from 44          # resume after failure
+python3 -m tariff_parser.embedding_loader --source all          # load HS embeddings
+python3 -m tariff_parser.embedding_loader --source comtrade     # international only
 ```
 
 ## Tariff sources by country (for future parsers)
@@ -177,15 +159,20 @@ customs-intelligence/
 │       ├── classify/index.ts
 │       ├── onboard/index.ts
 │       ├── opportunities/index.ts
-│       └── enrich-opportunities/index.ts
+│       ├── enrich-opportunities/index.ts
+│       ├── upload-tariff/index.ts   ← admin PDF/CSV upload + Claude extraction
+│       ├── xero-connect/index.ts    ← Xero OAuth2 flow
+│       └── xero-sync/index.ts       ← pull Xero purchase invoices
 ├── tariff_parser/
 │   ├── orchestrator.py
 │   ├── pref_rate_writer.py
+│   ├── embedding_loader.py          ← HS embeddings (UN Comtrade + national)
+│   ├── gb_full_load.py              ← batch load all GB chapters
 │   ├── config/country_config.py
 │   └── parsers/
-│       ├── za_parser.py             ← reference implementation
-│       └── gb_parser.py             ← BUILD THIS NEXT
+│       ├── za_parser.py             ← ZA/NA PDF parser
+│       └── gb_parser.py             ← GB API parser (13,567 commodities)
 ├── ui/
-│   └── index.html                   ← 4-screen frontend
+│   └── index.html                   ← 5-screen frontend (+ Admin tab)
 └── docs/
 ```
