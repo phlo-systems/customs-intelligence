@@ -1005,9 +1005,27 @@
 
   <!-- ── Alerts ── -->
   <div class="screen" id="screen-alerts">
-    <div class="empty">
-      <div class="empty-title">No active alerts</div>
-      <div>Alerts appear when duty rates change, sanctions are issued, or preferential rates on your active routes are expiring.</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div>
+        <div style="font-size:18px;font-weight:600;">Trade Alerts</div>
+        <div style="font-size:12px;color:var(--text-3);">Rate changes, sanctions, expiring preferences, and regulatory updates</div>
+      </div>
+      <button class="lookup-btn" onclick="generateAlerts()" id="gen-alerts-btn" style="padding:8px 16px;font-size:12px;background:var(--teal);">Generate Alerts</button>
+    </div>
+
+    <div id="alerts-summary" style="margin-bottom:16px;"></div>
+
+    <div class="filters" id="alert-filters">
+      <span class="filter-label">Severity:</span>
+      <div class="filter-chip active" onclick="filterAlerts(this, null)">All</div>
+      <div class="filter-chip" onclick="filterAlerts(this, 'CRITICAL')">Critical</div>
+      <div class="filter-chip" onclick="filterAlerts(this, 'HIGH')">High</div>
+      <div class="filter-chip" onclick="filterAlerts(this, 'MEDIUM')">Medium</div>
+      <div class="filter-chip" onclick="filterAlerts(this, 'LOW')">Low</div>
+    </div>
+
+    <div id="alerts-list" class="opp-list">
+      <div class="page-loader"><div class="spinner" style="margin:0;"></div> Loading alerts...</div>
     </div>
   </div>
 
@@ -2201,6 +2219,150 @@ async function runAcumaticaSync(full = false) {
 }
 
 setTimeout(checkAcumaticaStatus, 1500);
+
+// ── Alerts ───────────────────────────────────────────────────────────────────
+let allAlerts = [];
+
+async function loadAlerts() {
+  try {
+    const r = await fetch(`${API_BASE}/alerts?limit=200`, { headers: HEADERS });
+    const data = await r.json();
+    allAlerts = data.alerts || [];
+    const counts = data.counts || {};
+
+    // Summary bar
+    const summary = document.getElementById('alerts-summary');
+    if (counts.total > 0) {
+      summary.innerHTML = `
+        <div class="summary-bar">
+          <div class="stat-card"><div class="stat-label">Total Active</div><div class="stat-value">${counts.total}</div></div>
+          <div class="stat-card"><div class="stat-label">Critical</div><div class="stat-value" style="color:var(--red);">${counts.critical}</div></div>
+          <div class="stat-card"><div class="stat-label">High</div><div class="stat-value" style="color:var(--amber);">${counts.high}</div></div>
+          <div class="stat-card"><div class="stat-label">Medium / Low</div><div class="stat-value">${counts.medium + counts.low}</div></div>
+        </div>`;
+    } else {
+      summary.innerHTML = '';
+    }
+
+    renderAlerts(allAlerts);
+  } catch (e) {
+    document.getElementById('alerts-list').innerHTML = `<div class="empty"><div class="empty-title">Could not load alerts</div>${e.message}</div>`;
+  }
+}
+
+function renderAlerts(alerts) {
+  const list = document.getElementById('alerts-list');
+  if (!alerts.length) {
+    list.innerHTML = `<div class="empty">
+      <div class="empty-title">No active alerts</div>
+      <div>Click "Generate Alerts" to scan your trade routes for risks and regulatory changes.</div>
+    </div>`;
+    return;
+  }
+  list.innerHTML = alerts.map((a, i) => alertCard(a, i)).join('');
+}
+
+function alertCard(a, i) {
+  const sevColors = {
+    CRITICAL: { bg: 'var(--red-bg)', border: '#f4a8a8', text: 'var(--red)' },
+    HIGH:     { bg: 'var(--amber-bg)', border: '#f5d8a8', text: 'var(--amber)' },
+    MEDIUM:   { bg: 'var(--teal-bg)', border: '#a7d4c8', text: 'var(--teal)' },
+    LOW:      { bg: 'var(--bg)', border: 'var(--border)', text: 'var(--text-3)' },
+  };
+  const typeLabels = {
+    DUTY_INCREASE:     'Duty Change',
+    SANCTIONS_NEW:     'Sanctions',
+    AD_INVESTIGATION:  'AD Investigation',
+    REGULATORY_CHANGE: 'Regulatory',
+    EXPIRY_WARNING:    'Expiring',
+    SYNC_FAILURE:      'Sync Issue',
+  };
+
+  const sev = sevColors[a.severity] || sevColors.MEDIUM;
+  const typeLabel = typeLabels[a.alerttype] || a.alerttype;
+  const date = a.detectedat ? new Date(a.detectedat).toLocaleDateString() : '';
+  const hs = a.subheadingcode ? `HS ${a.subheadingcode}` : '';
+  const country = a.countrycode || '';
+
+  return `
+    <div class="opp-card" id="alert-${a.alertid}">
+      <div class="opp-card-main" onclick="toggleAlertDetail(${i})">
+        <div style="min-width:72px;">
+          <div style="background:${sev.bg};border:1px solid ${sev.border};border-radius:6px;padding:6px 10px;text-align:center;">
+            <div style="font-size:10px;font-weight:600;color:${sev.text};text-transform:uppercase;letter-spacing:0.06em;">${a.severity}</div>
+          </div>
+        </div>
+        <div class="opp-body">
+          <div class="opp-route">
+            ${country ? `<span class="country-tag">${country}</span>` : ''}
+            ${hs ? `<span class="opp-hs">${hs}</span>` : ''}
+            <span class="opp-agreement">${typeLabel}</span>
+          </div>
+          <div class="opp-headline">${a.headline}</div>
+        </div>
+        <div class="opp-actions">
+          <div style="font-size:10px;color:var(--text-3);">${date}</div>
+          ${a.detail ? `<div class="expand-btn" id="alert-btn-${i}">Detail ▾</div>` : ''}
+        </div>
+      </div>
+      ${a.detail ? `
+        <div class="ai-panel" id="alert-detail-${i}">
+          <div class="ai-panel-label"><span class="ai-dot" style="background:${sev.text};"></span>Detail</div>
+          <div class="ai-text">${a.detail}</div>
+          <div style="margin-top:12px;display:flex;gap:8px;">
+            <button class="confirm-btn" style="font-size:11px;padding:6px 12px;" onclick="event.stopPropagation(); actionAlert(${a.alertid}, 'actioned')">Mark Actioned</button>
+            <button style="font-size:11px;padding:6px 12px;background:none;border:1px solid var(--border);border-radius:6px;color:var(--text-2);cursor:pointer;" onclick="event.stopPropagation(); actionAlert(${a.alertid}, 'dismiss')">Dismiss</button>
+          </div>
+        </div>` : ''}
+    </div>`;
+}
+
+function toggleAlertDetail(i) {
+  const panel = document.getElementById('alert-detail-' + i);
+  const btn = document.getElementById('alert-btn-' + i);
+  if (!panel) return;
+  const open = panel.classList.toggle('open');
+  if (btn) btn.textContent = open ? 'Detail ▴' : 'Detail ▾';
+}
+
+function filterAlerts(el, severity) {
+  document.querySelectorAll('#alert-filters .filter-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  const filtered = severity ? allAlerts.filter(a => a.severity === severity) : allAlerts;
+  renderAlerts(filtered);
+}
+
+async function actionAlert(alertId, action) {
+  await fetch(`${API_BASE}/alerts`, {
+    method: 'POST', headers: HEADERS,
+    body: JSON.stringify({ action, alert_id: alertId }),
+  });
+  // Remove from UI
+  const el = document.getElementById('alert-' + alertId);
+  if (el) { el.style.opacity = '0.3'; setTimeout(() => { el.remove(); }, 500); }
+  // Refresh counts
+  setTimeout(loadAlerts, 1000);
+}
+
+async function generateAlerts() {
+  const btn = document.getElementById('gen-alerts-btn');
+  btn.disabled = true;
+  btn.textContent = 'Generating...';
+
+  try {
+    const r = await fetch(`${API_BASE}/alerts`, {
+      method: 'POST', headers: HEADERS,
+      body: JSON.stringify({ action: 'generate' }),
+    });
+    const data = await r.json();
+    loadAlerts();
+  } catch (e) {}
+
+  btn.disabled = false;
+  btn.textContent = 'Generate Alerts';
+}
+
+setTimeout(loadAlerts, 800);
 
 init();
 </script>
