@@ -914,9 +914,13 @@
       <div id="xero-status" style="flex:1;"></div>
       <div id="xero-actions"></div>
     </div>
-    <div style="display:flex;gap:14px;align-items:center;margin-bottom:20px;">
+    <div style="display:flex;gap:14px;align-items:center;margin-bottom:10px;">
       <div id="acumatica-status" style="flex:1;"></div>
       <div id="acumatica-actions"></div>
+    </div>
+    <div style="display:flex;gap:14px;align-items:center;margin-bottom:20px;">
+      <div id="email-status" style="flex:1;"></div>
+      <div id="email-actions"></div>
     </div>
 
     <!-- Trade Insights from ERP (auto-derived) -->
@@ -2219,6 +2223,129 @@ async function runAcumaticaSync(full = false) {
 }
 
 setTimeout(checkAcumaticaStatus, 1500);
+
+// ── Email Integration ────────────────────────────────────────────────────────
+async function checkEmailStatus() {
+  try {
+    const r = await fetch(`${API_BASE}/email-connect`, {
+      method: 'POST', headers: HEADERS, body: JSON.stringify({ action: 'status' }),
+    });
+    const data = await r.json();
+    const statusDiv = document.getElementById('email-status');
+    const actionsDiv = document.getElementById('email-actions');
+
+    const parts = [];
+    let connected = false;
+
+    if (data.gmail?.connected) {
+      parts.push(`<div style="background:var(--green-bg);border:1px solid #b7e4c7;border-radius:6px;padding:8px 14px;font-size:12px;color:var(--green);font-weight:500;">Gmail: <strong>${data.gmail.email}</strong></div>`);
+      connected = true;
+    }
+    if (data.outlook?.connected) {
+      parts.push(`<div style="background:var(--green-bg);border:1px solid #b7e4c7;border-radius:6px;padding:8px 14px;font-size:12px;color:var(--green);font-weight:500;">Outlook: <strong>${data.outlook.email}</strong></div>`);
+      connected = true;
+    }
+
+    if (connected) {
+      statusDiv.innerHTML = `<div style="display:flex;align-items:center;gap:10px;">${parts.join('')}</div>`;
+      const syncBtns = [];
+      if (data.gmail?.connected) syncBtns.push(`<button class="lookup-btn" onclick="runEmailSync('GMAIL')" id="gmail-sync-btn" style="padding:8px 12px;font-size:11px;">Scan Gmail</button>`);
+      if (data.outlook?.connected) syncBtns.push(`<button class="lookup-btn" onclick="runEmailSync('OUTLOOK')" id="outlook-sync-btn" style="padding:8px 12px;font-size:11px;">Scan Outlook</button>`);
+      actionsDiv.innerHTML = `<div style="display:flex;gap:8px;">${syncBtns.join('')}</div>`;
+    } else {
+      statusDiv.innerHTML = `<span style="font-size:12px;color:var(--text-3);">No email connected</span>`;
+      actionsDiv.innerHTML = `
+        <div style="display:flex;gap:8px;">
+          <button class="lookup-btn" onclick="connectEmail('gmail')" style="background:var(--teal);padding:8px 12px;font-size:11px;">Connect Gmail</button>
+          <button class="lookup-btn" onclick="connectEmail('outlook')" style="background:#0078d4;padding:8px 12px;font-size:11px;">Connect Outlook</button>
+        </div>`;
+    }
+  } catch {
+    const s = document.getElementById('email-status');
+    if (s) s.innerHTML = '';
+  }
+}
+
+async function connectEmail(platform) {
+  try {
+    const r = await fetch(`${API_BASE}/email-connect`, {
+      method: 'POST', headers: HEADERS,
+      body: JSON.stringify({ action: 'auth_' + platform }),
+    });
+    const data = await r.json();
+    if (data.redirect_url) {
+      const popup = window.open(data.redirect_url, platform + '_auth', 'width=600,height=700');
+      // The OAuth callback will redirect back — user closes popup manually
+      // Poll for connection
+      const poll = setInterval(async () => {
+        try {
+          const sr = await fetch(`${API_BASE}/email-connect`, {
+            method: 'POST', headers: HEADERS, body: JSON.stringify({ action: 'status' }),
+          });
+          const sd = await sr.json();
+          if (sd.gmail?.connected || sd.outlook?.connected) {
+            clearInterval(poll);
+            if (popup && !popup.closed) popup.close();
+            checkEmailStatus();
+          }
+        } catch {}
+      }, 3000);
+      setTimeout(() => clearInterval(poll), 300000);
+    } else {
+      alert(data.error || 'Could not start auth flow');
+    }
+  } catch (e) {
+    alert('Connection failed: ' + e.message);
+  }
+}
+
+async function runEmailSync(platform) {
+  const btnId = platform.toLowerCase() + '-sync-btn';
+  const btn = document.getElementById(btnId);
+  const panel = document.getElementById('xero-sync-panel');
+  if (btn) { btn.disabled = true; btn.textContent = 'Scanning...'; }
+
+  panel.innerHTML = `
+    <div class="upload-progress">
+      <div style="font-size:14px;font-weight:600;margin-bottom:8px;">Scanning ${platform} emails...</div>
+      <div style="font-size:12px;color:var(--text-3);">Looking for trade-related emails. AI will extract customs context.</div>
+      <div class="upload-progress-bar" style="margin-top:12px;"><div class="upload-progress-fill" style="width:30%;"></div></div>
+    </div>`;
+
+  try {
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), 120000);
+    const r = await fetch(`${API_BASE}/email-sync`, {
+      method: 'POST', headers: HEADERS,
+      body: JSON.stringify({ platform, days: 30 }),
+      signal: controller.signal,
+    });
+    const data = await r.json();
+    const s = data.stats || {};
+
+    panel.innerHTML = `
+      <div class="upload-result">
+        <div class="upload-result-header">
+          <div class="upload-result-title">${platform} Email Scan Complete</div>
+          <div class="upload-result-status success">DONE</div>
+        </div>
+        <div class="upload-stats">
+          <div class="upload-stat"><div class="upload-stat-val">${s.emails_found ?? 0}</div><div class="upload-stat-label">Emails Found</div></div>
+          <div class="upload-stat"><div class="upload-stat-val">${s.emails_processed ?? 0}</div><div class="upload-stat-label">Trade-Related</div></div>
+          <div class="upload-stat"><div class="upload-stat-val">${s.extracts_saved ?? 0}</div><div class="upload-stat-label">Extracts Saved</div></div>
+        </div>
+        ${s.errors?.length ? `<div style="background:var(--amber-bg);border-radius:6px;padding:8px 12px;font-size:11px;color:var(--amber);">${s.errors.join('; ')}</div>` : ''}
+        <div style="font-size:12px;color:var(--text-2);margin-top:8px;">Trade context extracted and added to your profile. No email content was stored.</div>
+      </div>`;
+  } catch (e) {
+    const msg = e.name === 'AbortError' ? 'Scan timed out.' : e.message;
+    panel.innerHTML = `<div class="classify-empty"><div class="classify-empty-title">Scan failed</div><div>${msg}</div></div>`;
+  }
+
+  if (btn) { btn.disabled = false; btn.textContent = platform === 'GMAIL' ? 'Scan Gmail' : 'Scan Outlook'; }
+}
+
+setTimeout(checkEmailStatus, 2000);
 
 // ── Alerts ───────────────────────────────────────────────────────────────────
 let allAlerts = [];
