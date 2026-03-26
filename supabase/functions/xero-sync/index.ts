@@ -151,19 +151,20 @@ Deno.serve(async (req: Request) => {
 
   console.log(`Fetched ${allInvoices.length} ACCPAY invoices`);
 
-  // ── Process each invoice ─────────────────────────────────────────────────
-  const classifyUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/classify`;
-  const tradeRoutes = new Map<string, { count: number; total_value: number; currency: string }>();
-  const supplierCountries = new Map<string, string>(); // contactId → country code
+  // ── Process invoices (lightweight — no per-item classification) ──────────
+  const supplierCountries = new Map<string, string>();
+  const supplierNames = new Map<string, string>();
+  const lineItems: Array<{ description: string; amount: number; currency: string; supplier: string; supplier_country: string | null }> = [];
 
   for (const inv of allInvoices) {
     const currency = inv.CurrencyCode || "ZAR";
     const contact = inv.Contact || {};
     const contactId = contact.ContactID || "";
     const supplierName = contact.Name || "Unknown";
+    supplierNames.set(contactId, supplierName);
 
     // Map supplier country
-    let supplierCountry = supplierCountries.get(contactId);
+    let supplierCountry = supplierCountries.get(contactId) || null;
     if (!supplierCountry && contact.Addresses) {
       for (const addr of contact.Addresses) {
         if (addr.Country) {
@@ -177,68 +178,34 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Process line items
-    const lineItems = inv.LineItems || [];
-    for (const item of lineItems) {
+    const items = inv.LineItems || [];
+    for (const item of items) {
       stats.line_items_found++;
       const description = item.Description || "";
       const lineAmount = item.LineAmount || 0;
-
-      if (!description || description.length < 5) continue;
-
-      // Classify the line item
-      try {
-        const classResp = await fetch(classifyUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-API-Key": rawKey,
-          },
-          body: JSON.stringify({
-            description,
-            import_country: "ZA", // Default — could be configurable
-          }),
-        });
-
-        if (classResp.ok) {
-          const classData = await classResp.json();
-          const topSuggestion = classData.suggestions?.[0];
-          if (topSuggestion) {
-            stats.items_classified++;
-
-            // Track trade route
-            if (supplierCountry) {
-              const routeKey = `${supplierCountry}→ZA:${topSuggestion.subheading_code}`;
-              const existing = tradeRoutes.get(routeKey) || { count: 0, total_value: 0, currency };
-              existing.count++;
-              existing.total_value += lineAmount;
-              tradeRoutes.set(routeKey, existing);
-            }
-          }
-        }
-
-        await sleep(200); // Don't hammer classify endpoint
-      } catch (e) {
-        // Non-fatal — continue processing
+      if (description.length >= 5) {
+        lineItems.push({ description, amount: lineAmount, currency, supplier: supplierName, supplier_country: supplierCountry });
       }
     }
   }
 
-  stats.trade_routes_found = tradeRoutes.size;
+  // ── Build supplier summary ───────────────────────────────────────────────
+  const supplierSummary = Array.from(supplierNames.entries()).map(([id, name]) => ({
+    name,
+    country: supplierCountries.get(id) || null,
+  }));
 
-  // ── Build trade route summary ────────────────────────────────────────────
-  const routes = Array.from(tradeRoutes.entries()).map(([key, val]) => {
-    const [route, hs] = key.split(":");
-    const [exportCountry, importCountry] = route.split("→");
-    return {
-      export_country: exportCountry,
-      import_country: importCountry,
-      subheading_code: hs,
-      invoice_count: val.count,
-      total_value: val.total_value,
-      currency: val.currency,
-    };
-  }).sort((a, b) => b.total_value - a.total_value);
+  // ── Top line items by value (for user to classify in UI) ─────────────────
+  const topItems = lineItems
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, 20)
+    .map(item => ({
+      description: item.description.substring(0, 120),
+      amount: item.amount,
+      currency: item.currency,
+      supplier: item.supplier,
+      supplier_country: item.supplier_country,
+    }));
 
   // ── Update last sync timestamp ───────────────────────────────────────────
   await supabase.from("erp_integration")
@@ -260,7 +227,8 @@ Deno.serve(async (req: Request) => {
   return json({
     status: "ok",
     stats,
-    trade_routes: routes.slice(0, 50), // Top 50 by value
+    suppliers: supplierSummary,
+    top_line_items: topItems,
     suppliers_by_country: Object.fromEntries(
       Array.from(new Set(supplierCountries.values()))
         .map(c => [c, [...supplierCountries.values()].filter(v => v === c).length])

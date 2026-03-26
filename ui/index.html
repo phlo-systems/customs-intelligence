@@ -1662,22 +1662,27 @@ async function runXeroSync() {
 
 function renderXeroSyncResult(data) {
   const s = data.stats || {};
-  const routes = data.trade_routes || [];
+  const items = data.top_line_items || [];
+  const suppliers = data.suppliers || [];
 
-  const routeRows = routes.slice(0, 10).map(r => `
+  const itemRows = items.slice(0, 10).map(item => `
     <tr>
-      <td>${r.export_country} → ${r.import_country}</td>
-      <td>${r.subheading_code}</td>
-      <td>${r.invoice_count}</td>
-      <td>${r.currency} ${Number(r.total_value).toLocaleString(undefined, {minimumFractionDigits:2})}</td>
+      <td style="font-family:var(--sans);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${item.description}</td>
+      <td>${item.currency} ${Number(item.amount).toLocaleString(undefined, {minimumFractionDigits:2})}</td>
+      <td>${item.supplier}</td>
+      <td>${item.supplier_country || '—'}</td>
     </tr>`).join('');
 
-  const routeTable = routes.length ? `
-    <div style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:0.06em;margin:14px 0 6px;">Discovered Trade Routes</div>
+  const itemTable = items.length ? `
+    <div style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:0.06em;margin:14px 0 6px;">Top Line Items by Value</div>
     <table class="sample-table">
-      <tr><th>Route</th><th>HS Code</th><th>Invoices</th><th>Value</th></tr>
-      ${routeRows}
-    </table>` : '';
+      <tr><th>Description</th><th>Amount</th><th>Supplier</th><th>Origin</th></tr>
+      ${itemRows}
+    </table>
+    <div style="font-size:11px;color:var(--text-3);margin-top:8px;">Use the Classify tab to classify these products and discover duty savings.</div>` : '';
+
+  const uniqueCountries = [...new Set(suppliers.map(s => s.country).filter(Boolean))];
+  const countryTags = uniqueCountries.map(c => `<span class="country-tag">${c}</span>`).join(' ');
 
   return `
     <div class="upload-result">
@@ -1695,15 +1700,17 @@ function renderXeroSyncResult(data) {
           <div class="upload-stat-label">Line Items</div>
         </div>
         <div class="upload-stat">
-          <div class="upload-stat-val">${s.items_classified ?? 0}</div>
-          <div class="upload-stat-label">Classified</div>
+          <div class="upload-stat-val">${s.suppliers_mapped ?? 0}</div>
+          <div class="upload-stat-label">Suppliers</div>
         </div>
         <div class="upload-stat">
-          <div class="upload-stat-val">${s.trade_routes_found ?? 0}</div>
-          <div class="upload-stat-label">Trade Routes</div>
+          <div class="upload-stat-val">${uniqueCountries.length}</div>
+          <div class="upload-stat-label">Countries</div>
         </div>
       </div>
-      ${routeTable}
+      ${uniqueCountries.length ? `<div style="margin-bottom:12px;">Supplier countries: ${countryTags}</div>` : ''}
+      ${s.errors?.length ? `<div style="background:var(--amber-bg);border-radius:6px;padding:8px 12px;font-size:11px;color:var(--amber);margin-bottom:12px;">${s.errors.join('; ')}</div>` : ''}
+      ${itemTable}
     </div>`;
 }
 
