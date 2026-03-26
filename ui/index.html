@@ -734,6 +734,31 @@
   }
 
   .sample-table td:first-child { font-weight: 500; color: var(--text); }
+
+  .source-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 4px;
+    margin-bottom: 12px;
+  }
+
+  .source-badge.vector   { background: var(--teal-bg); color: var(--teal); border: 1px solid #a7d4c8; }
+  .source-badge.ai       { background: var(--amber-bg); color: var(--amber); border: 1px solid #f5d8a8; }
+  .source-badge.vectorai { background: #eee8f5; color: #6b4fa0; border: 1px solid #c9b8e0; }
+  .source-badge.cache    { background: var(--green-bg); color: var(--green); border: 1px solid #b7e4c7; }
+
+  .source-dot { width: 6px; height: 6px; border-radius: 50%; }
+  .source-badge.vector .source-dot   { background: var(--teal-mid); }
+  .source-badge.ai .source-dot       { background: var(--amber); }
+  .source-badge.vectorai .source-dot  { background: #6b4fa0; }
+  .source-badge.cache .source-dot    { background: var(--green); }
 </style>
 </head>
 <body>
@@ -1227,8 +1252,25 @@ function renderClassifyResults(data, description, country) {
     ? `<div class="cache-banner">✓ Matched from your confirmed product cache — confidence 100%</div>`
     : '';
 
+  const sourceLabels = {
+    cache:      'Cached',
+    vector:     'Vector Search',
+    'vector+ai': 'Vector + AI',
+    ai:         'AI Classification',
+  };
+  const sourceCls = {
+    cache:      'cache',
+    vector:     'vector',
+    'vector+ai': 'vectorai',
+    ai:         'ai',
+  };
+  const src = data.source || 'ai';
+  const sourceBadge = `<div class="source-badge ${sourceCls[src] || 'ai'}"><span class="source-dot"></span>${sourceLabels[src] || src}</div>`;
+
+  const responseTime = data.response_time_ms ? ` · ${data.response_time_ms}ms` : '';
+
   const cards = suggestions.map((s, i) => classifyCard(s, i, description, country)).join('');
-  return `${cacheBanner}<div class="classify-results">${cards}</div>`;
+  return `${cacheBanner}${sourceBadge}<div class="classify-results">${cards}</div>`;
 }
 
 function classifyCard(s, i, description, country) {
