@@ -20,7 +20,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-api-key, content-type",
 };
 
-const VECTOR_CONFIDENCE_THRESHOLD = 0.90;
+const VECTOR_CONFIDENCE_THRESHOLD = 0.75;
 const OPENAI_EMBEDDING_MODEL = "text-embedding-3-small";
 const EMBEDDING_DIM = 1536;
 
