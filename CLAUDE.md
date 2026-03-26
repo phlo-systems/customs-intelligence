@@ -55,21 +55,28 @@ Group 9 — ERP & Email:      ERP_INTEGRATION, EMAIL_CONTEXT_EXTRACT
 | PREFERENTIAL_RATE | 35,946 | ZA pref rates |
 | HS_DESCRIPTION_EMBEDDING | 16,814 | 5,613 international (UN Comtrade) + 11,201 national |
 | OPPORTUNITIES | 127 | All AI-enriched with Claude |
-| ERP_INTEGRATION | 1 | Xero OAuth2 connected (Phlo Systems Ltd) |
+| ERP_INTEGRATION | 3 | Xero (Phlo Systems), Acumatica (pending), Outlook |
+| EMAIL_CONTEXT_EXTRACT | 2 | Outlook trade extracts (Quadmet PTE Ltd, SG) |
+| ALERTS | ~10 | AI-generated trade alerts |
 | TENANT_CONTEXT | 1 | GTM tenant — Layer 1 |
 | API_KEY | 1 | GTM key |
 
 ## Live Edge Functions
 ```
 POST   /functions/v1/tariff-lookup         — landed cost (full or rates-only)
-POST   /functions/v1/classify              — top 3 HS code suggestions + cache confirm
+POST   /functions/v1/classify              — 3-stage: cache → vector → Claude
 POST   /functions/v1/onboard              — GET/POST tenant context Layer 1
 GET    /functions/v1/opportunities         — opportunity feed with AI insights
 POST   /functions/v1/enrich-opportunities  — generate Claude AIInsight per card
 POST   /functions/v1/upload-tariff         — admin upload PDF/CSV, Claude extraction
-GET    /functions/v1/xero-connect          — Xero OAuth2 connect + callback
-POST   /functions/v1/xero-connect          — status/refresh/disconnect
-POST   /functions/v1/xero-sync             — pull Xero purchase invoices
+GET/POST /functions/v1/xero-connect        — Xero OAuth2 connect/callback/status
+POST   /functions/v1/xero-sync             — pull Xero invoices (ACCPAY + ACCREC)
+POST   /functions/v1/acumatica-connect     — Acumatica OAuth2/client-credentials
+POST   /functions/v1/acumatica-sync        — pull Acumatica POs + SOs
+GET/POST /functions/v1/email-connect       — Gmail/Outlook OAuth2 + extract review
+POST   /functions/v1/email-sync            — scan emails, Claude extracts trade context
+GET/POST /functions/v1/alerts              — trade alerts + generate
+GET/POST /functions/v1/tenant-profile      — full profile + context doc upload
 ```
 
 ## GTM API key (for testing)
@@ -90,14 +97,20 @@ TenantUID: a0000000-0000-0000-0000-000000000001
 | 8 | DB rules engine → OPPORTUNITIES | ✅ |
 | 9 | AI enrichment → AIInsight per card | ✅ |
 | 11 | /classify — 3-stage pipeline (cache → vector → Claude) | ✅ |
-| 16 | Frontend — 5 screens (Opportunities, Lookup, Classify, Alerts, Admin) | ✅ |
+| 16 | Frontend — 6 screens (Opportunities, Lookup, Classify, Profile, Alerts, Admin) | ✅ |
 | 3b | GB tariff parser — 13,567 commodities loaded | ✅ |
 | 10 | pgvector embeddings — 16,814 vectors (UN Comtrade + national) | ✅ |
-| 12 | Xero connector — OAuth2 + invoice sync | ✅ |
+| 12 | Xero connector — OAuth2 + invoice sync (ACCPAY + ACCREC, USD conversion) | ✅ |
+| 13 | Acumatica connector — OAuth2/client-credentials + PO/SO sync | ✅ |
+| 14 | Email connector — Gmail + Outlook, Claude extract, accept/reject | ✅ |
 | -- | Admin upload screen — PDF/CSV → Claude AI extraction | ✅ |
-| 13 | Acumatica connector | ⬜ |
-| 14 | Email connection (Gmail + Outlook) | ⬜ |
+| -- | Company Profile — trade insights, context docs, ERP/email connections | ✅ |
+| -- | Alerts screen — severity filters, AI-generated, dismiss/action | ✅ |
+| -- | Inline setup guides for all connectors | ✅ |
+| **15** | **Personalised opportunity generation from profile — NEXT** | **⬜** |
 | 17 | BR, CL, AU, TH, MX parsers (admin upload covers these) | ⬜ |
+| -- | Production hardening (Key Vault, rate limiting, monitoring) | ⬜ |
+| -- | Multi-tenant auth (signup, per-tenant API keys) | ⬜ |
 
 ## Key scripts
 ```
@@ -162,7 +175,13 @@ customs-intelligence/
 │       ├── enrich-opportunities/index.ts
 │       ├── upload-tariff/index.ts   ← admin PDF/CSV upload + Claude extraction
 │       ├── xero-connect/index.ts    ← Xero OAuth2 flow
-│       └── xero-sync/index.ts       ← pull Xero purchase invoices
+│       ├── xero-sync/index.ts       ← pull Xero invoices (ACCPAY + ACCREC)
+│       ├── acumatica-connect/       ← Acumatica OAuth2/client-credentials
+│       ├── acumatica-sync/          ← pull Acumatica POs + SOs
+│       ├── email-connect/index.ts   ← Gmail/Outlook OAuth2 + extract review
+│       ├── email-sync/index.ts      ← scan emails, Claude extracts context
+│       ├── alerts/index.ts          ← trade alerts + AI generation
+│       └── tenant-profile/index.ts  ← full profile + context doc upload
 ├── tariff_parser/
 │   ├── orchestrator.py
 │   ├── pref_rate_writer.py
@@ -173,6 +192,6 @@ customs-intelligence/
 │       ├── za_parser.py             ← ZA/NA PDF parser
 │       └── gb_parser.py             ← GB API parser (13,567 commodities)
 ├── ui/
-│   └── index.html                   ← 5-screen frontend (+ Admin tab)
+│   └── index.html                   ← 6-screen frontend
 └── docs/
 ```

@@ -2,6 +2,40 @@
 
 ---
 
+## Session: 26 Mar 2026 — Build Sprint 3
+
+### What we built
+- **GB tariff parser** — `gb_parser.py` fetches UK Trade Tariff API, 13,567 commodities loaded across all 98 chapters in ~99 minutes
+- **pgvector embeddings** — 16,814 HS description vectors (5,613 international from UN Comtrade + 11,201 national), HNSW cosine index
+- **3-stage classification pipeline** — cache → vector search → Claude fallback, with source badges in UI
+- **Admin upload** — PDF/CSV upload, Claude AI extracts commodity codes/MFN rates/VAT, writes to DB
+- **Company Profile screen** — trade insights from ERP (top 10 suppliers/customers/products/countries, all in USD with FX footnotes), editable trade details, context document upload
+- **Xero connector** — OAuth2, ACCPAY + ACCREC sync, incremental sync, live FX conversion, country inference from currencies
+- **Acumatica connector** — OAuth2 + client credentials, PO + SO sync, vendor/customer country resolution
+- **Email connector** — Gmail + Outlook OAuth2, trade keyword search, Claude extracts structured context, accept/reject review flow
+- **Alerts screen** — AI-generated alerts based on tenant profile, severity filters, expandable detail, dismiss/action buttons
+- **Inline setup guides** — step-by-step instructions for all connectors directly in the UI
+
+### Key stats
+- 20+ commits in one session
+- 6 frontend screens (Opportunities, Lookup, Classify, Profile, Alerts, Admin)
+- 14 Edge Functions deployed
+- ~30,000 commodity codes loaded (ZA + NA + GB)
+- 4,832 Xero invoices synced, 2 trade emails extracted
+
+### Issues resolved
+- Supabase Edge Functions force `application/json` content-type (can't serve HTML)
+- IVFFlat pgvector index didn't work after bulk load — switched to HNSW
+- Xero granular scopes (post-March 2026) — `accounting.invoices.read` replaces `accounting.transactions.read`
+- `tenantid` vs `tenantuid` mismatch across all ERP functions
+- `ERPType` CHECK constraint needed GMAIL/OUTLOOK added
+- Email OAuth callback requires GET handler (not POST)
+
+### Next task
+- **Personalised opportunity generation from profile** — use Xero/email/context data to auto-generate trade opportunities
+
+---
+
 ## Session: 25 Mar 2026 — Initial Design Sprint
 
 ### What we built

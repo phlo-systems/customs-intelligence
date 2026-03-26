@@ -1,5 +1,43 @@
 # Changelog
 
+## [0.4.0] — 26 Mar 2026 — Build Sprint 3
+
+### Added
+- `tariff_parser/parsers/gb_parser.py` — UK Trade Tariff API parser (13,567 commodities)
+- `tariff_parser/gb_full_load.py` — batch loader for all 98 GB chapters
+- `tariff_parser/embedding_loader.py` — HS description embeddings (UN Comtrade + national)
+- `database/functions/match_hs_codes.sql` — pgvector cosine similarity search (HNSW index)
+- `supabase/functions/upload-tariff/index.ts` — admin PDF/CSV upload + Claude AI extraction
+- `supabase/functions/xero-connect/index.ts` — Xero OAuth2 (connect, callback, status, refresh, disconnect)
+- `supabase/functions/xero-sync/index.ts` — pull ACCPAY + ACCREC, USD conversion, FX rates
+- `supabase/functions/acumatica-connect/index.ts` — Acumatica OAuth2 + client credentials
+- `supabase/functions/acumatica-sync/index.ts` — pull POs + SOs, vendor/customer country resolution
+- `supabase/functions/email-connect/index.ts` — Gmail + Outlook OAuth2 + extract accept/reject
+- `supabase/functions/email-sync/index.ts` — trade email scan, Claude extraction to EMAIL_CONTEXT_EXTRACT
+- `supabase/functions/alerts/index.ts` — trade alerts with AI generation
+- `supabase/functions/tenant-profile/index.ts` — full profile + context document upload
+- Profile screen — trade insights (suppliers, customers, products, countries in USD), ERP/email connections, context doc upload
+- Alerts screen — severity filters, expandable cards, dismiss/action buttons
+- Admin screen — tariff document upload with Claude extraction
+- Source badge on classify results (Vector / AI / Cached)
+- Inline setup guides for all connectors (Xero, Acumatica, Gmail, Outlook)
+
+### Changed
+- `supabase/functions/classify/index.ts` — 3-stage pipeline: cache → pgvector → Claude
+- `tariff_parser/orchestrator.py` — added GB parser + --headings CLI flag
+- `tariff_parser/writers/db_writer.py` — added write_gb_rows() for GB data
+- `tariff_parser/requirements.txt` — added openai dependency
+
+### Data
+- 13,567 GB commodity codes loaded (all 98 chapters)
+- 16,814 HS description embeddings (5,613 international + 11,201 national)
+- Xero connected: Phlo Systems Ltd (4,832 invoices, 7,476 line items)
+- Outlook connected: trade email scanning active
+- Trade insights: top suppliers/customers/products/countries in USD with FX footnotes
+- AI-generated trade alerts
+
+---
+
 ## [0.3.0] — 25 Mar 2026 — Build Sprint 2
 
 ### Added
