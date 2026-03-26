@@ -1866,7 +1866,8 @@ async function checkXeroStatus() {
 
       actionsDiv.innerHTML = `
         <div style="display:flex;gap:8px;">
-          <button class="lookup-btn" onclick="runXeroSync()" id="xero-sync-btn" style="padding:8px 16px;font-size:12px;">Sync Invoices</button>
+          <button class="lookup-btn" onclick="runXeroSync()" id="xero-sync-btn" style="padding:8px 16px;font-size:12px;">Sync New</button>
+          <button class="lookup-btn" onclick="runXeroSync(true)" style="background:var(--text-2);padding:8px 12px;font-size:11px;">Full Refresh</button>
           <button class="lookup-btn" onclick="disconnectXero()" style="background:var(--red);padding:8px 12px;font-size:11px;">Disconnect</button>
         </div>`;
     } else {
@@ -1920,11 +1921,11 @@ async function disconnectXero() {
   checkXeroStatus();
 }
 
-async function runXeroSync() {
+async function runXeroSync(full = false) {
   const btn = document.getElementById('xero-sync-btn');
   const panel = document.getElementById('xero-sync-panel');
   btn.disabled = true;
-  btn.textContent = 'Syncing...';
+  btn.textContent = full ? 'Full sync...' : 'Syncing...';
 
   panel.innerHTML = `
     <div class="upload-progress">
@@ -1937,7 +1938,7 @@ async function runXeroSync() {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 180000); // 3 min timeout
     const r = await fetch(`${API_BASE}/xero-sync`, {
-      method: 'POST', headers: HEADERS, body: JSON.stringify({}),
+      method: 'POST', headers: HEADERS, body: JSON.stringify(full ? { full: true } : {}),
       signal: controller.signal,
     });
     clearTimeout(timeout);

@@ -64,7 +64,8 @@ Deno.serve(async (req: Request) => {
   let body: Record<string, unknown> = {};
   try { body = await req.json(); } catch { /* empty body ok */ }
 
-  const sinceDate = body.since ? String(body.since) : null;
+  // Use last sync time for incremental sync; manual override via body.since; body.full=true forces full refresh
+  let sinceDate = body.since ? String(body.since) : null;
 
   // ── Get Xero integration ─────────────────────────────────────────────────
   const { data: integration } = await supabase
@@ -82,6 +83,12 @@ Deno.serve(async (req: Request) => {
   const config = integration.mappingconfig as Record<string, unknown>;
   let accessToken = config?.access_token as string;
   const xeroTenantId = integration.erptenantid;
+
+  // Auto-set sinceDate from last sync if not manually provided and not a full refresh
+  if (!sinceDate && !body.full && integration.lastsyncat) {
+    sinceDate = integration.lastsyncat.split("T")[0]; // YYYY-MM-DD
+    console.log("Incremental sync since:", sinceDate);
+  }
 
   // Check if token needs refresh
   const expiresAt = config?.expires_at as number || 0;
@@ -314,13 +321,23 @@ Deno.serve(async (req: Request) => {
     .update({ lastsyncat: new Date().toISOString() })
     .eq("integrationid", integration.integrationid);
 
-  // ── Store trade insights in ERP_INTEGRATION.mappingconfig ─────────────
+  // ── Store trade insights ─────────────────────────────────────────────────
+  // For incremental syncs with few results, merge with existing insights
   const existingConfig = integration.mappingconfig as Record<string, unknown> || {};
+  const existingInsights = existingConfig.trade_insights as Record<string, unknown> || null;
+
+  let finalInsights = tradeInsights;
+  if (sinceDate && existingInsights && (stats.purchase_invoices + stats.sales_invoices) < 50) {
+    // Small incremental — keep existing, just update sync time
+    finalInsights = { ...existingInsights, synced_at: tradeInsights.synced_at, fx_rates: tradeInsights.fx_rates, fx_date: tradeInsights.fx_date };
+    console.log("Incremental: keeping existing insights, updating FX + timestamp");
+  }
+
   await supabase.from("erp_integration")
     .update({
       mappingconfig: {
         ...existingConfig,
-        trade_insights: tradeInsights,
+        trade_insights: finalInsights,
       },
     })
     .eq("integrationid", integration.integrationid);
