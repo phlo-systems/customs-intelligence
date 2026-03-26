@@ -980,6 +980,65 @@
       </div>
     </div>
 
+    <!-- Company Profile -->
+    <div style="margin-top:28px;">
+      <div style="font-size:14px;font-weight:600;margin-bottom:14px;">Company Profile</div>
+      <div class="lookup-grid">
+        <div class="lookup-form" id="profile-form">
+          <div class="form-title">Trade Profile</div>
+          <div class="form-group">
+            <label>Business Type</label>
+            <select id="p-business-type">
+              <option value="">Select...</option>
+              <option value="TRADER">Trader</option>
+              <option value="IMPORTER">Importer</option>
+              <option value="EXPORTER">Exporter</option>
+              <option value="MANUFACTURER">Manufacturer</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Annual Import Volume</label>
+            <select id="p-volume">
+              <option value="">Select...</option>
+              <option value="<500K">&lt; 500K</option>
+              <option value="500K-2M">500K - 2M</option>
+              <option value="2M-10M">2M - 10M</option>
+              <option value="10M-50M">10M - 50M</option>
+              <option value="50M+">50M+</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Primary HS Chapters</label>
+            <input type="text" id="p-hs-chapters" placeholder="e.g. 20, 74, 18">
+            <div class="hint">Comma-separated chapter numbers</div>
+          </div>
+          <div class="form-group">
+            <label>Source Countries (origins)</label>
+            <input type="text" id="p-origins" placeholder="e.g. GB, CN, IN">
+            <div class="hint">Comma-separated ISO codes — where you buy from</div>
+          </div>
+          <div class="form-group">
+            <label>Destination Countries</label>
+            <input type="text" id="p-destinations" placeholder="e.g. ZA, NA, AO">
+            <div class="hint">Where you sell to / import into</div>
+          </div>
+          <div class="form-group">
+            <label>Target Markets</label>
+            <input type="text" id="p-markets" placeholder="e.g. ZA, MU, GB">
+            <div class="hint">Markets you're interested in expanding to</div>
+          </div>
+          <button class="lookup-btn" onclick="saveProfile()" id="profile-save-btn">Save Profile</button>
+          <div id="profile-status" style="margin-top:8px;font-size:12px;color:var(--text-3);"></div>
+        </div>
+        <div id="profile-summary">
+          <div class="classify-empty">
+            <div class="classify-empty-title">Your trade profile</div>
+            <div>Fill in your company details to get personalised trade intelligence and opportunity recommendations.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Xero Integration -->
     <div style="margin-top:28px;">
       <div style="font-size:14px;font-weight:600;margin-bottom:14px;">ERP Integration</div>
@@ -1546,6 +1605,92 @@ function renderUploadResult(data) {
     </div>`;
 }
 
+// ── Company Profile ──────────────────────────────────────────────────────────
+async function loadProfile() {
+  try {
+    const r = await fetch(`${API_BASE}/onboard`, { headers: HEADERS });
+    if (!r.ok) return;
+    const data = await r.json();
+
+    if (data.businesstype) document.getElementById('p-business-type').value = data.businesstype;
+    if (data.annualvolumerange) document.getElementById('p-volume').value = data.annualvolumerange;
+    if (data.primaryhschapters) document.getElementById('p-hs-chapters').value = (data.primaryhschapters || []).join(', ');
+    if (data.activeorigincountries) document.getElementById('p-origins').value = (data.activeorigincountries || []).join(', ');
+    if (data.activedestcountries) document.getElementById('p-destinations').value = (data.activedestcountries || []).join(', ');
+    if (data.targetmarkets) document.getElementById('p-markets').value = (data.targetmarkets || []).join(', ');
+
+    renderProfileSummary(data);
+  } catch (e) {}
+}
+
+function renderProfileSummary(data) {
+  const panel = document.getElementById('profile-summary');
+  const origins = (data.activeorigincountries || []).map(c => `<span class="country-tag">${c}</span>`).join(' ');
+  const dests = (data.activedestcountries || []).map(c => `<span class="country-tag">${c}</span>`).join(' ');
+  const markets = (data.targetmarkets || []).map(c => `<span class="country-tag">${c}</span>`).join(' ');
+  const chapters = (data.primaryhschapters || []).map(c => `<span class="country-tag">Ch.${c}</span>`).join(' ');
+
+  const updated = data.updatedat ? new Date(data.updatedat).toLocaleDateString() : '—';
+
+  panel.innerHTML = `
+    <div class="result-panel" style="padding:20px 24px;">
+      <div style="font-size:14px;font-weight:600;margin-bottom:16px;">Profile Summary</div>
+      <div class="result-row"><span class="result-key">Business Type</span><span class="result-val">${data.businesstype || '—'}</span></div>
+      <div class="result-row"><span class="result-key">Annual Volume</span><span class="result-val">${data.annualvolumerange || '—'}</span></div>
+      <div class="result-row"><span class="result-key">HS Chapters</span><span>${chapters || '—'}</span></div>
+      <div class="result-row"><span class="result-key">Source Countries</span><span>${origins || '—'}</span></div>
+      <div class="result-row"><span class="result-key">Destinations</span><span>${dests || '—'}</span></div>
+      <div class="result-row"><span class="result-key">Target Markets</span><span>${markets || '—'}</span></div>
+      <div style="font-size:11px;color:var(--text-3);margin-top:12px;">Last updated: ${updated}</div>
+    </div>`;
+}
+
+async function saveProfile() {
+  const btn = document.getElementById('profile-save-btn');
+  const status = document.getElementById('profile-status');
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+
+  const parseList = (id) => {
+    const val = document.getElementById(id).value.trim();
+    return val ? val.split(',').map(s => s.trim().toUpperCase()).filter(Boolean) : undefined;
+  };
+
+  const body = {};
+  const bt = document.getElementById('p-business-type').value;
+  const vol = document.getElementById('p-volume').value;
+  if (bt) body.business_type = bt;
+  if (vol) body.annual_volume_range = vol;
+
+  const hs = parseList('p-hs-chapters');
+  const origins = parseList('p-origins');
+  const dests = parseList('p-destinations');
+  const markets = parseList('p-markets');
+  if (hs) body.primary_hs_chapters = hs;
+  if (origins) body.active_origins = origins;
+  if (dests) body.active_destinations = dests;
+  if (markets) body.target_markets = markets;
+
+  try {
+    const r = await fetch(`${API_BASE}/onboard`, {
+      method: 'POST', headers: HEADERS, body: JSON.stringify(body),
+    });
+    const data = await r.json();
+    if (data.context) renderProfileSummary(data.context);
+    status.textContent = 'Profile saved';
+    status.style.color = 'var(--green)';
+  } catch (e) {
+    status.textContent = 'Save failed: ' + e.message;
+    status.style.color = 'var(--red)';
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Save Profile';
+  setTimeout(() => { status.textContent = ''; }, 3000);
+}
+
+setTimeout(loadProfile, 500);
+
 // ── Xero Integration ─────────────────────────────────────────────────────────
 async function checkXeroStatus() {
   try {
@@ -1666,7 +1811,8 @@ async function runXeroSync() {
 
   btn.disabled = false;
   btn.textContent = 'Sync Invoices';
-  checkXeroStatus(); // Refresh last sync time
+  // Refresh last sync time without overwriting sync results panel
+  refreshXeroLastSync();
 }
 
 function renderXeroSyncResult(data) {
@@ -1721,6 +1867,26 @@ function renderXeroSyncResult(data) {
       ${s.errors?.length ? `<div style="background:var(--amber-bg);border-radius:6px;padding:8px 12px;font-size:11px;color:var(--amber);margin-bottom:12px;">${s.errors.join('; ')}</div>` : ''}
       ${itemTable}
     </div>`;
+}
+
+async function refreshXeroLastSync() {
+  try {
+    const r = await fetch(`${API_BASE}/xero-connect`, {
+      method: 'POST', headers: HEADERS, body: JSON.stringify({ action: 'status' }),
+    });
+    const data = await r.json();
+    if (data.connected && data.last_sync_at) {
+      const el = document.getElementById('xero-status');
+      if (el) {
+        const lastSync = new Date(data.last_sync_at).toLocaleString();
+        el.innerHTML = `
+          <div style="background:var(--green-bg);border:1px solid #b7e4c7;border-radius:6px;padding:10px 14px;font-size:12px;color:var(--green);font-weight:500;">
+            Connected to <strong>${data.xero_tenant_name}</strong>
+          </div>
+          <div style="font-size:11px;color:var(--text-3);margin-top:6px;">Last sync: ${lastSync}</div>`;
+      }
+    }
+  } catch {}
 }
 
 // Check Xero status on page load (after admin tab is available)
