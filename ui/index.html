@@ -1665,74 +1665,70 @@ function renderTradeInsights(insights) {
     return;
   }
 
-  const fmtNum = n => Number(n).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0});
-  const fmtCurr = (n, c) => c + ' ' + Number(n).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0});
-  const COUNTRY_NAMES = {GB:'United Kingdom',US:'United States',IN:'India',NG:'Nigeria',ZA:'South Africa',BR:'Brazil',AU:'Australia',GH:'Ghana',EU:'Europe',SG:'Singapore',AE:'UAE',CN:'China',JP:'Japan',DE:'Germany',FR:'France',NL:'Netherlands',CA:'Canada',KE:'Kenya'};
+  const fmtUSD = n => '$' + Number(n).toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0});
+  const COUNTRY_NAMES = {GB:'United Kingdom',US:'United States',IN:'India',NG:'Nigeria',ZA:'South Africa',BR:'Brazil',AU:'Australia',GH:'Ghana',EU:'Europe (EUR)',SG:'Singapore',AE:'UAE',CN:'China',JP:'Japan',DE:'Germany',FR:'France',NL:'Netherlands',CA:'Canada',KE:'Kenya',BG:'Bulgaria',RO:'Romania'};
 
   // Stats bar
   const statsHtml = `
     <div class="summary-bar" style="margin-bottom:16px;">
-      <div class="stat-card"><div class="stat-label">Invoices</div><div class="stat-value">${fmtNum(insights.total_invoices || 0)}</div></div>
-      <div class="stat-card"><div class="stat-label">Line Items</div><div class="stat-value">${fmtNum(insights.total_line_items || 0)}</div></div>
-      <div class="stat-card"><div class="stat-label">Suppliers</div><div class="stat-value">${fmtNum(insights.total_suppliers || 0)}</div></div>
-      <div class="stat-card"><div class="stat-label">Currencies</div><div class="stat-value">${(insights.currencies || []).length}</div></div>
+      <div class="stat-card"><div class="stat-label">Purchase Bills</div><div class="stat-value">${(insights.purchase_invoices || 0).toLocaleString()}</div></div>
+      <div class="stat-card"><div class="stat-label">Sales Invoices</div><div class="stat-value">${(insights.sales_invoices || 0).toLocaleString()}</div></div>
+      <div class="stat-card"><div class="stat-label">Line Items</div><div class="stat-value">${(insights.total_line_items || 0).toLocaleString()}</div></div>
+      <div class="stat-card"><div class="stat-label">Contacts</div><div class="stat-value">${(insights.total_contacts || 0).toLocaleString()}</div></div>
     </div>`;
 
-  // Top sellers table
-  const sellers = (insights.top_sellers || []).slice(0, 10);
-  const sellersHtml = sellers.length ? `
-    <div class="result-panel" style="padding:16px 20px;margin-bottom:14px;">
-      <div style="font-size:13px;font-weight:600;margin-bottom:10px;">Top 10 Suppliers by Spend</div>
+  const contactTable = (title, list) => {
+    if (!list?.length) return '';
+    return `<div class="result-panel" style="padding:16px 20px;margin-bottom:14px;">
+      <div style="font-size:13px;font-weight:600;margin-bottom:10px;">${title}</div>
       <table class="sample-table">
-        <tr><th>#</th><th>Supplier</th><th>Total Spend</th></tr>
-        ${sellers.map((s, i) => `<tr><td>${i+1}</td><td style="font-family:var(--sans);">${s.name}</td><td>${fmtNum(s.total_spend)}</td></tr>`).join('')}
+        <tr><th>#</th><th>Name</th><th>Country</th><th>Total (USD)</th></tr>
+        ${list.map((c, i) => `<tr><td>${i+1}</td><td style="font-family:var(--sans);">${c.name}</td><td>${c.country ? `<span class="country-tag">${c.country}</span>` : '\u2014'}</td><td>${fmtUSD(c.total_spend_usd)}</td></tr>`).join('')}
       </table>
-    </div>` : '';
+    </div>`;
+  };
 
-  // Top products table
-  const products = (insights.top_products || []).slice(0, 10);
-  const productsHtml = products.length ? `
-    <div class="result-panel" style="padding:16px 20px;margin-bottom:14px;">
-      <div style="font-size:13px;font-weight:600;margin-bottom:10px;">Top 10 Products by Spend</div>
+  const productTable = (title, list) => {
+    if (!list?.length) return '';
+    return `<div class="result-panel" style="padding:16px 20px;margin-bottom:14px;">
+      <div style="font-size:13px;font-weight:600;margin-bottom:10px;">${title}</div>
       <table class="sample-table">
-        <tr><th>#</th><th>Product Description</th><th>Invoices</th><th>Total Spend</th></tr>
-        ${products.map((p, i) => `<tr><td>${i+1}</td><td style="font-family:var(--sans);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.description}</td><td>${p.invoice_count}</td><td>${fmtNum(p.total_spend)}</td></tr>`).join('')}
+        <tr><th>#</th><th>Description</th><th>Invoices</th><th>Total (USD)</th></tr>
+        ${list.map((p, i) => `<tr><td>${i+1}</td><td style="font-family:var(--sans);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.description}</td><td>${p.invoice_count}</td><td>${fmtUSD(p.total_spend_usd)}</td></tr>`).join('')}
       </table>
-    </div>` : '';
+    </div>`;
+  };
 
-  // Currencies + countries side by side
-  const currencies = (insights.currencies || []);
-  const countries = (insights.buying_countries || []);
-
-  // Countries with spend
-  const countriesHtml = countries.length ? `
-    <div class="result-panel" style="padding:16px 20px;margin-bottom:14px;">
-      <div style="font-size:13px;font-weight:600;margin-bottom:10px;">Top Buying Countries by Spend</div>
+  const ctyTable = (title, list) => {
+    if (!list?.length) return '';
+    return `<div class="result-panel" style="padding:16px 20px;margin-bottom:14px;">
+      <div style="font-size:13px;font-weight:600;margin-bottom:10px;">${title}</div>
       <table class="sample-table">
-        <tr><th>#</th><th>Country</th><th>Total Spend</th><th>Suppliers</th></tr>
-        ${countries.slice(0, 10).map((c, i) => `<tr>
-          <td>${i+1}</td>
-          <td style="font-family:var(--sans);"><span class="country-tag">${c.country}</span> ${COUNTRY_NAMES[c.country] || ''}</td>
-          <td>${c.total_spend ? fmtNum(c.total_spend) : '—'}</td>
-          <td>${c.supplier_count || '—'}</td>
-        </tr>`).join('')}
+        <tr><th>#</th><th>Country</th><th>Total (USD)</th></tr>
+        ${list.slice(0, 10).map((c, i) => `<tr><td>${i+1}</td><td style="font-family:var(--sans);"><span class="country-tag">${c.country}</span> ${COUNTRY_NAMES[c.country] || ''}</td><td>${fmtUSD(c.total_spend_usd)}</td></tr>`).join('')}
       </table>
-    </div>` : '';
+    </div>`;
+  };
 
-  const currenciesHtml = currencies.length ? `
-    <div class="result-panel" style="padding:16px 20px;margin-bottom:14px;">
-      <div style="font-size:13px;font-weight:600;margin-bottom:10px;">Transaction Currencies</div>
-      <table class="sample-table">
-        <tr><th>Currency</th><th>Total Value</th></tr>
-        ${currencies.map(c => `<tr><td>${c.currency}</td><td>${fmtNum(c.total)}</td></tr>`).join('')}
-      </table>
-    </div>` : '';
+  const suppliersHtml = contactTable('Top 10 Suppliers (you pay them)', insights.top_suppliers);
+  const customersHtml = contactTable('Top 10 Customers (they pay you)', insights.top_customers);
+  const purchProductsHtml = productTable('Top 10 Products Purchased', insights.top_products_purchased);
+  const salesProductsHtml = productTable('Top 10 Products Sold', insights.top_products_sold);
+  const buyingHtml = ctyTable('Top Buying Countries (by spend)', insights.buying_countries);
+  const sellingHtml = ctyTable('Top Selling Countries (by revenue)', insights.selling_countries);
 
-  const sideHtml = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">${countriesHtml}${currenciesHtml}</div>`;
+  const fxRatesObj = insights.fx_rates || {};
+  const fxEntries = Object.entries(fxRatesObj).sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+  const fxFootnote = fxEntries.length
+    ? `<div style="background:var(--bg);border-radius:6px;padding:10px 14px;font-size:10px;color:var(--text-3);margin-top:12px;font-family:var(--mono);">FX rates (1 USD =): ${fxEntries.map(([c, r]) => c + ' ' + Number(r).toFixed(2)).join(' \u00b7 ')}${insights.fx_date ? ' \u00b7 ' + insights.fx_date : ''}</div>` : '';
 
-  const syncTime = insights.synced_at ? `<div style="font-size:11px;color:var(--text-3);margin-top:10px;">Data from Xero sync: ${new Date(insights.synced_at).toLocaleString()}</div>` : '';
+  const syncTime = insights.synced_at ? `<div style="font-size:11px;color:var(--text-3);margin-top:6px;">All amounts converted to USD at spot rates. Xero sync: ${new Date(insights.synced_at).toLocaleString()}</div>` : '';
 
-  panel.innerHTML = statsHtml + `<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">${sellersHtml}${productsHtml}</div>` + sideHtml + syncTime;
+  panel.innerHTML = statsHtml
+    + `<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">${suppliersHtml}${customersHtml}</div>`
+    + `<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">${purchProductsHtml}${salesProductsHtml}</div>`
+    + `<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">${buyingHtml}${sellingHtml}</div>`
+    + fxFootnote + syncTime;
 }
 
 function renderContextDocs(docs) {
@@ -1970,8 +1966,7 @@ async function runXeroSync() {
 
 function renderXeroSyncResult(data) {
   const s = data.stats || {};
-  const items = data.top_line_items || [];
-  const suppliers = data.suppliers || [];
+  const ti = data.trade_insights || {};
 
   const itemRows = items.slice(0, 10).map(item => `
     <tr>
@@ -1989,8 +1984,6 @@ function renderXeroSyncResult(data) {
     </table>
     <div style="font-size:11px;color:var(--text-3);margin-top:8px;">Use the Classify tab to classify these products and discover duty savings.</div>` : '';
 
-  const uniqueCountries = [...new Set(suppliers.map(s => s.country).filter(Boolean))];
-  const countryTags = uniqueCountries.map(c => `<span class="country-tag">${c}</span>`).join(' ');
 
   return `
     <div class="upload-result">
@@ -2000,25 +1993,24 @@ function renderXeroSyncResult(data) {
       </div>
       <div class="upload-stats">
         <div class="upload-stat">
-          <div class="upload-stat-val">${s.invoices_fetched ?? 0}</div>
-          <div class="upload-stat-label">Invoices</div>
+          <div class="upload-stat-val">${s.purchase_invoices ?? 0}</div>
+          <div class="upload-stat-label">Bills</div>
+        </div>
+        <div class="upload-stat">
+          <div class="upload-stat-val">${s.sales_invoices ?? 0}</div>
+          <div class="upload-stat-label">Sales</div>
         </div>
         <div class="upload-stat">
           <div class="upload-stat-val">${s.line_items_found ?? 0}</div>
           <div class="upload-stat-label">Line Items</div>
         </div>
         <div class="upload-stat">
-          <div class="upload-stat-val">${s.suppliers_mapped ?? 0}</div>
-          <div class="upload-stat-label">Suppliers</div>
-        </div>
-        <div class="upload-stat">
-          <div class="upload-stat-val">${uniqueCountries.length}</div>
-          <div class="upload-stat-label">Countries</div>
+          <div class="upload-stat-val">${(ti.top_suppliers || []).length + (ti.top_customers || []).length}</div>
+          <div class="upload-stat-label">Top Contacts</div>
         </div>
       </div>
-      ${uniqueCountries.length ? `<div style="margin-bottom:12px;">Supplier countries: ${countryTags}</div>` : ''}
       ${s.errors?.length ? `<div style="background:var(--amber-bg);border-radius:6px;padding:8px 12px;font-size:11px;color:var(--amber);margin-bottom:12px;">${s.errors.join('; ')}</div>` : ''}
-      ${itemTable}
+      <div style="font-size:12px;color:var(--text-2);margin-top:8px;">Scroll up to see full trade insights. Profile will refresh automatically.</div>
     </div>`;
 }
 

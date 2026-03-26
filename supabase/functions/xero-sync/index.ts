@@ -99,150 +99,167 @@ Deno.serve(async (req: Request) => {
     "Accept": "application/json",
   };
 
-  // ── Fetch purchase invoices (ACCPAY) ─────────────────────────────────────
+  // ── Fetch FX rates ──────────────────────────────────────────────────────
+  let fxRates: Record<string, number> = { USD: 1 };
+  let fxDate = "";
+  try {
+    const fxResp = await fetch("https://open.er-api.com/v6/latest/USD", { signal: AbortSignal.timeout(10000) });
+    if (fxResp.ok) {
+      const fxData = await fxResp.json();
+      fxRates = fxData.rates || { USD: 1 };
+      fxDate = fxData.time_last_update_utc || "";
+    }
+  } catch { /* use defaults */ }
+
+  const toUSD = (amount: number, currency: string): number => {
+    if (currency === "USD") return amount;
+    const rate = fxRates[currency];
+    return rate ? amount / rate : amount; // If no rate, return as-is
+  };
+
+  // ── Fetch invoices (both ACCPAY and ACCREC) ────────────────────────────
   const stats = {
-    invoices_fetched: 0,
+    purchase_invoices: 0,
+    sales_invoices: 0,
     line_items_found: 0,
-    items_classified: 0,
-    trade_routes_found: 0,
     suppliers_mapped: 0,
     errors: [] as string[],
   };
 
-  let allInvoices: any[] = [];
-  let page = 1;
-
-  try {
+  const fetchInvoices = async (type: string): Promise<any[]> => {
+    const all: any[] = [];
+    let page = 1;
     while (true) {
-      let url = `${XERO_API_BASE}/Invoices?where=Type=="ACCPAY"&page=${page}`;
-      if (sinceDate) {
-        url += `&ModifiedAfter=${sinceDate}T00:00:00`;
-      }
+      let url = `${XERO_API_BASE}/Invoices?where=Type=="${type}"&page=${page}`;
+      if (sinceDate) url += `&ModifiedAfter=${sinceDate}T00:00:00`;
 
       const resp = await fetch(url, { headers: xeroHeaders });
 
       if (resp.status === 429) {
-        // Rate limited — wait and retry
         const retryAfter = Number(resp.headers.get("Retry-After") || "60");
-        console.log(`Rate limited, waiting ${retryAfter}s`);
         await sleep(retryAfter * 1000);
         continue;
       }
-
       if (!resp.ok) {
-        const err = await resp.text();
-        stats.errors.push(`Invoice fetch page ${page}: ${resp.status} ${err.substring(0, 100)}`);
+        stats.errors.push(`${type} page ${page}: ${resp.status}`);
         break;
       }
 
       const data = await resp.json();
       const invoices = data.Invoices || [];
-      allInvoices = [...allInvoices, ...invoices];
-      stats.invoices_fetched += invoices.length;
-
-      if (invoices.length < 100) break; // Last page
+      all.push(...invoices);
+      if (invoices.length < 100) break;
       page++;
-
-      await sleep(1000); // Respect rate limits
+      await sleep(1000);
     }
-  } catch (e) {
-    stats.errors.push(`Invoice fetch error: ${String(e)}`);
-  }
+    return all;
+  };
 
-  console.log(`Fetched ${allInvoices.length} ACCPAY invoices`);
+  const purchaseInvoices = await fetchInvoices("ACCPAY");
+  stats.purchase_invoices = purchaseInvoices.length;
+  console.log(`Fetched ${purchaseInvoices.length} ACCPAY invoices`);
 
-  // ── Process invoices (lightweight — no per-item classification) ──────────
-  const supplierCountries = new Map<string, string>();
-  const supplierNames = new Map<string, string>();
-  const lineItems: Array<{ description: string; amount: number; currency: string; supplier: string; supplier_country: string | null }> = [];
+  const salesInvoices = await fetchInvoices("ACCREC");
+  stats.sales_invoices = salesInvoices.length;
+  console.log(`Fetched ${salesInvoices.length} ACCREC invoices`);
 
-  for (const inv of allInvoices) {
-    const currency = inv.CurrencyCode || "ZAR";
-    const contact = inv.Contact || {};
-    const contactId = contact.ContactID || "";
-    const supplierName = contact.Name || "Unknown";
-    supplierNames.set(contactId, supplierName);
+  // ── Process invoices ─────────────────────────────────────────────────────
+  type ContactInfo = { name: string; country: string | null };
+  const contacts = new Map<string, ContactInfo>();
 
-    // Map supplier country
-    let supplierCountry = supplierCountries.get(contactId) || null;
-    if (!supplierCountry && contact.Addresses) {
-      for (const addr of contact.Addresses) {
-        if (addr.Country) {
-          supplierCountry = resolveCountryCode(addr.Country);
-          if (supplierCountry) {
-            supplierCountries.set(contactId, supplierCountry);
-            stats.suppliers_mapped++;
-            break;
+  const processInvoices = (invoices: any[]) => {
+    const spendByContact = new Map<string, number>();
+    const spendByProduct = new Map<string, { total_usd: number; count: number }>();
+    const spendByCurrency = new Map<string, { original: number; usd: number }>();
+    const items: Array<{ description: string; amount_usd: number; contact: string; currency: string }> = [];
+
+    for (const inv of invoices) {
+      const currency = inv.CurrencyCode || "GBP";
+      const contact = inv.Contact || {};
+      const contactId = contact.ContactID || "";
+      const contactName = contact.Name || "Unknown";
+
+      // Resolve contact country
+      if (!contacts.has(contactId)) {
+        let country: string | null = null;
+        if (contact.Addresses) {
+          for (const addr of contact.Addresses) {
+            if (addr.Country) {
+              country = resolveCountryCode(addr.Country);
+              if (country) break;
+            }
           }
+        }
+        contacts.set(contactId, { name: contactName, country });
+      }
+
+      // Aggregate by contact
+      const invTotal = inv.Total || 0;
+      const invUSD = toUSD(invTotal, currency);
+      spendByContact.set(contactId, (spendByContact.get(contactId) || 0) + invUSD);
+
+      // Currency totals
+      const existing = spendByCurrency.get(currency) || { original: 0, usd: 0 };
+      existing.original += invTotal;
+      existing.usd += invUSD;
+      spendByCurrency.set(currency, existing);
+
+      // Line items
+      for (const item of (inv.LineItems || [])) {
+        stats.line_items_found++;
+        const desc = item.Description || "";
+        const lineAmt = item.LineAmount || 0;
+        const lineUSD = toUSD(lineAmt, currency);
+
+        if (desc.length >= 5) {
+          items.push({ description: desc, amount_usd: lineUSD, contact: contactName, currency });
+
+          const key = desc.substring(0, 60).toLowerCase().trim();
+          const ep = spendByProduct.get(key) || { total_usd: 0, count: 0 };
+          ep.total_usd += lineUSD;
+          ep.count++;
+          spendByProduct.set(key, ep);
         }
       }
     }
 
-    const items = inv.LineItems || [];
-    for (const item of items) {
-      stats.line_items_found++;
-      const description = item.Description || "";
-      const lineAmount = item.LineAmount || 0;
-      if (description.length >= 5) {
-        lineItems.push({ description, amount: lineAmount, currency, supplier: supplierName, supplier_country: supplierCountry });
-      }
-    }
-  }
+    // Build top contacts
+    const topContacts = Array.from(spendByContact.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(([id, usd]) => ({
+        name: contacts.get(id)?.name || "Unknown",
+        country: contacts.get(id)?.country || null,
+        total_spend_usd: Math.round(usd),
+      }));
 
-  // ── Build supplier summary ───────────────────────────────────────────────
-  const supplierSummary = Array.from(supplierNames.entries()).map(([id, name]) => ({
-    name,
-    country: supplierCountries.get(id) || null,
-  }));
+    // Build top products
+    const topProducts = Array.from(spendByProduct.entries())
+      .sort((a, b) => b[1].total_usd - a[1].total_usd)
+      .slice(0, 10)
+      .map(([desc, data]) => ({
+        description: desc,
+        total_spend_usd: Math.round(data.total_usd),
+        invoice_count: data.count,
+      }));
 
-  // ── Top line items by value (for user to classify in UI) ─────────────────
-  const topItems = lineItems
-    .sort((a, b) => b.amount - a.amount)
-    .slice(0, 20)
-    .map(item => ({
-      description: item.description.substring(0, 120),
-      amount: item.amount,
-      currency: item.currency,
-      supplier: item.supplier,
-      supplier_country: item.supplier_country,
-    }));
+    // Build currencies
+    const currencies = Array.from(spendByCurrency.entries())
+      .sort((a, b) => b[1].usd - a[1].usd)
+      .map(([code, data]) => ({
+        currency: code,
+        total_original: Math.round(data.original),
+        total_usd: Math.round(data.usd),
+        fx_rate: fxRates[code] || null,
+      }));
 
-  // ── Aggregate trade insights ─────────────────────────────────────────────
-  // Top sellers by total spend
-  const sellerSpend = new Map<string, number>();
-  for (const item of lineItems) {
-    sellerSpend.set(item.supplier, (sellerSpend.get(item.supplier) || 0) + item.amount);
-  }
-  const topSellers = Array.from(sellerSpend.entries())
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 10)
-    .map(([name, total]) => ({ name, total_spend: total }));
+    return { topContacts, topProducts, currencies, items };
+  };
 
-  // Top products by total spend (group similar descriptions)
-  const productSpend = new Map<string, { total: number; count: number }>();
-  for (const item of lineItems) {
-    const key = item.description.substring(0, 60).toLowerCase().trim();
-    const existing = productSpend.get(key) || { total: 0, count: 0 };
-    existing.total += item.amount;
-    existing.count++;
-    productSpend.set(key, existing);
-  }
-  const topProducts = Array.from(productSpend.entries())
-    .sort((a, b) => b[1].total - a[1].total)
-    .slice(0, 10)
-    .map(([desc, data]) => ({ description: desc, total_spend: data.total, invoice_count: data.count }));
+  const purchases = processInvoices(purchaseInvoices);
+  const sales = processInvoices(salesInvoices);
 
-  // Currency breakdown
-  const currencyTotals = new Map<string, number>();
-  for (const inv of allInvoices) {
-    const curr = inv.CurrencyCode || "GBP";
-    currencyTotals.set(curr, (currencyTotals.get(curr) || 0) + (inv.Total || 0));
-  }
-  const currencies = Array.from(currencyTotals.entries())
-    .sort((a, b) => b[1] - a[1])
-    .map(([code, total]) => ({ currency: code, total }));
-
-  // Countries — from supplier addresses + inferred from currencies
+  // ── Build country breakdown from currencies ─────────────────────────────
   const CURRENCY_COUNTRY: Record<string, string> = {
     GBP: "GB", USD: "US", EUR: "EU", INR: "IN", ZAR: "ZA", NGN: "NG",
     BRL: "BR", AUD: "AU", THB: "TH", MXN: "MX", CLP: "CL", PHP: "PH",
@@ -253,34 +270,42 @@ Deno.serve(async (req: Request) => {
     TRY: "TR", EGP: "EG", BGN: "BG", RON: "RO", CZK: "CZ", HUF: "HU",
   };
 
-  // Merge address-based and currency-based countries
-  const countryCounts = new Map<string, { suppliers: number; spend: number }>();
-  for (const c of supplierCountries.values()) {
-    const existing = countryCounts.get(c) || { suppliers: 0, spend: 0 };
-    existing.suppliers++;
-    countryCounts.set(c, existing);
-  }
-  // Add currency-inferred countries with spend
-  for (const [curr, total] of currencyTotals.entries()) {
-    const country = CURRENCY_COUNTRY[curr];
-    if (country) {
-      const existing = countryCounts.get(country) || { suppliers: 0, spend: 0 };
-      existing.spend = total;
-      countryCounts.set(country, existing);
+  const buildCountries = (currencies: Array<{ currency: string; total_usd: number }>) => {
+    const map = new Map<string, number>();
+    for (const c of currencies) {
+      const country = CURRENCY_COUNTRY[c.currency];
+      if (country) map.set(country, (map.get(country) || 0) + c.total_usd);
     }
+    return Array.from(map.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([code, usd]) => ({ country: code, total_spend_usd: Math.round(usd) }));
+  };
+
+  // Build FX footnote
+  const usedCurrencies = new Set([
+    ...purchases.currencies.map(c => c.currency),
+    ...sales.currencies.map(c => c.currency),
+  ]);
+  const fxFootnote: Record<string, number> = {};
+  for (const curr of usedCurrencies) {
+    if (curr !== "USD" && fxRates[curr]) fxFootnote[curr] = fxRates[curr];
   }
-  const buyingCountries = Array.from(countryCounts.entries())
-    .sort((a, b) => b[1].spend - a[1].spend)
-    .map(([code, data]) => ({ country: code, supplier_count: data.suppliers, total_spend: data.spend }));
 
   const tradeInsights = {
-    total_invoices: stats.invoices_fetched,
+    purchase_invoices: stats.purchase_invoices,
+    sales_invoices: stats.sales_invoices,
     total_line_items: stats.line_items_found,
-    total_suppliers: supplierNames.size,
-    top_sellers: topSellers,
-    top_products: topProducts,
-    buying_countries: buyingCountries,
-    currencies,
+    total_contacts: contacts.size,
+    top_suppliers: purchases.topContacts,
+    top_products_purchased: purchases.topProducts,
+    top_customers: sales.topContacts,
+    top_products_sold: sales.topProducts,
+    buying_countries: buildCountries(purchases.currencies),
+    selling_countries: buildCountries(sales.currencies),
+    purchase_currencies: purchases.currencies,
+    sales_currencies: sales.currencies,
+    fx_rates: fxFootnote,
+    fx_date: fxDate,
     synced_at: new Date().toISOString(),
   };
 
@@ -303,12 +328,7 @@ Deno.serve(async (req: Request) => {
   return json({
     status: "ok",
     stats,
-    suppliers: supplierSummary,
-    top_line_items: topItems,
-    suppliers_by_country: Object.fromEntries(
-      Array.from(new Set(supplierCountries.values()))
-        .map(c => [c, [...supplierCountries.values()].filter(v => v === c).length])
-    ),
+    trade_insights: tradeInsights,
   });
 });
 
