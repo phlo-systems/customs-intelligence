@@ -22,7 +22,8 @@ const XERO_TOKEN_URL = "https://identity.xero.com/connect/token";
 const XERO_CONNECTIONS_URL = "https://api.xero.com/connections";
 const XERO_REVOKE_URL = "https://identity.xero.com/connect/revocation";
 
-const SCOPES = "openid profile email accounting.transactions.read accounting.contacts.read accounting.settings.read offline_access";
+// New granular scopes (required for apps created after 2 March 2026)
+const SCOPES = "openid profile email accounting.invoices.read accounting.contacts.read accounting.settings.read offline_access";
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return json({ ok: true }, 200);
@@ -286,14 +287,63 @@ function json(data: unknown, status = 200) {
 
 function htmlResponse(title: string, message: string, success = false) {
   const color = success ? "#0d6e5a" : "#a01f1f";
-  const html = `<!DOCTYPE html><html><head><title>${title}</title>
-    <style>body{font-family:system-ui;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#f1f0eb;margin:0;}
-    .card{background:#fff;border-radius:12px;padding:40px;max-width:400px;text-align:center;border:1px solid #e2e0d8;}
-    h1{font-size:20px;color:${color};margin-bottom:12px;}p{color:#6b6860;font-size:14px;line-height:1.6;}</style></head>
-    <body><div class="card"><h1>${title}</h1><p>${message}</p></div></body></html>`;
+  const icon = success ? "&#10003;" : "&#10007;";
+  const iconBg = success ? "#e8f5f1" : "#fdf0f0";
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Instrument Sans', system-ui, sans-serif;
+      display: flex; align-items: center; justify-content: center;
+      min-height: 100vh; background: #f1f0eb; margin: 0;
+    }
+    .card {
+      background: #fff; border-radius: 12px; padding: 48px 40px;
+      max-width: 420px; width: 90%; text-align: center;
+      border: 1px solid #e2e0d8; box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+    }
+    .icon {
+      width: 56px; height: 56px; border-radius: 50%;
+      background: ${iconBg}; color: ${color};
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px; font-weight: 600; margin: 0 auto 20px;
+    }
+    h1 { font-size: 20px; font-weight: 600; color: #1a1916; margin-bottom: 10px; }
+    p { color: #6b6860; font-size: 14px; line-height: 1.7; }
+    p strong { color: #1a1916; }
+    .close-hint {
+      margin-top: 24px; padding-top: 20px; border-top: 1px solid #e2e0d8;
+      font-size: 12px; color: #9e9b93;
+    }
+    .logo {
+      font-size: 11px; font-weight: 500; letter-spacing: 0.08em;
+      text-transform: uppercase; color: #9e9b93; margin-bottom: 24px;
+    }
+    .logo span { color: #1a9a7c; margin-right: 6px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo"><span>&#9670;</span>Customs Intelligence</div>
+    <div class="icon">${icon}</div>
+    <h1>${title}</h1>
+    <p>${message}</p>
+    <div class="close-hint">You can close this tab and return to the dashboard.</div>
+  </div>
+</body>
+</html>`;
   return new Response(html, {
     status: 200,
-    headers: { ...corsHeaders, "Content-Type": "text/html" },
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      "Access-Control-Allow-Origin": "*",
+    },
   });
 }
 
