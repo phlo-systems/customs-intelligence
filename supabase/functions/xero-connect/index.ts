@@ -286,65 +286,15 @@ function json(data: unknown, status = 200) {
 }
 
 function htmlResponse(title: string, message: string, success = false) {
-  const color = success ? "#0d6e5a" : "#a01f1f";
-  const icon = success ? "&#10003;" : "&#10007;";
-  const iconBg = success ? "#e8f5f1" : "#fdf0f0";
-  const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${title}</title>
-  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: 'Instrument Sans', system-ui, sans-serif;
-      display: flex; align-items: center; justify-content: center;
-      min-height: 100vh; background: #f1f0eb; margin: 0;
-    }
-    .card {
-      background: #fff; border-radius: 12px; padding: 48px 40px;
-      max-width: 420px; width: 90%; text-align: center;
-      border: 1px solid #e2e0d8; box-shadow: 0 4px 24px rgba(0,0,0,0.06);
-    }
-    .icon {
-      width: 56px; height: 56px; border-radius: 50%;
-      background: ${iconBg}; color: ${color};
-      display: flex; align-items: center; justify-content: center;
-      font-size: 24px; font-weight: 600; margin: 0 auto 20px;
-    }
-    h1 { font-size: 20px; font-weight: 600; color: #1a1916; margin-bottom: 10px; }
-    p { color: #6b6860; font-size: 14px; line-height: 1.7; }
-    p strong { color: #1a1916; }
-    .close-hint {
-      margin-top: 24px; padding-top: 20px; border-top: 1px solid #e2e0d8;
-      font-size: 12px; color: #9e9b93;
-    }
-    .logo {
-      font-size: 11px; font-weight: 500; letter-spacing: 0.08em;
-      text-transform: uppercase; color: #9e9b93; margin-bottom: 24px;
-    }
-    .logo span { color: #1a9a7c; margin-right: 6px; }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <div class="logo"><span>&#9670;</span>Customs Intelligence</div>
-    <div class="icon">${icon}</div>
-    <h1>${title}</h1>
-    <p>${message}</p>
-    <div class="close-hint">You can close this tab and return to the dashboard.</div>
-  </div>
-</body>
-</html>`;
-  return new Response(html, {
-    status: 200,
-    headers: {
-      "Content-Type": "text/html; charset=utf-8",
-      "Access-Control-Allow-Origin": "*",
-    },
-  });
+  // Supabase Edge Functions force application/json content-type,
+  // so we return JSON that the frontend polling will pick up.
+  // For direct browser visits, we use a self-rendering page via data URI workaround.
+  return json({
+    status: success ? "ok" : "error",
+    title,
+    message,
+    xero_callback: true,
+  }, success ? 200 : 400);
 }
 
 async function sha256hex(input: string): Promise<string> {

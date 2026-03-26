@@ -1587,20 +1587,34 @@ async function checkXeroStatus() {
 }
 
 function connectXero() {
-  window.open(`${API_BASE}/xero-connect?action=auth&api_key=${API_KEY}`, '_blank', 'width=600,height=700');
-  // Poll for connection after redirect
+  const popup = window.open(`${API_BASE}/xero-connect?action=auth&api_key=${API_KEY}`, 'xero_auth', 'width=600,height=700');
+
+  // Poll for connection after Xero redirects back
   const poll = setInterval(async () => {
     try {
+      // Check if popup returned JSON (callback completed)
+      try {
+        if (popup && !popup.closed) {
+          const body = popup.document?.body?.textContent;
+          if (body && body.includes('xero_callback')) {
+            popup.close();
+          }
+        }
+      } catch { /* cross-origin — ignore */ }
+
+      // Check connection status
       const r = await fetch(`${API_BASE}/xero-connect`, {
         method: 'POST', headers: HEADERS, body: JSON.stringify({ action: 'status' }),
       });
       const data = await r.json();
       if (data.connected) {
         clearInterval(poll);
+        if (popup && !popup.closed) popup.close();
         checkXeroStatus();
       }
     } catch {}
-  }, 3000);
+  }, 2000);
+
   // Stop polling after 5 minutes
   setTimeout(() => clearInterval(poll), 300000);
 }
