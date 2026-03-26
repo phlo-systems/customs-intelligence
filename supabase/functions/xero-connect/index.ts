@@ -112,11 +112,11 @@ Deno.serve(async (req: Request) => {
               const keyHash = await sha256hex(stateData.api_key);
               const { data: keyRow } = await supabase
                 .from("api_key")
-                .select("tenantid")
+                .select("tenantuid")
                 .eq("keyhash", keyHash)
                 .eq("isactive", true)
                 .maybeSingle();
-              if (keyRow) tenantUID = keyRow.tenantid;
+              if (keyRow?.tenantuid) tenantUID = keyRow.tenantuid;
             }
           } catch { /* use default */ }
         }
@@ -165,12 +165,15 @@ Deno.serve(async (req: Request) => {
     const keyHash = await sha256hex(rawKey);
     const { data: keyRow } = await supabase
       .from("api_key")
-      .select("keyid, tenantid, isactive")
+      .select("keyid, tenantid, tenantuid, isactive")
       .eq("keyhash", keyHash)
       .eq("isactive", true)
       .maybeSingle();
 
     if (!keyRow) return json({ error: "Invalid API key" }, 401);
+
+    // Use tenantuid (UUID) consistently — this is what the callback writes
+    const tenantId = keyRow.tenantuid || keyRow.tenantid;
 
     let body: Record<string, unknown>;
     try { body = await req.json(); }
@@ -182,7 +185,7 @@ Deno.serve(async (req: Request) => {
     const { data: integration } = await supabase
       .from("erp_integration")
       .select("*")
-      .eq("tenantid", keyRow.tenantid)
+      .eq("tenantid", tenantId)
       .eq("erptype", "XERO")
       .eq("isactive", true)
       .maybeSingle();
