@@ -1641,18 +1641,27 @@ async function runXeroSync() {
     </div>`;
 
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 180000); // 3 min timeout
     const r = await fetch(`${API_BASE}/xero-sync`, {
       method: 'POST', headers: HEADERS, body: JSON.stringify({}),
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
     const data = await r.json();
 
-    if (data.error) {
+    if (data.error && !data.stats) {
       panel.innerHTML = `<div class="classify-empty"><div class="classify-empty-title">Sync Error</div><div>${data.error}</div></div>`;
+    } else if (data.status === 'ok' || data.stats) {
+      panel.innerHTML = renderXeroSyncResult(data);
+    } else if (data.code) {
+      panel.innerHTML = `<div class="classify-empty"><div class="classify-empty-title">Sync Error</div><div>${data.message || data.code}</div></div>`;
     } else {
       panel.innerHTML = renderXeroSyncResult(data);
     }
   } catch (e) {
-    panel.innerHTML = `<div class="classify-empty"><div class="classify-empty-title">Sync failed</div><div>${e.message}</div></div>`;
+    const msg = e.name === 'AbortError' ? 'Sync timed out (3 min). Try again — Xero may have many invoices.' : e.message;
+    panel.innerHTML = `<div class="classify-empty"><div class="classify-empty-title">Sync failed</div><div>${msg}</div></div>`;
   }
 
   btn.disabled = false;
