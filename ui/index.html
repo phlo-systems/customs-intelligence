@@ -2279,9 +2279,15 @@ async function checkEmailStatus() {
     if (connected) {
       statusDiv.innerHTML = `<div style="display:flex;align-items:center;gap:10px;">${parts.join('')}</div>`;
       const syncBtns = [];
-      if (data.gmail?.connected) syncBtns.push(`<button class="lookup-btn" onclick="runEmailSync('GMAIL')" id="gmail-sync-btn" style="padding:8px 12px;font-size:11px;">Scan Gmail</button>`);
-      if (data.outlook?.connected) syncBtns.push(`<button class="lookup-btn" onclick="runEmailSync('OUTLOOK')" id="outlook-sync-btn" style="padding:8px 12px;font-size:11px;">Scan Outlook</button>`);
-      actionsDiv.innerHTML = `<div style="display:flex;gap:8px;">${syncBtns.join('')}</div>`;
+      if (data.gmail?.connected) syncBtns.push(`<button class="lookup-btn" onclick="runEmailSync('GMAIL', getEmailDays())" id="gmail-sync-btn" style="padding:8px 12px;font-size:11px;">Scan Gmail</button>`);
+      if (data.outlook?.connected) syncBtns.push(`<button class="lookup-btn" onclick="runEmailSync('OUTLOOK', getEmailDays())" id="outlook-sync-btn" style="padding:8px 12px;font-size:11px;">Scan Outlook</button>`);
+      const daysSelect = `<select id="email-days" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-family:var(--mono);font-size:11px;background:var(--bg);color:var(--text);">
+        <option value="7">7 days</option>
+        <option value="30" selected>30 days</option>
+        <option value="60">60 days</option>
+        <option value="90">90 days</option>
+      </select>`;
+      actionsDiv.innerHTML = `<div style="display:flex;gap:8px;align-items:center;">${daysSelect}${syncBtns.join('')}</div>`;
     } else {
       statusDiv.innerHTML = `<span style="font-size:12px;color:var(--text-3);">No email connected</span>`;
       actionsDiv.innerHTML = `
@@ -2347,7 +2353,13 @@ async function connectEmail(platform) {
   }
 }
 
-async function runEmailSync(platform) {
+function getEmailDays() {
+  const el = document.getElementById('email-days');
+  return el ? Number(el.value) : 30;
+}
+
+async function runEmailSync(platform, days) {
+  days = days || 30;
   const btnId = platform.toLowerCase() + '-sync-btn';
   const btn = document.getElementById(btnId);
   const panel = document.getElementById('xero-sync-panel');
@@ -2365,7 +2377,7 @@ async function runEmailSync(platform) {
     setTimeout(() => controller.abort(), 120000);
     const r = await fetch(`${API_BASE}/email-sync`, {
       method: 'POST', headers: HEADERS,
-      body: JSON.stringify({ platform, days: 30 }),
+      body: JSON.stringify({ platform, days }),
       signal: controller.signal,
     });
     const data = await r.json();
