@@ -52,12 +52,14 @@ Deno.serve(async (req: Request) => {
   const keyHash = await sha256hex(rawKey);
   const { data: keyRow } = await supabase
     .from("api_key")
-    .select("keyid, tenantid, isactive")
+    .select("keyid, tenantid, tenantuid, isactive")
     .eq("keyhash", keyHash)
     .eq("isactive", true)
     .maybeSingle();
 
   if (!keyRow) return json({ error: "Invalid API key" }, 401);
+
+  const tenantId = keyRow.tenantuid || keyRow.tenantid;
 
   let body: Record<string, unknown> = {};
   try { body = await req.json(); } catch { /* empty body ok */ }
@@ -68,7 +70,7 @@ Deno.serve(async (req: Request) => {
   const { data: integration } = await supabase
     .from("erp_integration")
     .select("*")
-    .eq("tenantid", keyRow.tenantid)
+    .eq("tenantid", tenantId)
     .eq("erptype", "XERO")
     .eq("isactive", true)
     .maybeSingle();
@@ -245,7 +247,7 @@ Deno.serve(async (req: Request) => {
 
   // ── Log to TENANT_BEHAVIOUR_LOG ──────────────────────────────────────────
   await supabase.from("tenant_behaviour_log").insert({
-    tenantid: keyRow.tenantid,
+    tenantid: tenantId,
     eventtype: "XERO_SYNC",
     eventdata: {
       invoices: stats.invoices_fetched,
