@@ -1,0 +1,333 @@
+// supabase/functions/xero-sync/index.ts
+// Deploy: supabase functions deploy xero-sync --no-verify-jwt
+//
+// Pulls purchase invoices (ACCPAY) from Xero, extracts line items,
+// classifies products via /classify, and maps supplier countries.
+//
+// POST /xero-sync
+//   { "since": "2026-01-01" }    — optional: only sync invoices modified after this date
+//
+// Returns: summary of synced invoices, classified items, and discovered trade routes.
+
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-api-key, content-type",
+};
+
+const XERO_API_BASE = "https://api.xero.com/api.xro/2.0";
+
+// Country name → ISO 2-letter mapping (common variants)
+const COUNTRY_MAP: Record<string, string> = {
+  "south africa": "ZA", "united kingdom": "GB", "uk": "GB", "india": "IN",
+  "brazil": "BR", "australia": "AU", "thailand": "TH", "mexico": "MX",
+  "chile": "CL", "philippines": "PH", "argentina": "AR", "uruguay": "UY",
+  "saudi arabia": "SA", "united arab emirates": "AE", "uae": "AE",
+  "oman": "OM", "angola": "AO", "mauritius": "MU", "namibia": "NA",
+  "dominican republic": "DO", "china": "CN", "germany": "DE", "france": "FR",
+  "italy": "IT", "spain": "ES", "netherlands": "NL", "belgium": "BE",
+  "japan": "JP", "south korea": "KR", "korea": "KR", "taiwan": "TW",
+  "united states": "US", "usa": "US", "canada": "CA", "new zealand": "NZ",
+  "singapore": "SG", "malaysia": "MY", "indonesia": "ID", "vietnam": "VN",
+  "portugal": "PT", "poland": "PL", "ireland": "IE", "sweden": "SE",
+  "norway": "NO", "denmark": "DK", "finland": "FI", "switzerland": "CH",
+  "austria": "AT", "turkey": "TR", "egypt": "EG", "nigeria": "NG",
+  "kenya": "KE", "ghana": "GH", "tanzania": "TZ", "mozambique": "MZ",
+};
+
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") return json({ ok: true }, 200);
+  if (req.method !== "POST") return json({ error: "POST required" }, 405);
+
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+  );
+
+  // ── Auth ─────────────────────────────────────────────────────────────────
+  const rawKey = req.headers.get("x-api-key");
+  if (!rawKey) return json({ error: "Missing X-API-Key" }, 401);
+
+  const keyHash = await sha256hex(rawKey);
+  const { data: keyRow } = await supabase
+    .from("api_key")
+    .select("keyid, tenantid, isactive")
+    .eq("keyhash", keyHash)
+    .eq("isactive", true)
+    .maybeSingle();
+
+  if (!keyRow) return json({ error: "Invalid API key" }, 401);
+
+  let body: Record<string, unknown> = {};
+  try { body = await req.json(); } catch { /* empty body ok */ }
+
+  const sinceDate = body.since ? String(body.since) : null;
+
+  // ── Get Xero integration ─────────────────────────────────────────────────
+  const { data: integration } = await supabase
+    .from("erp_integration")
+    .select("*")
+    .eq("tenantid", keyRow.tenantid)
+    .eq("erptype", "XERO")
+    .eq("isactive", true)
+    .maybeSingle();
+
+  if (!integration) {
+    return json({ error: "No active Xero connection. Connect via Admin tab first." }, 404);
+  }
+
+  const config = integration.mappingconfig as Record<string, unknown>;
+  let accessToken = config?.access_token as string;
+  const xeroTenantId = integration.erptenantid;
+
+  // Check if token needs refresh
+  const expiresAt = config?.expires_at as number || 0;
+  if (Date.now() > expiresAt - 60000) { // Refresh 1 min before expiry
+    const refreshResult = await refreshToken(integration, supabase);
+    if (refreshResult.error) {
+      return json({ error: "Token refresh failed", detail: refreshResult.error }, 502);
+    }
+    accessToken = refreshResult.access_token!;
+  }
+
+  const xeroHeaders = {
+    "Authorization": `Bearer ${accessToken}`,
+    "Xero-Tenant-Id": xeroTenantId,
+    "Accept": "application/json",
+  };
+
+  // ── Fetch purchase invoices (ACCPAY) ─────────────────────────────────────
+  const stats = {
+    invoices_fetched: 0,
+    line_items_found: 0,
+    items_classified: 0,
+    trade_routes_found: 0,
+    suppliers_mapped: 0,
+    errors: [] as string[],
+  };
+
+  let allInvoices: any[] = [];
+  let page = 1;
+
+  try {
+    while (true) {
+      let url = `${XERO_API_BASE}/Invoices?where=Type=="ACCPAY"&page=${page}`;
+      if (sinceDate) {
+        url += `&ModifiedAfter=${sinceDate}T00:00:00`;
+      }
+
+      const resp = await fetch(url, { headers: xeroHeaders });
+
+      if (resp.status === 429) {
+        // Rate limited — wait and retry
+        const retryAfter = Number(resp.headers.get("Retry-After") || "60");
+        console.log(`Rate limited, waiting ${retryAfter}s`);
+        await sleep(retryAfter * 1000);
+        continue;
+      }
+
+      if (!resp.ok) {
+        const err = await resp.text();
+        stats.errors.push(`Invoice fetch page ${page}: ${resp.status} ${err.substring(0, 100)}`);
+        break;
+      }
+
+      const data = await resp.json();
+      const invoices = data.Invoices || [];
+      allInvoices = [...allInvoices, ...invoices];
+      stats.invoices_fetched += invoices.length;
+
+      if (invoices.length < 100) break; // Last page
+      page++;
+
+      await sleep(1000); // Respect rate limits
+    }
+  } catch (e) {
+    stats.errors.push(`Invoice fetch error: ${String(e)}`);
+  }
+
+  console.log(`Fetched ${allInvoices.length} ACCPAY invoices`);
+
+  // ── Process each invoice ─────────────────────────────────────────────────
+  const classifyUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/classify`;
+  const tradeRoutes = new Map<string, { count: number; total_value: number; currency: string }>();
+  const supplierCountries = new Map<string, string>(); // contactId → country code
+
+  for (const inv of allInvoices) {
+    const currency = inv.CurrencyCode || "ZAR";
+    const contact = inv.Contact || {};
+    const contactId = contact.ContactID || "";
+    const supplierName = contact.Name || "Unknown";
+
+    // Map supplier country
+    let supplierCountry = supplierCountries.get(contactId);
+    if (!supplierCountry && contact.Addresses) {
+      for (const addr of contact.Addresses) {
+        if (addr.Country) {
+          supplierCountry = resolveCountryCode(addr.Country);
+          if (supplierCountry) {
+            supplierCountries.set(contactId, supplierCountry);
+            stats.suppliers_mapped++;
+            break;
+          }
+        }
+      }
+    }
+
+    // Process line items
+    const lineItems = inv.LineItems || [];
+    for (const item of lineItems) {
+      stats.line_items_found++;
+      const description = item.Description || "";
+      const lineAmount = item.LineAmount || 0;
+
+      if (!description || description.length < 5) continue;
+
+      // Classify the line item
+      try {
+        const classResp = await fetch(classifyUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-API-Key": rawKey,
+          },
+          body: JSON.stringify({
+            description,
+            import_country: "ZA", // Default — could be configurable
+          }),
+        });
+
+        if (classResp.ok) {
+          const classData = await classResp.json();
+          const topSuggestion = classData.suggestions?.[0];
+          if (topSuggestion) {
+            stats.items_classified++;
+
+            // Track trade route
+            if (supplierCountry) {
+              const routeKey = `${supplierCountry}→ZA:${topSuggestion.subheading_code}`;
+              const existing = tradeRoutes.get(routeKey) || { count: 0, total_value: 0, currency };
+              existing.count++;
+              existing.total_value += lineAmount;
+              tradeRoutes.set(routeKey, existing);
+            }
+          }
+        }
+
+        await sleep(200); // Don't hammer classify endpoint
+      } catch (e) {
+        // Non-fatal — continue processing
+      }
+    }
+  }
+
+  stats.trade_routes_found = tradeRoutes.size;
+
+  // ── Build trade route summary ────────────────────────────────────────────
+  const routes = Array.from(tradeRoutes.entries()).map(([key, val]) => {
+    const [route, hs] = key.split(":");
+    const [exportCountry, importCountry] = route.split("→");
+    return {
+      export_country: exportCountry,
+      import_country: importCountry,
+      subheading_code: hs,
+      invoice_count: val.count,
+      total_value: val.total_value,
+      currency: val.currency,
+    };
+  }).sort((a, b) => b.total_value - a.total_value);
+
+  // ── Update last sync timestamp ───────────────────────────────────────────
+  await supabase.from("erp_integration")
+    .update({ lastsyncat: new Date().toISOString() })
+    .eq("integrationid", integration.integrationid);
+
+  // ── Log to TENANT_BEHAVIOUR_LOG ──────────────────────────────────────────
+  await supabase.from("tenant_behaviour_log").insert({
+    tenantid: keyRow.tenantid,
+    eventtype: "XERO_SYNC",
+    eventdata: {
+      invoices: stats.invoices_fetched,
+      line_items: stats.line_items_found,
+      classified: stats.items_classified,
+      routes: stats.trade_routes_found,
+    },
+  }).then(() => {});
+
+  return json({
+    status: "ok",
+    stats,
+    trade_routes: routes.slice(0, 50), // Top 50 by value
+    suppliers_by_country: Object.fromEntries(
+      Array.from(new Set(supplierCountries.values()))
+        .map(c => [c, [...supplierCountries.values()].filter(v => v === c).length])
+    ),
+  });
+});
+
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+async function refreshToken(
+  integration: any,
+  supabase: ReturnType<typeof createClient>,
+): Promise<{ access_token?: string; error?: string }> {
+  const config = integration.mappingconfig as Record<string, unknown>;
+  const refreshTokenVal = config?.refresh_token as string;
+
+  const clientId = Deno.env.get("XERO_CLIENT_ID")!;
+  const clientSecret = Deno.env.get("XERO_CLIENT_SECRET")!;
+
+  const resp = await fetch("https://identity.xero.com/connect/token", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      "Authorization": `Basic ${btoa(`${clientId}:${clientSecret}`)}`,
+    },
+    body: new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: refreshTokenVal,
+    }),
+  });
+
+  if (!resp.ok) {
+    return { error: await resp.text() };
+  }
+
+  const tokens = await resp.json();
+
+  await supabase.from("erp_integration")
+    .update({
+      mappingconfig: {
+        ...config,
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token,
+        expires_at: Date.now() + (tokens.expires_in * 1000),
+      },
+    })
+    .eq("integrationid", integration.integrationid);
+
+  return { access_token: tokens.access_token };
+}
+
+function resolveCountryCode(countryName: string): string | null {
+  const normalized = countryName.toLowerCase().trim();
+  return COUNTRY_MAP[normalized] || null;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function json(data: unknown, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+async function sha256hex(input: string): Promise<string> {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+}

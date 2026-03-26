@@ -979,6 +979,31 @@
         </div>
       </div>
     </div>
+
+    <!-- Xero Integration -->
+    <div style="margin-top:28px;">
+      <div style="font-size:14px;font-weight:600;margin-bottom:14px;">ERP Integration</div>
+      <div class="lookup-grid">
+        <div class="lookup-form">
+          <div class="form-title">Xero Connection</div>
+          <div id="xero-status" style="margin-bottom:14px;">
+            <div class="page-loader" style="padding:10px 0;">
+              <div class="spinner" style="margin:0;width:14px;height:14px;border-width:2px;"></div>
+              Checking connection...
+            </div>
+          </div>
+          <div id="xero-actions">
+            <button class="lookup-btn" onclick="connectXero()" id="xero-connect-btn" style="background:var(--teal);">Connect Xero</button>
+          </div>
+        </div>
+        <div id="xero-sync-panel">
+          <div class="classify-empty">
+            <div class="classify-empty-title">Connect your accounting software</div>
+            <div>Link your Xero account to auto-detect trade routes, classify purchase invoices, and surface duty saving opportunities from your actual import data.</div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
 </main>
@@ -1520,6 +1545,156 @@ function renderUploadResult(data) {
       ${sampleTable}
     </div>`;
 }
+
+// ── Xero Integration ─────────────────────────────────────────────────────────
+async function checkXeroStatus() {
+  try {
+    const r = await fetch(`${API_BASE}/xero-connect`, {
+      method: 'POST',
+      headers: HEADERS,
+      body: JSON.stringify({ action: 'status' }),
+    });
+    const data = await r.json();
+
+    const statusDiv = document.getElementById('xero-status');
+    const actionsDiv = document.getElementById('xero-actions');
+    const syncPanel = document.getElementById('xero-sync-panel');
+
+    if (data.connected) {
+      const lastSync = data.last_sync_at ? new Date(data.last_sync_at).toLocaleString() : 'Never';
+      statusDiv.innerHTML = `
+        <div style="background:var(--green-bg);border:1px solid #b7e4c7;border-radius:6px;padding:10px 14px;font-size:12px;color:var(--green);font-weight:500;">
+          Connected to <strong>${data.xero_tenant_name}</strong>
+        </div>
+        <div style="font-size:11px;color:var(--text-3);margin-top:6px;">Last sync: ${lastSync}</div>`;
+
+      actionsDiv.innerHTML = `
+        <button class="lookup-btn" onclick="runXeroSync()" id="xero-sync-btn">Sync Invoices</button>
+        <button class="lookup-btn" onclick="disconnectXero()" style="background:var(--red);margin-top:8px;font-size:11px;padding:8px;">Disconnect</button>`;
+
+      syncPanel.innerHTML = `
+        <div class="classify-empty">
+          <div class="classify-empty-title">Ready to sync</div>
+          <div>Click "Sync Invoices" to pull purchase bills from Xero. Line items will be auto-classified and trade routes discovered.</div>
+        </div>`;
+    } else {
+      statusDiv.innerHTML = `<div style="font-size:12px;color:var(--text-3);">Not connected</div>`;
+      actionsDiv.innerHTML = `<button class="lookup-btn" onclick="connectXero()" style="background:var(--teal);">Connect Xero</button>`;
+    }
+  } catch (e) {
+    document.getElementById('xero-status').innerHTML = `<div style="font-size:12px;color:var(--text-3);">Could not check status</div>`;
+  }
+}
+
+function connectXero() {
+  window.open(`${API_BASE}/xero-connect?action=auth&api_key=${API_KEY}`, '_blank', 'width=600,height=700');
+  // Poll for connection after redirect
+  const poll = setInterval(async () => {
+    try {
+      const r = await fetch(`${API_BASE}/xero-connect`, {
+        method: 'POST', headers: HEADERS, body: JSON.stringify({ action: 'status' }),
+      });
+      const data = await r.json();
+      if (data.connected) {
+        clearInterval(poll);
+        checkXeroStatus();
+      }
+    } catch {}
+  }, 3000);
+  // Stop polling after 5 minutes
+  setTimeout(() => clearInterval(poll), 300000);
+}
+
+async function disconnectXero() {
+  if (!confirm('Disconnect Xero? This will stop syncing invoice data.')) return;
+  await fetch(`${API_BASE}/xero-connect`, {
+    method: 'POST', headers: HEADERS, body: JSON.stringify({ action: 'disconnect' }),
+  });
+  checkXeroStatus();
+}
+
+async function runXeroSync() {
+  const btn = document.getElementById('xero-sync-btn');
+  const panel = document.getElementById('xero-sync-panel');
+  btn.disabled = true;
+  btn.textContent = 'Syncing...';
+
+  panel.innerHTML = `
+    <div class="upload-progress">
+      <div style="font-size:14px;font-weight:600;margin-bottom:8px;">Syncing Xero invoices...</div>
+      <div style="font-size:12px;color:var(--text-3);">Pulling purchase bills, classifying line items, mapping trade routes. This may take a few minutes.</div>
+      <div class="upload-progress-bar" style="margin-top:12px;"><div class="upload-progress-fill" style="width:30%;animation:pulse 2s infinite;"></div></div>
+    </div>`;
+
+  try {
+    const r = await fetch(`${API_BASE}/xero-sync`, {
+      method: 'POST', headers: HEADERS, body: JSON.stringify({}),
+    });
+    const data = await r.json();
+
+    if (data.error) {
+      panel.innerHTML = `<div class="classify-empty"><div class="classify-empty-title">Sync Error</div><div>${data.error}</div></div>`;
+    } else {
+      panel.innerHTML = renderXeroSyncResult(data);
+    }
+  } catch (e) {
+    panel.innerHTML = `<div class="classify-empty"><div class="classify-empty-title">Sync failed</div><div>${e.message}</div></div>`;
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Sync Invoices';
+  checkXeroStatus(); // Refresh last sync time
+}
+
+function renderXeroSyncResult(data) {
+  const s = data.stats || {};
+  const routes = data.trade_routes || [];
+
+  const routeRows = routes.slice(0, 10).map(r => `
+    <tr>
+      <td>${r.export_country} → ${r.import_country}</td>
+      <td>${r.subheading_code}</td>
+      <td>${r.invoice_count}</td>
+      <td>${r.currency} ${Number(r.total_value).toLocaleString(undefined, {minimumFractionDigits:2})}</td>
+    </tr>`).join('');
+
+  const routeTable = routes.length ? `
+    <div style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:0.06em;margin:14px 0 6px;">Discovered Trade Routes</div>
+    <table class="sample-table">
+      <tr><th>Route</th><th>HS Code</th><th>Invoices</th><th>Value</th></tr>
+      ${routeRows}
+    </table>` : '';
+
+  return `
+    <div class="upload-result">
+      <div class="upload-result-header">
+        <div class="upload-result-title">Xero Sync Complete</div>
+        <div class="upload-result-status success">DONE</div>
+      </div>
+      <div class="upload-stats">
+        <div class="upload-stat">
+          <div class="upload-stat-val">${s.invoices_fetched ?? 0}</div>
+          <div class="upload-stat-label">Invoices</div>
+        </div>
+        <div class="upload-stat">
+          <div class="upload-stat-val">${s.line_items_found ?? 0}</div>
+          <div class="upload-stat-label">Line Items</div>
+        </div>
+        <div class="upload-stat">
+          <div class="upload-stat-val">${s.items_classified ?? 0}</div>
+          <div class="upload-stat-label">Classified</div>
+        </div>
+        <div class="upload-stat">
+          <div class="upload-stat-val">${s.trade_routes_found ?? 0}</div>
+          <div class="upload-stat-label">Trade Routes</div>
+        </div>
+      </div>
+      ${routeTable}
+    </div>`;
+}
+
+// Check Xero status on page load (after admin tab is available)
+setTimeout(checkXeroStatus, 1000);
 
 init();
 </script>
