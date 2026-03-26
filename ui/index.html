@@ -2146,8 +2146,7 @@ async function connectAcumatica() {
       checkAcumaticaStatus();
       loadProfile();
     } else {
-      status.textContent = data.error || 'Connection failed';
-      status.style.color = 'var(--red)';
+      status.innerHTML = `<span style="color:var(--red);">${data.error || 'Connection failed'}</span>${data.detail ? `<br><span style="font-size:10px;color:var(--text-3);word-break:break-all;">${data.detail}</span>` : ''}`;
     }
   } catch (e) {
     status.textContent = 'Failed: ' + e.message;
