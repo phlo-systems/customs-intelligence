@@ -1897,8 +1897,22 @@ async function checkXeroStatus() {
           <button class="lookup-btn" onclick="disconnectXero()" style="background:var(--red);padding:8px 12px;font-size:11px;">Disconnect</button>
         </div>`;
     } else {
-      statusDiv.innerHTML = `<span style="font-size:12px;color:var(--text-3);">No ERP connected</span>`;
-      actionsDiv.innerHTML = `<button class="lookup-btn" onclick="connectXero()" style="background:var(--teal);padding:8px 16px;font-size:12px;">Connect Xero</button>`;
+      statusDiv.innerHTML = `<span style="font-size:12px;color:var(--text-3);">Xero not connected</span>`;
+      actionsDiv.innerHTML = `
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button class="lookup-btn" onclick="connectXero()" style="background:var(--teal);padding:8px 16px;font-size:12px;">Connect Xero</button>
+          <span class="expand-btn" onclick="toggleSetupHelp('xero-help')">Setup guide ▾</span>
+        </div>
+        <div id="xero-help" style="display:none;margin-top:8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px 14px;font-size:11px;color:var(--text-2);line-height:1.7;max-width:480px;">
+          <strong>How to connect Xero:</strong><br>
+          1. Go to <a href="https://developer.xero.com/app/manage" target="_blank" style="color:var(--teal);">developer.xero.com/app/manage</a><br>
+          2. Create a new <strong>Web App</strong><br>
+          3. Set Redirect URI to:<br>
+          <code style="font-size:10px;background:var(--surface);padding:2px 6px;border-radius:3px;">https://epytgmksddhvwziwxhuq.supabase.co/functions/v1/xero-connect</code><br>
+          4. Note your Client ID and Client Secret<br>
+          5. Contact your administrator to set the Xero secrets<br>
+          6. Click <strong>Connect Xero</strong> above
+        </div>`;
     }
   } catch (e) {
     const statusDiv = document.getElementById('xero-status');
@@ -2091,7 +2105,22 @@ async function checkAcumaticaStatus() {
         </div>`;
     } else {
       statusDiv.innerHTML = `<span style="font-size:12px;color:var(--text-3);">Acumatica not connected</span>`;
-      actionsDiv.innerHTML = `<button class="lookup-btn" onclick="showAcumaticaConnect()" style="background:var(--teal);padding:8px 16px;font-size:12px;">Connect Acumatica</button>`;
+      actionsDiv.innerHTML = `
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button class="lookup-btn" onclick="showAcumaticaConnect()" style="background:var(--teal);padding:8px 16px;font-size:12px;">Connect Acumatica</button>
+          <span class="expand-btn" onclick="toggleSetupHelp('acumatica-help')">Setup guide ▾</span>
+        </div>
+        <div id="acumatica-help" style="display:none;margin-top:8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px 14px;font-size:11px;color:var(--text-2);line-height:1.7;max-width:480px;">
+          <strong>How to connect Acumatica:</strong><br>
+          1. In Acumatica, go to <strong>System &gt; Integration &gt; Connected Applications</strong><br>
+          2. Create a new application<br>
+          3. Set OAuth 2.0 Flow to <strong>Client Credentials</strong><br>
+          4. Set Status to <strong>Active</strong><br>
+          5. Note the <strong>Client ID</strong> and <strong>Client Secret</strong><br>
+          6. Click <strong>Connect Acumatica</strong> and enter your instance URL + credentials<br>
+          <br>
+          <em>Note: Requires Acumatica 2021 R2 or later for Client Credentials flow.</em>
+        </div>`;
     }
   } catch {
     const s = document.getElementById('acumatica-status');
@@ -2104,8 +2133,9 @@ function showAcumaticaConnect() {
   panel.innerHTML = `
     <div class="lookup-form" style="max-width:400px;">
       <div class="form-title">Connect Acumatica</div>
-      <div style="font-size:12px;color:var(--text-2);margin-bottom:14px;line-height:1.5;">
-        Enter your Acumatica instance details. You'll need to create a Connected Application in Acumatica first (System > Integration > Connected Applications).
+      <div style="font-size:12px;color:var(--text-2);margin-bottom:14px;line-height:1.6;">
+        Enter your Acumatica instance details.<br>
+        <strong>Prerequisites:</strong> In Acumatica, go to System &gt; Integration &gt; Connected Applications, create a new app with OAuth 2.0 Flow set to "Client Credentials", and set Status to Active.
       </div>
       <div class="form-group">
         <label>Instance URL</label>
@@ -2255,9 +2285,27 @@ async function checkEmailStatus() {
     } else {
       statusDiv.innerHTML = `<span style="font-size:12px;color:var(--text-3);">No email connected</span>`;
       actionsDiv.innerHTML = `
-        <div style="display:flex;gap:8px;">
+        <div style="display:flex;gap:8px;align-items:center;">
           <button class="lookup-btn" onclick="connectEmail('gmail')" style="background:var(--teal);padding:8px 12px;font-size:11px;">Connect Gmail</button>
           <button class="lookup-btn" onclick="connectEmail('outlook')" style="background:#0078d4;padding:8px 12px;font-size:11px;">Connect Outlook</button>
+          <span class="expand-btn" onclick="toggleSetupHelp('email-help')">Setup guide ▾</span>
+        </div>
+        <div id="email-help" style="display:none;margin-top:8px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px 14px;font-size:11px;color:var(--text-2);line-height:1.7;max-width:520px;">
+          <strong>Gmail setup:</strong><br>
+          1. Go to <a href="https://console.cloud.google.com/" target="_blank" style="color:var(--teal);">Google Cloud Console</a> &gt; Create project<br>
+          2. Enable <strong>Gmail API</strong><br>
+          3. Create <strong>OAuth 2.0 credentials</strong> (Web application)<br>
+          4. Add redirect URI: <code style="font-size:10px;background:var(--surface);padding:2px 6px;border-radius:3px;">https://epytgmksddhvwziwxhuq.supabase.co/functions/v1/email-connect</code><br>
+          5. Contact your administrator to set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET<br>
+          <br>
+          <strong>Outlook setup:</strong><br>
+          1. Go to <a href="https://entra.microsoft.com/" target="_blank" style="color:var(--teal);">Azure Entra</a> &gt; App registrations &gt; New<br>
+          2. Add redirect URI (Web): same URL as above<br>
+          3. Add API permission: <strong>Microsoft Graph &gt; Mail.Read</strong> (delegated)<br>
+          4. Create a client secret<br>
+          5. Contact your administrator to set OUTLOOK_CLIENT_ID and OUTLOOK_CLIENT_SECRET<br>
+          <br>
+          <em>Read-only access only. No email content is stored — only structured trade context extracts.</em>
         </div>`;
     }
   } catch {
@@ -2343,6 +2391,11 @@ async function runEmailSync(platform) {
   }
 
   if (btn) { btn.disabled = false; btn.textContent = platform === 'GMAIL' ? 'Scan Gmail' : 'Scan Outlook'; }
+}
+
+function toggleSetupHelp(id) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
 }
 
 setTimeout(checkEmailStatus, 2000);
