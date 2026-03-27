@@ -20,6 +20,7 @@ import requests
 
 from tariff_parser.parsers.za_parser import TariffRow, RateValue
 from tariff_parser.parsers.gb_parser import GBCommodity
+from tariff_parser.parsers.in_parser import INCommodity
 
 logger = logging.getLogger(__name__)
 
@@ -183,6 +184,88 @@ class SupabaseWriter:
             "GB: wrote %d rows — commodity=%d mfn=%d tariff=%d vat=%d",
             len(commodities),
             len(commodity_batch), len(mfn_batch), len(tariff_batch), len(vat_batch),
+        )
+        return stats
+
+    # ── IN (India) writer ──────────────────────────────────────────────────
+
+    def write_in_rows(
+        self,
+        commodities: list[INCommodity],
+        hs_version: str = "HS 2022",
+        batch_size: int = 200,
+    ) -> dict:
+        """
+        Write a list of parsed INCommodity objects to Supabase.
+        India uses CIF valuation. Standard rate = Basic Customs Duty (BCD).
+        Returns summary stats: {inserted, updated, errored}
+        """
+        stats = {"inserted": 0, "updated": 0, "errored": 0}
+
+        # Deduplicate by commodity code (keep last occurrence)
+        seen = {}
+        for c in commodities:
+            seen[c.commodity_code] = c
+        commodities = list(seen.values())
+
+        commodity_batch = []
+        mfn_batch = []
+        tariff_batch = []
+
+        for c in commodities:
+            commodity_batch.append({
+                "commoditycode": c.commodity_code,
+                "countrycode": "IN",
+                "subheadingcode": c.subheading_code,
+                "hsversion": hs_version,
+                "nationaldescription": c.description[:500],
+                "supplementaryunit": c.unit,
+                "codelength": "8-digit",
+                "isactive": True,
+            })
+
+            duty_basis = self._duty_basis_type_str(c.duty_type)
+            mfn_batch.append({
+                "commoditycode": c.commodity_code,
+                "countrycode": "IN",
+                "ratecategory": "APPLIED",
+                "dutybasistype": duty_basis,
+                "appliedmfnrate": c.standard_rate_pct,
+                "specificdutyamt": None,
+                "specificdutyuom": None,
+                "dutyexpression": c.standard_rate_expr,
+                "valuationbasis": "CIF",
+                "effectivefrom": self.effective_date,
+                "effectiveto": None,
+            })
+
+            tariff_batch.append({
+                "commoditycode": c.commodity_code,
+                "countrycode": "IN",
+                "subheadingcode": c.subheading_code,
+                "appliedmfnrate": c.standard_rate_pct,
+                "valuationbasis": "CIF",
+                "dutyexpression": c.standard_rate_expr,
+                "effectivefrom": self.effective_date,
+                "effectiveto": None,
+                "lastreviewedat": self.effective_date,
+            })
+
+        # Write in batches
+        for i in range(0, len(commodity_batch), batch_size):
+            result = self._upsert("commodity_code", commodity_batch[i:i + batch_size])
+            stats["inserted"] += result.get("count", 0)
+
+        for i in range(0, len(mfn_batch), batch_size):
+            self._upsert("mfn_rate", mfn_batch[i:i + batch_size])
+
+        for i in range(0, len(tariff_batch), batch_size):
+            self._upsert("tariff_rate", tariff_batch[i:i + batch_size])
+
+        logger.info(
+            "IN: wrote %d rows — commodity=%d mfn=%d tariff=%d",
+            len(commodities),
+            len(commodity_batch), len(mfn_batch), len(tariff_batch),
         )
         return stats
 

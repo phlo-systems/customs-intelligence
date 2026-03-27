@@ -67,32 +67,27 @@ Deno.serve(async (req: Request) => {
 
   // ── Parse options ──────────────────────────────────────────────────────────
   let batchSize = 10;
-  let filterTenantId: string | null = null;
 
   if (req.method === "POST") {
     try {
       const body = await req.json();
       if (body.batch_size) batchSize = Math.min(Number(body.batch_size), 50);
-      if (body.tenant_id)  filterTenantId = body.tenant_id;
     } catch { /* ignore — use defaults */ }
   }
 
-  // ── Fetch unenriched opportunities ─────────────────────────────────────────
-  let query = supabase
+  // ── Fetch unenriched opportunities (scoped to authenticated tenant) ───────
+  const query = supabase
     .from("opportunities")
     .select(`
       opportunityid, tenantid, opportunitytype,
       subheadingcode, importcountrycode, exportcountrycode,
       agreementcode, savingpct, savingamtper10k, headline
     `)
+    .eq("tenantid", tenantId)
     .is("aiinsight", null)
     .eq("isdismissed", false)
     .order("savingamtper10k", { ascending: false, nullsFirst: false })
     .limit(batchSize);
-
-  if (filterTenantId) {
-    query = query.eq("tenantid", filterTenantId);
-  }
 
   const { data: opps, error: oppsErr } = await query;
   if (oppsErr) return json({ error: oppsErr.message }, 500);

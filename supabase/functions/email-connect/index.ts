@@ -51,16 +51,24 @@ Deno.serve(async (req: Request) => {
     const platform = stateData.platform || "";
     const apiKey = stateData.api_key || "";
 
-    // Resolve tenant from API key
-    const keyHash = await sha256hex(apiKey);
-    const { data: keyRow } = await supabase
-      .from("api_key")
-      .select("tenantuid")
-      .eq("keyhash", keyHash)
-      .eq("isactive", true)
-      .maybeSingle();
+    // Resolve tenant from API key or JWT in state
+    let tenantId: string | null = null;
+    if (apiKey) {
+      const keyHash = await sha256hex(apiKey);
+      const { data: keyRow } = await supabase
+        .from("api_key")
+        .select("tenantuid")
+        .eq("keyhash", keyHash)
+        .eq("isactive", true)
+        .maybeSingle();
+      if (keyRow?.tenantuid) tenantId = keyRow.tenantuid;
+    }
+    if (!tenantId && stateData.jwt) {
+      const { data: { user } } = await supabase.auth.getUser(stateData.jwt);
+      if (user) tenantId = user.id;
+    }
 
-    const tenantId = keyRow?.tenantuid || "a0000000-0000-0000-0000-000000000001";
+    if (!tenantId) return json({ error: "Could not resolve tenant. Please reconnect from the app." }, 401);
     const redirectUri = Deno.env.get("SUPABASE_URL") + "/functions/v1/email-connect";
 
     if (platform === "gmail") {
@@ -205,7 +213,9 @@ Deno.serve(async (req: Request) => {
     const clientId = Deno.env.get("GOOGLE_CLIENT_ID");
     if (!clientId) return json({ error: "GOOGLE_CLIENT_ID not configured" }, 500);
 
-    const state = btoa(JSON.stringify({ platform: "gmail", api_key: rawKey }));
+    const apiKeyHeader = req.headers.get("x-api-key") || "";
+    const jwtToken = (req.headers.get("authorization") || "").replace("Bearer ", "");
+    const state = btoa(JSON.stringify({ platform: "gmail", api_key: apiKeyHeader, jwt: jwtToken }));
     const params = new URLSearchParams({
       client_id: clientId,
       redirect_uri: redirectBase,
@@ -275,7 +285,9 @@ Deno.serve(async (req: Request) => {
     const clientId = Deno.env.get("OUTLOOK_CLIENT_ID");
     if (!clientId) return json({ error: "OUTLOOK_CLIENT_ID not configured" }, 500);
 
-    const state = btoa(JSON.stringify({ platform: "outlook", api_key: rawKey }));
+    const apiKeyHeader2 = req.headers.get("x-api-key") || "";
+    const jwtToken2 = (req.headers.get("authorization") || "").replace("Bearer ", "");
+    const state = btoa(JSON.stringify({ platform: "outlook", api_key: apiKeyHeader2, jwt: jwtToken2 }));
     const params = new URLSearchParams({
       client_id: clientId,
       redirect_uri: redirectBase,

@@ -18,7 +18,6 @@ const corsHeaders = {
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-  if (req.method !== "GET") return json({ error: "GET required" }, 405);
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -52,6 +51,41 @@ Deno.serve(async (req: Request) => {
   }
 
   if (!tenantId) return json({ error: "Authentication required." }, 401);
+
+  // ── POST: dismiss / dismiss_all ─────────────────────────────────────────
+  if (req.method === "POST") {
+    let body: Record<string, unknown>;
+    try { body = await req.json(); }
+    catch { return json({ error: "Invalid JSON" }, 400); }
+
+    const action = String(body.action || "");
+
+    if (action === "dismiss") {
+      const ids = body.opportunity_ids;
+      if (!Array.isArray(ids) || !ids.length) return json({ error: "opportunity_ids array required" }, 400);
+      const { error } = await supabase
+        .from("opportunities")
+        .update({ isdismissed: true })
+        .eq("tenantid", tenantId)
+        .in("opportunityid", ids);
+      if (error) return json({ error: error.message }, 500);
+      return json({ status: "ok", dismissed: ids.length });
+    }
+
+    if (action === "dismiss_all") {
+      const { error } = await supabase
+        .from("opportunities")
+        .update({ isdismissed: true })
+        .eq("tenantid", tenantId)
+        .eq("isdismissed", false);
+      if (error) return json({ error: error.message }, 500);
+      return json({ status: "ok", message: "All opportunities dismissed" });
+    }
+
+    return json({ error: "Unknown action. Use: dismiss, dismiss_all" }, 400);
+  }
+
+  if (req.method !== "GET") return json({ error: "GET or POST required" }, 405);
 
   // ── Parse query params ─────────────────────────────────────────────────────
   const url        = new URL(req.url);

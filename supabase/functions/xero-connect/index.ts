@@ -52,7 +52,8 @@ Deno.serve(async (req: Request) => {
     // Step 1: Redirect to Xero
     if (action === "auth") {
       const apiKey = url.searchParams.get("api_key") || "";
-      const stateParam = btoa(JSON.stringify({ api_key: apiKey, ts: Date.now() }));
+      const jwt = url.searchParams.get("jwt") || "";
+      const stateParam = btoa(JSON.stringify({ api_key: apiKey, jwt, ts: Date.now() }));
 
       const authUrl = new URL(XERO_AUTH_URL);
       authUrl.searchParams.set("response_type", "code");
@@ -104,7 +105,7 @@ Deno.serve(async (req: Request) => {
         const xeroTenantName = xeroTenant.tenantName;
 
         // Resolve our tenant from state
-        let tenantUID = "a0000000-0000-0000-0000-000000000001"; // default GTM tenant
+        let tenantUID: string | null = null;
         if (state) {
           try {
             const stateData = JSON.parse(atob(state));
@@ -116,9 +117,17 @@ Deno.serve(async (req: Request) => {
                 .eq("keyhash", keyHash)
                 .eq("isactive", true)
                 .maybeSingle();
-              if (keyRow?.tenantuid) tenantUID = tenantId;
+              if (keyRow?.tenantuid) tenantUID = keyRow.tenantuid;
             }
-          } catch { /* use default */ }
+            if (!tenantUID && stateData.jwt) {
+              const { data: { user } } = await supabase.auth.getUser(stateData.jwt);
+              if (user) tenantUID = user.id;
+            }
+          } catch { /* ignore parse errors */ }
+        }
+
+        if (!tenantUID) {
+          return htmlResponse("Connection failed", "Could not resolve tenant. Please try reconnecting from the app.");
         }
 
         // Store tokens in ERP_INTEGRATION table

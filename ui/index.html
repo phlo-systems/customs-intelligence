@@ -6,6 +6,8 @@
 <title>Customs Intelligence — Phlo Systems</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.css">
+<script src="https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.js.iife.js"></script>
 <style>
   :root {
     --bg:        #f1f0eb;
@@ -835,6 +837,24 @@
   .source-badge.ai .source-dot       { background: var(--amber); }
   .source-badge.vectorai .source-dot  { background: #6b4fa0; }
   .source-badge.cache .source-dot    { background: var(--green); }
+  /* Tour overrides */
+  .driver-popover {
+    font-family: var(--sans) !important;
+    border-radius: 10px !important;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.12) !important;
+    background: var(--surface) !important;
+  }
+  .driver-popover-title {
+    font-weight: 600 !important; font-size: 14px !important;
+    color: var(--teal) !important; background: var(--teal-bg) !important;
+    padding: 12px 16px !important; margin: 0 !important;
+    border-radius: 10px 10px 0 0 !important;
+  }
+  .driver-popover-description { font-size: 13px !important; color: var(--text-2) !important; line-height: 1.5 !important; padding: 14px 16px 8px !important; }
+  .driver-popover-next-btn { background: var(--text) !important; color: #fff !important; border-radius: 6px !important; font-size: 12px !important; padding: 6px 14px !important; }
+  .driver-popover-prev-btn { border-radius: 6px !important; font-size: 12px !important; padding: 6px 14px !important; }
+  .driver-popover-close-btn { font-size: 16px !important; color: var(--teal) !important; }
+  .driver-popover-progress-text { font-family: var(--mono) !important; font-size: 10px !important; color: var(--text-3) !important; }
 </style>
 </head>
 <body>
@@ -857,7 +877,39 @@
         <input type="password" id="auth-password" placeholder="Enter password">
       </div>
       <button class="lookup-btn" onclick="doLogin()" id="login-btn">Sign In</button>
-      <div class="auth-toggle">Don't have an account? <a onclick="showSignup()">Sign up</a></div>
+      <div class="auth-toggle">
+        <a onclick="showForgotPassword()" style="cursor:pointer;">Forgot password?</a>
+        &nbsp;·&nbsp; Don't have an account? <a onclick="showSignup()">Sign up</a>
+      </div>
+    </div>
+
+    <!-- Forgot Password Form -->
+    <div id="forgot-form" style="display:none;">
+      <div class="auth-title">Reset Password</div>
+      <div class="auth-error" id="forgot-error"></div>
+      <div class="auth-success" id="forgot-success"></div>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="forgot-email" placeholder="you@company.com">
+      </div>
+      <button class="lookup-btn" onclick="doForgotPassword()" id="forgot-btn">Send Reset Link</button>
+      <div class="auth-toggle">Remember your password? <a onclick="showLogin()">Sign in</a></div>
+    </div>
+
+    <!-- New Password Form (shown after clicking reset link) -->
+    <div id="reset-form" style="display:none;">
+      <div class="auth-title">Set New Password</div>
+      <div class="auth-error" id="reset-error"></div>
+      <div class="auth-success" id="reset-success"></div>
+      <div class="form-group">
+        <label>New Password</label>
+        <input type="password" id="reset-password" placeholder="Min 8 characters">
+      </div>
+      <div class="form-group">
+        <label>Confirm Password</label>
+        <input type="password" id="reset-password-confirm" placeholder="Confirm password">
+      </div>
+      <button class="lookup-btn" onclick="doResetPassword()" id="reset-btn" style="background:var(--teal);">Update Password</button>
     </div>
 
     <!-- Signup Form -->
@@ -890,6 +942,12 @@
   <div class="logo"><span>◆</span>Customs Intelligence</div>
   <div style="display:flex;align-items:center;gap:16px;">
     <div class="header-meta" id="header-tenant">Loading tenant...</div>
+    <span style="font-size:11px;color:rgba(255,255,255,0.5);cursor:pointer;" onclick="openSuggestionModal()" title="Suggest an improvement">Suggest</span>
+    <span style="font-size:11px;color:rgba(255,255,255,0.3);">|</span>
+    <span style="font-size:11px;color:rgba(255,255,255,0.5);cursor:pointer;" onclick="openReferralModal()" title="Refer a colleague">Refer</span>
+    <span style="font-size:11px;color:rgba(255,255,255,0.3);">|</span>
+    <span style="font-size:11px;color:rgba(255,255,255,0.5);cursor:pointer;" onclick="startTour()" id="tour-btn" title="Guided tour of features">Tour</span>
+    <span style="font-size:11px;color:rgba(255,255,255,0.3);">|</span>
     <span style="font-size:11px;color:rgba(255,255,255,0.5);cursor:pointer;" onclick="logout()">Logout</span>
   </div>
 </header>
@@ -902,7 +960,7 @@
   <div class="nav-tab" onclick="showScreen('classify', this)">Classify</div>
   <div class="nav-tab" onclick="showScreen('profile', this)">Profile</div>
   <div class="nav-tab" onclick="showScreen('alerts', this)">Alerts</div>
-  <div class="nav-tab" onclick="showScreen('admin', this)">Admin</div>
+  <div class="nav-tab" onclick="showScreen('admin', this)" id="nav-admin" style="display:none;">Admin</div>
 </nav>
 
 <main>
@@ -930,13 +988,21 @@
       </div>
     </div>
 
-    <div class="filters">
-      <span class="filter-label">Filter:</span>
-      <div class="filter-chip active" onclick="filterOpps(this, null)">All</div>
-      <div class="filter-chip" onclick="filterOpps(this, 'DUTY_REDUCTION')">Duty Reduction</div>
-      <div class="filter-chip" onclick="filterOpps(this, 'COMPETITOR_DISADVANTAGE')">Competitor Edge</div>
-      <div class="filter-chip" onclick="filterOpps(this, 'NEW_MARKET')">New Markets</div>
-      <div class="filter-chip" onclick="filterOpps(this, 'EXPIRING_PREFERENCE')">Expiring</div>
+    <div class="filters" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span class="filter-label">Filter:</span>
+        <div class="filter-chip active" onclick="filterOpps(this, null)">All</div>
+        <div class="filter-chip" onclick="filterOpps(this, 'DUTY_REDUCTION')">Duty Reduction</div>
+        <div class="filter-chip" onclick="filterOpps(this, 'COMPETITOR_DISADVANTAGE')">Competitor Edge</div>
+        <div class="filter-chip" onclick="filterOpps(this, 'NEW_MARKET')">New Markets</div>
+        <div class="filter-chip" onclick="filterOpps(this, 'EXPIRING_PREFERENCE')">Expiring</div>
+      </div>
+      <div id="opp-bulk-bar" style="display:flex;align-items:center;gap:10px;">
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-2);cursor:pointer;">
+          <input type="checkbox" id="opp-select-all" onchange="toggleAllOpps(this.checked)"> Select all
+        </label>
+        <button onclick="deleteSelectedOpps()" id="opp-delete-btn" style="display:none;font-size:11px;padding:5px 12px;background:var(--red-bg);color:var(--red);border:1px solid #f4a8a8;border-radius:6px;cursor:pointer;font-weight:600;">Delete selected</button>
+      </div>
     </div>
 
     <div id="opp-list" class="opp-list">
@@ -953,8 +1019,9 @@
       <div class="lookup-form">
         <div class="form-title">Tariff Lookup</div>
         <div class="form-group">
-          <label>Export Country</label>
-          <input type="text" id="l-export" value="GB" maxlength="2" placeholder="e.g. GB">
+          <label>Export Country (optional)</label>
+          <input type="text" id="l-export" value="" maxlength="2" placeholder="e.g. GB">
+          <div class="hint">Required for preferential rates, AD duties & origin-specific measures. Leave blank for MFN only.</div>
         </div>
         <div class="form-group">
           <label>Import Country</label>
@@ -962,8 +1029,8 @@
         </div>
         <div class="form-group">
           <label>Commodity Code</label>
-          <input type="text" id="l-code" value="20041010" placeholder="8-digit ZA code">
-          <div class="hint">8-digit ZA national commodity code</div>
+          <input type="text" id="l-code" value="20041010" placeholder="e.g. 20041010 or 2004101000">
+          <div class="hint">Any HS code length — auto-matched to the import country's national format</div>
         </div>
         <div class="form-group">
           <label>Customs Value (optional)</label>
@@ -1145,13 +1212,21 @@
 
     <div id="alerts-summary" style="margin-bottom:16px;"></div>
 
-    <div class="filters" id="alert-filters">
-      <span class="filter-label">Severity:</span>
-      <div class="filter-chip active" onclick="filterAlerts(this, null)">All</div>
-      <div class="filter-chip" onclick="filterAlerts(this, 'CRITICAL')">Critical</div>
-      <div class="filter-chip" onclick="filterAlerts(this, 'HIGH')">High</div>
-      <div class="filter-chip" onclick="filterAlerts(this, 'MEDIUM')">Medium</div>
-      <div class="filter-chip" onclick="filterAlerts(this, 'LOW')">Low</div>
+    <div class="filters" id="alert-filters" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span class="filter-label">Severity:</span>
+        <div class="filter-chip active" onclick="filterAlerts(this, null)">All</div>
+        <div class="filter-chip" onclick="filterAlerts(this, 'CRITICAL')">Critical</div>
+        <div class="filter-chip" onclick="filterAlerts(this, 'HIGH')">High</div>
+        <div class="filter-chip" onclick="filterAlerts(this, 'MEDIUM')">Medium</div>
+        <div class="filter-chip" onclick="filterAlerts(this, 'LOW')">Low</div>
+      </div>
+      <div id="alert-bulk-bar" style="display:flex;align-items:center;gap:10px;">
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-2);cursor:pointer;">
+          <input type="checkbox" id="alert-select-all" onchange="toggleAllAlerts(this.checked)"> Select all
+        </label>
+        <button onclick="deleteSelectedAlerts()" id="alert-delete-btn" style="display:none;font-size:11px;padding:5px 12px;background:var(--red-bg);color:var(--red);border:1px solid #f4a8a8;border-radius:6px;cursor:pointer;font-weight:600;">Delete selected</button>
+      </div>
     </div>
 
     <div id="alerts-list" class="opp-list">
@@ -1161,83 +1236,292 @@
 
   <!-- ── Admin: Upload Tariff Docs ── -->
   <div class="screen" id="screen-admin">
-    <div class="lookup-grid">
-      <div class="lookup-form">
-        <div class="form-title">Upload Tariff Document</div>
 
-        <div class="form-group">
-          <label>Country</label>
-          <select id="u-country">
-            <option value="">Select country...</option>
-            <option value="IN">IN — India</option>
-            <option value="BR">BR — Brazil</option>
-            <option value="AU">AU — Australia</option>
-            <option value="TH">TH — Thailand</option>
-            <option value="MX">MX — Mexico</option>
-            <option value="CL">CL — Chile</option>
-            <option value="PH">PH — Philippines</option>
-            <option value="AR">AR — Argentina</option>
-            <option value="UY">UY — Uruguay</option>
-            <option value="SA">SA — Saudi Arabia</option>
-            <option value="AE">AE — UAE</option>
-            <option value="OM">OM — Oman</option>
-            <option value="DO">DO — Dominican Republic</option>
-            <option value="AO">AO — Angola</option>
-            <option value="MU">MU — Mauritius</option>
-            <option value="ZA">ZA — South Africa</option>
-            <option value="GB">GB — United Kingdom</option>
-          </select>
-        </div>
+    <!-- Admin sub-tabs -->
+    <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:20px;">
+      <div class="nav-tab active" onclick="showAdminTab('overview', this)" id="admin-tab-overview">Overview</div>
+      <div class="nav-tab" onclick="showAdminTab('tenants', this)">Tenants</div>
+      <div class="nav-tab" onclick="showAdminTab('usage', this)">Usage</div>
+      <div class="nav-tab" onclick="showAdminTab('docs', this)">Documents</div>
+      <div class="nav-tab" onclick="showAdminTab('suggestions', this)">Suggestions</div>
+      <div class="nav-tab" onclick="showAdminTab('referrals', this)">Referrals</div>
+      <div class="nav-tab" onclick="showAdminTab('rewards', this)">Rewards</div>
+    </div>
 
-        <div class="form-group">
-          <label>Document Type</label>
-          <select id="u-doctype">
-            <option value="TARIFF_SCHEDULE">Tariff Schedule (full)</option>
-            <option value="NOTIFICATION">Notification / Amendment</option>
-            <option value="AMENDMENT">Rate Change Amendment</option>
-          </select>
-        </div>
-
-        <div id="upload-zone" class="upload-zone"
-             onclick="document.getElementById('u-file').click()"
-             ondragover="event.preventDefault(); this.classList.add('dragover')"
-             ondragleave="this.classList.remove('dragover')"
-             ondrop="handleDrop(event)">
-          <div class="upload-zone-icon">+</div>
-          <div class="upload-zone-text">Drop file here or click to browse</div>
-          <div class="upload-zone-hint">PDF, CSV, or XLSX — max 50 MB</div>
-        </div>
-        <input type="file" id="u-file" accept=".pdf,.csv,.xlsx" style="display:none" onchange="handleFileSelect(this)">
-
-        <div id="upload-file-info" style="display:none">
-          <div class="upload-file-info">
-            <div>
-              <span class="upload-file-name" id="u-file-name">—</span>
-              <span class="upload-file-size" id="u-file-size">—</span>
-            </div>
-            <span class="upload-file-remove" onclick="clearFile()">Remove</span>
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label>Notes (optional)</label>
-          <textarea id="u-notes" rows="2" placeholder="e.g. CBIC Customs Tariff 2025-26, Chapters 1-20"></textarea>
-        </div>
-
-        <button class="lookup-btn" onclick="runUpload()" id="upload-btn">Upload & Parse</button>
+    <!-- ── Overview ── -->
+    <div class="admin-panel" id="admin-overview">
+      <div class="summary-bar" style="grid-template-columns:repeat(4,1fr);">
+        <div class="stat-card"><div class="stat-label">Total Tenants</div><div class="stat-value" id="kpi-tenants">—</div></div>
+        <div class="stat-card"><div class="stat-label">Total Users</div><div class="stat-value" id="kpi-users">—</div></div>
+        <div class="stat-card"><div class="stat-label">Active (7d)</div><div class="stat-value teal" id="kpi-active">—</div></div>
+        <div class="stat-card"><div class="stat-label">API Calls (24h)</div><div class="stat-value" id="kpi-api24h">—</div></div>
       </div>
+      <div class="summary-bar" style="grid-template-columns:repeat(4,1fr);margin-top:12px;">
+        <div class="stat-card"><div class="stat-label">API Calls (30d)</div><div class="stat-value" id="kpi-api30d">—</div></div>
+        <div class="stat-card"><div class="stat-label">Commodity Codes</div><div class="stat-value" id="kpi-commodities">—</div></div>
+        <div class="stat-card"><div class="stat-label">Opportunities</div><div class="stat-value green" id="kpi-opportunities">—</div></div>
+        <div class="stat-card"><div class="stat-label">Classifications</div><div class="stat-value" id="kpi-classifications">—</div></div>
+      </div>
+      <div class="summary-bar" style="grid-template-columns:repeat(4,1fr);margin-top:12px;">
+        <div class="stat-card"><div class="stat-label">Alerts</div><div class="stat-value" id="kpi-alerts">—</div></div>
+        <div class="stat-card"><div class="stat-label">Embeddings</div><div class="stat-value" id="kpi-embeddings">—</div></div>
+        <div class="stat-card"><div class="stat-label">ERP Connections</div><div class="stat-value teal" id="kpi-erps">—</div></div>
+        <div class="stat-card"><div class="stat-label">Platform</div><div class="stat-value" style="font-size:13px;">Supabase</div></div>
+      </div>
+    </div>
 
-      <div id="upload-result-panel">
-        <div class="classify-empty">
-          <div class="classify-empty-title">Upload a tariff document</div>
-          <div>Supports customs tariff schedules (PDF), duty rate spreadsheets (CSV/XLSX), and gazette notifications. Claude AI will extract commodity codes, MFN rates, and VAT rates.</div>
+    <!-- ── Tenants ── -->
+    <div class="admin-panel" id="admin-tenants" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <div style="font-weight:600;font-size:15px;">Registered Tenants</div>
+        <div style="font-family:var(--mono);font-size:11px;color:var(--text-3);" id="tenant-count-label">—</div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;" id="tenants-table">
+          <thead>
+            <tr style="border-bottom:2px solid var(--border);text-align:left;">
+              <th style="padding:8px 12px;font-weight:600;">Company</th>
+              <th style="padding:8px 12px;font-weight:600;">Email</th>
+              <th style="padding:8px 12px;font-weight:600;">Type</th>
+              <th style="padding:8px 12px;font-weight:600;">Volume</th>
+              <th style="padding:8px 12px;font-weight:600;">Last Login</th>
+              <th style="padding:8px 12px;font-weight:600;">API Calls (30d)</th>
+              <th style="padding:8px 12px;font-weight:600;">Connections</th>
+              <th style="padding:8px 12px;font-weight:600;">Role</th>
+              <th style="padding:8px 12px;font-weight:600;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="tenants-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── Usage ── -->
+    <div class="admin-panel" id="admin-usage" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <div style="font-weight:600;font-size:15px;">API Usage</div>
+        <select id="usage-period" onchange="loadAdminUsage()" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;">
+          <option value="7">Last 7 days</option>
+          <option value="30" selected>Last 30 days</option>
+          <option value="90">Last 90 days</option>
+        </select>
+      </div>
+      <div class="summary-bar" style="grid-template-columns:repeat(3,1fr);margin-bottom:20px;">
+        <div class="stat-card"><div class="stat-label">Total Calls</div><div class="stat-value" id="usage-total">—</div></div>
+        <div class="stat-card"><div class="stat-label">Avg Response</div><div class="stat-value" id="usage-avg-ms">—</div></div>
+        <div class="stat-card"><div class="stat-label">Success Rate</div><div class="stat-value teal" id="usage-success">—</div></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+        <div>
+          <div style="font-weight:600;font-size:13px;margin-bottom:8px;">By Endpoint</div>
+          <div id="usage-by-endpoint" style="font-size:13px;"></div>
+        </div>
+        <div>
+          <div style="font-weight:600;font-size:13px;margin-bottom:8px;">Daily Volume</div>
+          <div id="usage-by-day" style="font-size:13px;max-height:300px;overflow-y:auto;"></div>
         </div>
       </div>
     </div>
 
+    <!-- ── Upload (existing) ── -->
+    <!-- ── Document Library ── -->
+    <div class="admin-panel" id="admin-docs" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <div style="font-weight:600;font-size:15px;">Tariff Document Library</div>
+        <button onclick="toggleDocUploadForm()" style="font-size:12px;padding:6px 14px;background:var(--teal);color:#fff;border:none;border-radius:6px;cursor:pointer;">Upload Document</button>
+      </div>
+
+      <!-- Upload form (hidden by default) -->
+      <div id="doc-upload-form" style="display:none;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:20px;margin-bottom:20px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+          <!-- Left: form -->
+          <div>
+            <div style="font-weight:600;font-size:13px;margin-bottom:12px;">Upload New Tariff Document</div>
+            <div style="margin-bottom:10px;">
+              <label style="font-size:12px;display:block;margin-bottom:4px;">File (PDF, CSV, XLSX — max 50MB)</label>
+              <input type="file" id="doc-file" accept=".pdf,.csv,.xlsx" style="font-size:12px;" onchange="onDocFileSelect(this)">
+            </div>
+            <div id="doc-ai-status" style="display:none;font-size:11px;color:var(--teal);margin-bottom:8px;"><span class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:4px;"></span> AI analysing file to suggest metadata...</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+              <div class="form-group">
+                <label style="font-size:12px;">Country</label>
+                <select id="doc-country" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;">
+                  <option value="">Select...</option>
+                  <option value="IN">IN — India</option>
+                  <option value="BR">BR — Brazil</option>
+                  <option value="AU">AU — Australia</option>
+                  <option value="TH">TH — Thailand</option>
+                  <option value="MX">MX — Mexico</option>
+                  <option value="CL">CL — Chile</option>
+                  <option value="PH">PH — Philippines</option>
+                  <option value="AR">AR — Argentina</option>
+                  <option value="UY">UY — Uruguay</option>
+                  <option value="SA">SA — Saudi Arabia</option>
+                  <option value="AE">AE — UAE</option>
+                  <option value="OM">OM — Oman</option>
+                  <option value="DO">DO — Dom. Republic</option>
+                  <option value="AO">AO — Angola</option>
+                  <option value="MU">MU — Mauritius</option>
+                  <option value="ZA">ZA — South Africa</option>
+                  <option value="NA">NA — Namibia</option>
+                  <option value="GB">GB — United Kingdom</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label style="font-size:12px;">Document Type</label>
+                <select id="doc-type" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;">
+                  <option value="TARIFF_SCHEDULE">Full Tariff Schedule</option>
+                  <option value="CHAPTER">Single HS Chapter</option>
+                  <option value="NOTIFICATION">Notification / Amendment</option>
+                  <option value="RATE_CHANGE">Rate Change</option>
+                  <option value="FTA_SCHEDULE">FTA Schedule</option>
+                </select>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px;">
+              <div class="form-group">
+                <label style="font-size:12px;">HS Chapter</label>
+                <input type="text" id="doc-chapter" placeholder="e.g. 20, 84" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;">
+              </div>
+              <div class="form-group">
+                <label style="font-size:12px;">Effective Date</label>
+                <input type="date" id="doc-effective" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;">
+              </div>
+            </div>
+            <div class="form-group" style="margin-top:8px;">
+              <label style="font-size:12px;">Title</label>
+              <input type="text" id="doc-title" placeholder="e.g. India Customs Tariff 2025-26 Chapter 20" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;">
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px;">
+              <div class="form-group">
+                <label style="font-size:12px;">Source URL</label>
+                <input type="text" id="doc-source" placeholder="https://..." style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;">
+              </div>
+              <div class="form-group">
+                <label style="font-size:12px;">Notes</label>
+                <input type="text" id="doc-notes" placeholder="Optional notes" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;">
+              </div>
+            </div>
+            <div id="doc-upload-error" style="display:none;color:var(--red);font-size:12px;margin-top:8px;"></div>
+            <div id="doc-upload-success" style="display:none;color:var(--green);font-size:12px;margin-top:8px;"></div>
+            <div style="margin-top:12px;display:flex;gap:8px;">
+              <button onclick="uploadDoc()" id="doc-upload-btn" style="padding:8px 16px;background:var(--teal);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:12px;">Upload & Save</button>
+              <button onclick="toggleDocUploadForm()" style="padding:8px 16px;border:1px solid var(--border);border-radius:6px;background:var(--surface);cursor:pointer;font-size:12px;">Cancel</button>
+            </div>
+          </div>
+          <!-- Right: preview -->
+          <div id="doc-preview" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;display:flex;align-items:center;justify-content:center;min-height:400px;">
+            <div style="color:var(--text-3);font-size:13px;text-align:center;padding:20px;">
+              <div style="font-size:24px;margin-bottom:8px;">+</div>
+              Select a file to see preview
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Filter bar -->
+      <div style="display:flex;gap:8px;margin-bottom:16px;align-items:center;">
+        <label style="font-size:12px;color:var(--text-2);">Country:</label>
+        <select id="doc-filter-country" onchange="loadDocLibrary()" style="padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:12px;">
+          <option value="">All countries</option>
+        </select>
+        <span style="font-family:var(--mono);font-size:11px;color:var(--text-3);margin-left:auto;" id="doc-count-label">—</span>
+      </div>
+
+      <div id="doc-library-list"></div>
+    </div>
+
+    <!-- ── Suggestions ── -->
+    <div class="admin-panel" id="admin-suggestions" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <div style="font-weight:600;font-size:15px;">User Suggestions</div>
+        <select id="sug-filter" onchange="loadAdminSuggestions()" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;">
+          <option value="">All</option>
+          <option value="NEW">New</option>
+          <option value="REVIEWING">Reviewing</option>
+          <option value="IMPLEMENTED">Implemented</option>
+          <option value="DECLINED">Declined</option>
+        </select>
+      </div>
+      <div id="admin-suggestions-list" style="font-size:13px;"></div>
+    </div>
+
+    <!-- ── Referrals ── -->
+    <div class="admin-panel" id="admin-referrals" style="display:none;">
+      <div style="font-weight:600;font-size:15px;margin-bottom:16px;">Referral Tracking</div>
+      <div id="admin-referrals-list" style="font-size:13px;"></div>
+    </div>
+
+    <!-- ── Reward Config ── -->
+    <div class="admin-panel" id="admin-rewards" style="display:none;">
+      <div style="font-weight:600;font-size:15px;margin-bottom:16px;">Reward Configuration</div>
+      <div id="admin-rewards-list" style="font-size:13px;"></div>
+    </div>
+
+
   </div>
 
 </main>
+
+<!-- ── Referral Modal ── -->
+<div id="referral-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;display:none;align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border-radius:12px;padding:32px;max-width:400px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.2);">
+    <div style="font-size:16px;font-weight:600;margin-bottom:4px;">Refer a Colleague</div>
+    <div style="font-size:12px;color:var(--text-3);margin-bottom:20px;">They get access to Customs Intelligence. You earn a reward when they sign up.</div>
+    <div id="referral-reward-info" style="background:var(--teal-bg);color:var(--teal);padding:10px 14px;border-radius:8px;font-size:12px;font-weight:500;margin-bottom:16px;display:none;"></div>
+    <div class="form-group" style="margin-bottom:12px;">
+      <label style="font-size:12px;">Their Name</label>
+      <input type="text" id="ref-name" placeholder="e.g. Jane Smith" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+    </div>
+    <div class="form-group" style="margin-bottom:16px;">
+      <label style="font-size:12px;">Their Email</label>
+      <input type="email" id="ref-email" placeholder="jane@company.com" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+    </div>
+    <div id="referral-error" style="display:none;color:var(--red);font-size:12px;margin-bottom:8px;"></div>
+    <div id="referral-success" style="display:none;color:var(--green);font-size:12px;margin-bottom:8px;"></div>
+    <div style="display:flex;gap:8px;">
+      <button onclick="submitReferral()" id="ref-btn" class="lookup-btn" style="flex:1;padding:10px;font-size:13px;background:var(--teal);">Send Referral</button>
+      <button onclick="closeModal('referral-modal')" style="padding:10px 16px;border:1px solid var(--border);border-radius:6px;background:var(--surface);cursor:pointer;font-size:13px;">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Suggestion Modal ── -->
+<div id="suggestion-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:200;display:none;align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border-radius:12px;padding:32px;max-width:440px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.2);">
+    <div style="font-size:16px;font-weight:600;margin-bottom:4px;">Suggest an Improvement</div>
+    <div style="font-size:12px;color:var(--text-3);margin-bottom:20px;">We read every suggestion. If yours gets implemented, you earn a reward!</div>
+    <div class="form-group" style="margin-bottom:12px;">
+      <label style="font-size:12px;">Category</label>
+      <select id="sug-category" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+        <option value="FEATURE">New Feature</option>
+        <option value="UX">UX Improvement</option>
+        <option value="BUG">Bug Report</option>
+        <option value="GENERAL">General</option>
+      </select>
+    </div>
+    <div class="form-group" style="margin-bottom:16px;">
+      <label style="font-size:12px;">Your Suggestion</label>
+      <textarea id="sug-text" rows="4" placeholder="Describe your idea or the issue you've noticed..." style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;resize:vertical;"></textarea>
+    </div>
+    <div id="sug-error" style="display:none;color:var(--red);font-size:12px;margin-bottom:8px;"></div>
+    <div id="sug-success" style="display:none;color:var(--green);font-size:12px;margin-bottom:8px;"></div>
+    <div style="display:flex;gap:8px;">
+      <button onclick="submitSuggestion()" id="sug-btn" class="lookup-btn" style="flex:1;padding:10px;font-size:13px;">Submit</button>
+      <button onclick="closeModal('suggestion-modal')" style="padding:10px 16px;border:1px solid var(--border);border-radius:6px;background:var(--surface);cursor:pointer;font-size:13px;">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Referral Prompt Banner ── -->
+<div id="referral-prompt" style="display:none;position:fixed;bottom:24px;right:24px;background:var(--surface);border:1px solid var(--teal-mid);border-radius:12px;padding:16px 20px;max-width:340px;box-shadow:0 8px 30px rgba(0,0,0,0.12);z-index:150;">
+  <div style="font-size:13px;font-weight:600;margin-bottom:4px;">Enjoying Customs Intelligence?</div>
+  <div style="font-size:12px;color:var(--text-2);margin-bottom:12px;">Refer a colleague and earn a reward when they sign up.</div>
+  <div style="display:flex;gap:8px;">
+    <button onclick="closeReferralPrompt(); openReferralModal();" style="flex:1;padding:8px;border:none;background:var(--teal);color:#fff;border-radius:6px;cursor:pointer;font-size:12px;font-weight:500;">Refer Now</button>
+    <button onclick="closeReferralPrompt()" style="padding:8px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface);cursor:pointer;font-size:12px;">Later</button>
+  </div>
+</div>
 
 </div><!-- end app-wrap -->
 
@@ -1265,11 +1549,108 @@ function getHeaders() {
 function showLogin() {
   document.getElementById('login-form').style.display = '';
   document.getElementById('signup-form').style.display = 'none';
+  document.getElementById('forgot-form').style.display = 'none';
+  document.getElementById('reset-form').style.display = 'none';
 }
 
 function showSignup() {
   document.getElementById('login-form').style.display = 'none';
   document.getElementById('signup-form').style.display = '';
+  document.getElementById('forgot-form').style.display = 'none';
+  document.getElementById('reset-form').style.display = 'none';
+}
+
+function showForgotPassword() {
+  document.getElementById('login-form').style.display = 'none';
+  document.getElementById('signup-form').style.display = 'none';
+  document.getElementById('forgot-form').style.display = '';
+  document.getElementById('reset-form').style.display = 'none';
+}
+
+function showResetForm() {
+  document.getElementById('login-form').style.display = 'none';
+  document.getElementById('signup-form').style.display = 'none';
+  document.getElementById('forgot-form').style.display = 'none';
+  document.getElementById('reset-form').style.display = '';
+}
+
+async function doForgotPassword() {
+  const btn = document.getElementById('forgot-btn');
+  const errEl = document.getElementById('forgot-error');
+  const successEl = document.getElementById('forgot-success');
+  errEl.style.display = 'none';
+  successEl.style.display = 'none';
+  btn.disabled = true;
+  btn.textContent = 'Sending...';
+
+  const email = document.getElementById('forgot-email').value.trim();
+  if (!email) { errEl.textContent = 'Please enter your email'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Send Reset Link'; return; }
+
+  try {
+    const r = await fetch(API_BASE + '/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'reset_password', email, redirect_to: window.location.origin }),
+    });
+    const data = await r.json();
+
+    if (data.error) {
+      errEl.textContent = data.error;
+      errEl.style.display = 'block';
+    } else {
+      successEl.textContent = 'Reset link sent! Check your inbox.';
+      successEl.style.display = 'block';
+    }
+  } catch (e) {
+    errEl.textContent = 'Failed: ' + e.message;
+    errEl.style.display = 'block';
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Send Reset Link';
+}
+
+let recoveryAccessToken = null;
+
+async function doResetPassword() {
+  const btn = document.getElementById('reset-btn');
+  const errEl = document.getElementById('reset-error');
+  const successEl = document.getElementById('reset-success');
+  errEl.style.display = 'none';
+  successEl.style.display = 'none';
+  btn.disabled = true;
+  btn.textContent = 'Updating...';
+
+  const pw = document.getElementById('reset-password').value;
+  const pw2 = document.getElementById('reset-password-confirm').value;
+
+  if (pw.length < 8) { errEl.textContent = 'Password must be at least 8 characters'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Update Password'; return; }
+  if (pw !== pw2) { errEl.textContent = 'Passwords do not match'; errEl.style.display = 'block'; btn.disabled = false; btn.textContent = 'Update Password'; return; }
+
+  try {
+    const r = await fetch(API_BASE + '/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'update_password', access_token: recoveryAccessToken, new_password: pw }),
+    });
+    const data = await r.json();
+
+    if (data.error) {
+      errEl.textContent = data.error;
+      errEl.style.display = 'block';
+    } else {
+      successEl.textContent = 'Password updated! Redirecting to sign in...';
+      successEl.style.display = 'block';
+      recoveryAccessToken = null;
+      setTimeout(function() { showLogin(); }, 2000);
+    }
+  } catch (e) {
+    errEl.textContent = 'Failed: ' + e.message;
+    errEl.style.display = 'block';
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Update Password';
 }
 
 async function doLogin() {
@@ -1357,11 +1738,15 @@ async function doSignup() {
 
 function enterApp() {
   document.getElementById('auth-screen').style.display = 'none';
-  document.getElementById('app-wrap').style.display = '';
+  document.getElementById('app-wrap').style.display = 'block';
   // Update header
   if (currentUser) {
     document.getElementById('header-tenant').textContent =
       (currentUser.company_name || currentUser.email || '') + ' · Customs Intelligence';
+    // Show Admin tab only for admin users
+    if (currentUser.is_admin) {
+      document.getElementById('nav-admin').style.display = '';
+    }
   }
   // Initialize all app modules
   init();
@@ -1370,6 +1755,39 @@ function enterApp() {
   setTimeout(checkAcumaticaStatus, 1500);
   setTimeout(checkEmailStatus, 2000);
   setTimeout(loadAlerts, 800);
+  // Auto-refresh JWT before expiry
+  scheduleTokenRefresh();
+  // Guided tour check
+  setTimeout(checkTourState, 2000);
+  // Referral prompt check (after 3+ sessions)
+  setTimeout(checkReferralPrompt, 3000);
+}
+
+function scheduleTokenRefresh() {
+  if (!currentSession?.expires_at) return;
+  const expiresMs = currentSession.expires_at * 1000;
+  const refreshIn = expiresMs - Date.now() - 120000; // refresh 2 min before expiry
+  if (refreshIn <= 0) { doTokenRefresh(); return; }
+  setTimeout(doTokenRefresh, refreshIn);
+}
+
+async function doTokenRefresh() {
+  if (!currentSession?.refresh_token) { logout(); return; }
+  try {
+    const r = await fetch(API_BASE + '/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'refresh', refresh_token: currentSession.refresh_token }),
+    });
+    const data = await r.json();
+    if (data.session) {
+      currentSession = data.session;
+      localStorage.setItem('ci_session', JSON.stringify(data.session));
+      scheduleTokenRefresh();
+    } else {
+      logout();
+    }
+  } catch { logout(); }
 }
 
 function logout() {
@@ -1382,8 +1800,29 @@ function logout() {
   document.getElementById('app-wrap').style.display = 'none';
 }
 
+// Check for password recovery token in URL (Supabase redirects with hash fragment)
+(function checkRecoveryToken() {
+  const hash = window.location.hash;
+  if (hash && hash.includes('type=recovery')) {
+    const params = new URLSearchParams(hash.substring(1));
+    const token = params.get('access_token');
+    if (token) {
+      recoveryAccessToken = token;
+      document.getElementById('auth-screen').style.display = '';
+      showResetForm();
+      // Clean URL
+      history.replaceState(null, '', window.location.pathname);
+      return true;
+    }
+  }
+  return false;
+})();
+
 // Check for existing session on page load
 (async function checkSession() {
+  // Skip if recovery flow is active
+  if (recoveryAccessToken) return;
+
   if (!currentSession?.access_token) {
     document.getElementById('auth-screen').style.display = '';
     return;
@@ -1492,16 +1931,28 @@ function oppCard(o, i) {
   const pct     = Number(o.savingpct ?? 0).toFixed(0);
   const label   = TYPE_LABELS[o.opportunitytype] ?? o.opportunitytype;
   const agr     = o.agreementcode ? `<span class="opp-agreement">${o.agreementcode}</span>` : '';
+  const shareText = `${o.headline} — HS ${o.subheadingcode} (${o.exportcountrycode}→${o.importcountrycode}), ${pct}% saving.${o.aiinsight ? ' ' + o.aiinsight : ''}`;
+  const shareBar = `<div style="margin-top:10px;display:flex;gap:6px;align-items:center;">
+    <span style="font-size:10px;color:var(--text-3);margin-right:2px;">Share:</span>
+    <button onclick="event.stopPropagation(); shareVia('email', \`${encodeAttr(shareText)}\`)" style="font-size:10px;padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface);cursor:pointer;">Email</button>
+    <button onclick="event.stopPropagation(); shareVia('teams', \`${encodeAttr(shareText)}\`)" style="font-size:10px;padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface);cursor:pointer;">Teams</button>
+    <button onclick="event.stopPropagation(); shareVia('whatsapp', \`${encodeAttr(shareText)}\`)" style="font-size:10px;padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface);cursor:pointer;">WhatsApp</button>
+  </div>`;
+
   const insight = o.aiinsight
     ? `<div class="ai-panel" id="ai-${i}">
         <div class="ai-panel-label"><span class="ai-dot"></span>AI Insight</div>
         <div class="ai-text">${o.aiinsight}</div>
+        ${shareBar}
       </div>`
-    : '';
+    : `<div class="ai-panel" id="ai-${i}">${shareBar}</div>`;
 
   return `
-    <div class="opp-card">
+    <div class="opp-card" id="opp-${o.opportunityid}">
       <div class="opp-card-main" onclick="toggleInsight(${i})">
+        <div style="display:flex;align-items:center;padding-right:8px;" onclick="event.stopPropagation();">
+          <input type="checkbox" class="opp-checkbox" data-id="${o.opportunityid}" onchange="updateOppSelection()">
+        </div>
         <div class="saving-badge">
           <div class="saving-pct">${pct}<span style="font-size:12px">%</span></div>
           ${o.savingamtper10k ? `<div class="saving-amt">ZAR ${saving}</div>` : ''}
@@ -1518,7 +1969,7 @@ function oppCard(o, i) {
         </div>
         <div class="opp-actions">
           <div class="opp-type-tag">${label}</div>
-          ${o.aiinsight ? `<div class="expand-btn" id="btn-${i}">Insight ▾</div>` : ''}
+          <div class="expand-btn" id="btn-${i}">${o.aiinsight ? 'Insight ▾' : 'Share ▾'}</div>
         </div>
       </div>
       ${insight}
@@ -1540,12 +1991,99 @@ function filterOpps(el, type) {
   renderOpps(filtered);
 }
 
+// ── Sharing ──────────────────────────────────────────────────────────────────
+
+function encodeAttr(s) {
+  return s.replace(/`/g, "'").replace(/\\/g, '').replace(/\$/g, '');
+}
+
+function shareVia(channel, text) {
+  const subject = 'Customs Intelligence — Trade Insight';
+  const cta = '\n\n---\nPowered by Customs Intelligence by Phlo Systems.\nGet real-time tariff rates, duty savings and trade alerts for your business:\nhttps://customs-intelligence.vercel.app';
+  const body = text + cta;
+
+  if (channel === 'email') {
+    window.open('mailto:?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body));
+  } else if (channel === 'teams') {
+    window.open('https://teams.microsoft.com/share?msgText=' + encodeURIComponent(body));
+  } else if (channel === 'whatsapp') {
+    window.open('https://wa.me/?text=' + encodeURIComponent(body));
+  }
+}
+
+// ── Opportunity bulk actions ──────────────────────────────────────────────────
+
+function toggleAllOpps(checked) {
+  document.querySelectorAll('.opp-checkbox').forEach(cb => cb.checked = checked);
+  updateOppSelection();
+}
+
+function updateOppSelection() {
+  const checked = document.querySelectorAll('.opp-checkbox:checked');
+  const btn = document.getElementById('opp-delete-btn');
+  btn.style.display = checked.length ? '' : 'none';
+  btn.textContent = 'Delete selected (' + checked.length + ')';
+  const all = document.querySelectorAll('.opp-checkbox');
+  document.getElementById('opp-select-all').checked = all.length > 0 && checked.length === all.length;
+}
+
+async function deleteSelectedOpps() {
+  const checked = document.querySelectorAll('.opp-checkbox:checked');
+  const ids = Array.from(checked).map(cb => Number(cb.dataset.id));
+  if (!ids.length) return;
+  if (!confirm('Delete ' + ids.length + ' opportunit' + (ids.length === 1 ? 'y' : 'ies') + '?')) return;
+
+  try {
+    await fetch(API_BASE + '/opportunities', {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ action: 'dismiss', opportunity_ids: ids }),
+    });
+    document.getElementById('opp-select-all').checked = false;
+    loadOpportunities();
+  } catch (e) { alert('Failed: ' + e.message); }
+}
+
+// ── Alert bulk actions ───────────────────────────────────────────────────────
+
+function toggleAllAlerts(checked) {
+  document.querySelectorAll('.alert-checkbox').forEach(cb => cb.checked = checked);
+  updateAlertSelection();
+}
+
+function updateAlertSelection() {
+  const checked = document.querySelectorAll('.alert-checkbox:checked');
+  const btn = document.getElementById('alert-delete-btn');
+  btn.style.display = checked.length ? '' : 'none';
+  btn.textContent = 'Delete selected (' + checked.length + ')';
+  const all = document.querySelectorAll('.alert-checkbox');
+  document.getElementById('alert-select-all').checked = all.length > 0 && checked.length === all.length;
+}
+
+async function deleteSelectedAlerts() {
+  const checked = document.querySelectorAll('.alert-checkbox:checked');
+  const ids = Array.from(checked).map(cb => Number(cb.dataset.id));
+  if (!ids.length) return;
+  if (!confirm('Delete ' + ids.length + ' alert' + (ids.length === 1 ? '' : 's') + '?')) return;
+
+  try {
+    await fetch(API_BASE + '/alerts', {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ action: 'dismiss', alert_ids: ids }),
+    });
+    document.getElementById('alert-select-all').checked = false;
+    loadAlerts();
+  } catch (e) { alert('Failed: ' + e.message); }
+}
+
 // ── Navigation ────────────────────────────────────────────────────────────────
 function showScreen(name, el) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('nav .nav-tab').forEach(t => t.classList.remove('active'));
   document.getElementById(`screen-${name}`).classList.add('active');
   if (el) el.classList.add('active');
+  if (name === 'admin') onAdminScreenShow();
 }
 
 // ── Tariff Lookup ─────────────────────────────────────────────────────────────
@@ -1558,8 +2096,8 @@ async function runLookup() {
   const val     = document.getElementById('l-value').value.trim();
   const curr    = document.getElementById('l-currency').value.trim().toUpperCase() || 'ZAR';
 
-  if (!exportC || !importC || !code) {
-    panel.innerHTML = '<div class="result-empty">Please fill in export country, import country and commodity code.</div>';
+  if (!importC || !code) {
+    panel.innerHTML = '<div class="result-empty">Please fill in import country and commodity code.</div>';
     return;
   }
 
@@ -1568,7 +2106,8 @@ async function runLookup() {
   panel.innerHTML = '<div class="spinner"></div>';
 
   try {
-    const body = { export_country: exportC, import_country: importC, commodity_code: code, currency: curr };
+    const body = { import_country: importC, commodity_code: code, currency: curr };
+    if (exportC) body.export_country = exportC;
     if (val) body.customs_value = Number(val);
 
     const r    = await fetch(`${API_BASE}/tariff-lookup`, { method: 'POST', headers: getHeaders(), body: JSON.stringify(body) });
@@ -1887,9 +2426,14 @@ async function runUpload() {
     form.append('document_type', docType);
     if (notes) form.append('notes', notes);
 
+    const uploadHeaders = {};
+    if (currentSession?.access_token) uploadHeaders['Authorization'] = 'Bearer ' + currentSession.access_token;
+    const apiKey = localStorage.getItem('ci_api_key');
+    if (apiKey) uploadHeaders['X-API-Key'] = apiKey;
+
     const r = await fetch(`${API_BASE}/upload-tariff`, {
       method: 'POST',
-      headers: { 'X-API-Key': localStorage.getItem('ci_api_key') || '' },
+      headers: uploadHeaders,
       body: form,
     });
 
@@ -2809,6 +3353,9 @@ function alertCard(a, i) {
   return `
     <div class="opp-card" id="alert-${a.alertid}">
       <div class="opp-card-main" onclick="toggleAlertDetail(${i})">
+        <div style="display:flex;align-items:center;padding-right:8px;" onclick="event.stopPropagation();">
+          <input type="checkbox" class="alert-checkbox" data-id="${a.alertid}" onchange="updateAlertSelection()">
+        </div>
         <div style="min-width:72px;">
           <div style="background:${sev.bg};border:1px solid ${sev.border};border-radius:6px;padding:6px 10px;text-align:center;">
             <div style="font-size:10px;font-weight:600;color:${sev.text};text-transform:uppercase;letter-spacing:0.06em;">${a.severity}</div>
@@ -2824,18 +3371,31 @@ function alertCard(a, i) {
         </div>
         <div class="opp-actions">
           <div style="font-size:10px;color:var(--text-3);">${date}</div>
-          ${a.detail ? `<div class="expand-btn" id="alert-btn-${i}">Detail ▾</div>` : ''}
+          <div class="expand-btn" id="alert-btn-${i}">${a.detail ? 'Detail ▾' : 'Share ▾'}</div>
         </div>
       </div>
-      ${a.detail ? `
-        <div class="ai-panel" id="alert-detail-${i}">
-          <div class="ai-panel-label"><span class="ai-dot" style="background:${sev.text};"></span>Detail</div>
-          <div class="ai-text">${a.detail}</div>
-          <div style="margin-top:12px;display:flex;gap:8px;">
-            <button class="confirm-btn" style="font-size:11px;padding:6px 12px;" onclick="event.stopPropagation(); actionAlert(${a.alertid}, 'actioned')">Mark Actioned</button>
-            <button style="font-size:11px;padding:6px 12px;background:none;border:1px solid var(--border);border-radius:6px;color:var(--text-2);cursor:pointer;" onclick="event.stopPropagation(); actionAlert(${a.alertid}, 'dismiss')">Dismiss</button>
-          </div>
-        </div>` : ''}
+      ${(() => {
+        const alertShareText = `[${a.severity}] ${a.headline}${country ? ' — ' + country : ''}${hs ? ' ' + hs : ''}${a.detail ? '. ' + a.detail : ''}`;
+        const alertShareBar = `<div style="margin-top:10px;display:flex;gap:6px;align-items:center;">
+          <span style="font-size:10px;color:var(--text-3);margin-right:2px;">Share:</span>
+          <button onclick="event.stopPropagation(); shareVia('email', \`${encodeAttr(alertShareText)}\`)" style="font-size:10px;padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface);cursor:pointer;">Email</button>
+          <button onclick="event.stopPropagation(); shareVia('teams', \`${encodeAttr(alertShareText)}\`)" style="font-size:10px;padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface);cursor:pointer;">Teams</button>
+          <button onclick="event.stopPropagation(); shareVia('whatsapp', \`${encodeAttr(alertShareText)}\`)" style="font-size:10px;padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface);cursor:pointer;">WhatsApp</button>
+        </div>`;
+        if (a.detail) {
+          return `<div class="ai-panel" id="alert-detail-${i}">
+            <div class="ai-panel-label"><span class="ai-dot" style="background:${sev.text};"></span>Detail</div>
+            <div class="ai-text">${a.detail}</div>
+            <div style="margin-top:12px;display:flex;gap:8px;">
+              <button class="confirm-btn" style="font-size:11px;padding:6px 12px;" onclick="event.stopPropagation(); actionAlert(${a.alertid}, 'actioned')">Mark Actioned</button>
+              <button style="font-size:11px;padding:6px 12px;background:none;border:1px solid var(--border);border-radius:6px;color:var(--text-2);cursor:pointer;" onclick="event.stopPropagation(); actionAlert(${a.alertid}, 'dismiss')">Dismiss</button>
+            </div>
+            ${alertShareBar}
+          </div>`;
+        } else {
+          return `<div class="ai-panel" id="alert-detail-${i}">${alertShareBar}</div>`;
+        }
+      })()}
     </div>`;
 }
 
@@ -2885,6 +3445,691 @@ async function generateAlerts() {
 }
 
 // loadAlerts called from enterApp()
+
+// ── Admin Dashboard ──────────────────────────────────────────────────────────
+
+function showAdminTab(tab, el) {
+  document.querySelectorAll('#screen-admin .admin-panel').forEach(p => p.style.display = 'none');
+  document.querySelectorAll('#screen-admin .nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('admin-' + tab).style.display = '';
+  el.classList.add('active');
+
+  if (tab === 'overview') loadAdminDashboard();
+  if (tab === 'tenants') loadAdminTenants();
+  if (tab === 'usage') loadAdminUsage();
+  if (tab === 'docs') loadDocLibrary();
+  if (tab === 'suggestions') loadAdminSuggestions();
+  if (tab === 'referrals') loadAdminReferrals();
+  if (tab === 'rewards') loadAdminRewards();
+}
+
+async function loadAdminDashboard() {
+  try {
+    const r = await fetch(API_BASE + '/admin', {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ action: 'dashboard' }),
+    });
+    const data = await r.json();
+    if (data.error) { console.error('Admin dashboard:', data.error); return; }
+
+    const k = data.kpis;
+    document.getElementById('kpi-tenants').textContent = k.total_tenants.toLocaleString();
+    document.getElementById('kpi-users').textContent = k.total_users.toLocaleString();
+    document.getElementById('kpi-active').textContent = k.active_users_7d.toLocaleString();
+    document.getElementById('kpi-api24h').textContent = k.api_calls_24h.toLocaleString();
+    document.getElementById('kpi-api30d').textContent = k.api_calls_30d.toLocaleString();
+    document.getElementById('kpi-commodities').textContent = k.commodity_codes.toLocaleString();
+    document.getElementById('kpi-opportunities').textContent = k.opportunities.toLocaleString();
+    document.getElementById('kpi-classifications').textContent = k.classifications.toLocaleString();
+    document.getElementById('kpi-alerts').textContent = k.alerts.toLocaleString();
+    document.getElementById('kpi-embeddings').textContent = k.embeddings.toLocaleString();
+    document.getElementById('kpi-erps').textContent = k.erp_connections.toLocaleString();
+  } catch (e) { console.error('Admin dashboard error:', e); }
+}
+
+async function loadAdminTenants() {
+  const tbody = document.getElementById('tenants-tbody');
+  tbody.innerHTML = '<tr><td colspan="9" style="padding:20px;text-align:center;color:var(--text-3);">Loading tenants...</td></tr>';
+
+  try {
+    const r = await fetch(API_BASE + '/admin', {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ action: 'tenants' }),
+    });
+    const data = await r.json();
+    if (data.error) { tbody.innerHTML = '<tr><td colspan="9" style="padding:20px;color:var(--red);">' + data.error + '</td></tr>'; return; }
+
+    const tenants = data.tenants || [];
+    document.getElementById('tenant-count-label').textContent = tenants.length + ' tenant' + (tenants.length !== 1 ? 's' : '');
+
+    if (!tenants.length) {
+      tbody.innerHTML = '<tr><td colspan="9" style="padding:20px;text-align:center;color:var(--text-3);">No tenants found</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = tenants.map(function(t) {
+      var lastLogin = t.last_sign_in ? new Date(t.last_sign_in).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }) + ' ' + new Date(t.last_sign_in).toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' }) : 'Never';
+      var conns = (t.erp_connections || []).map(function(c) { return c.type; }).join(', ') || '—';
+      var roleBadge = t.is_admin
+        ? '<span style="background:var(--amber-bg);color:var(--amber);padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">Admin</span>'
+        : '<span style="background:var(--bg);color:var(--text-3);padding:2px 8px;border-radius:4px;font-size:11px;">User</span>';
+      var actionBtn = t.is_admin
+        ? '<button onclick="toggleAdmin(\'' + t.id + '\', false)" style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface);cursor:pointer;">Revoke</button>'
+        : '<button onclick="toggleAdmin(\'' + t.id + '\', true)" style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface);cursor:pointer;">Make Admin</button>';
+
+      return '<tr style="border-bottom:1px solid var(--border);">'
+        + '<td style="padding:10px 12px;font-weight:500;">' + (t.company_name || '—') + '</td>'
+        + '<td style="padding:10px 12px;font-family:var(--mono);font-size:12px;">' + (t.email || '') + '</td>'
+        + '<td style="padding:10px 12px;">' + (t.business_type || '—') + '</td>'
+        + '<td style="padding:10px 12px;">' + (t.volume_range || '—') + '</td>'
+        + '<td style="padding:10px 12px;font-size:12px;">' + lastLogin + '</td>'
+        + '<td style="padding:10px 12px;font-family:var(--mono);text-align:center;">' + t.api_calls_30d + '</td>'
+        + '<td style="padding:10px 12px;font-size:12px;">' + conns + '</td>'
+        + '<td style="padding:10px 12px;">' + roleBadge + '</td>'
+        + '<td style="padding:10px 12px;">' + actionBtn + '</td>'
+        + '</tr>';
+    }).join('');
+  } catch (e) {
+    tbody.innerHTML = '<tr><td colspan="9" style="padding:20px;color:var(--red);">Failed to load: ' + e.message + '</td></tr>';
+  }
+}
+
+async function toggleAdmin(userId, makeAdmin) {
+  if (!confirm(makeAdmin ? 'Grant admin access to this user?' : 'Revoke admin access from this user?')) return;
+  try {
+    await fetch(API_BASE + '/admin', {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ action: 'set_admin', user_id: userId, is_admin: makeAdmin }),
+    });
+    loadAdminTenants();
+  } catch (e) { alert('Failed: ' + e.message); }
+}
+
+async function loadAdminUsage() {
+  var days = parseInt(document.getElementById('usage-period').value) || 30;
+  document.getElementById('usage-total').textContent = '...';
+  document.getElementById('usage-avg-ms').textContent = '...';
+  document.getElementById('usage-success').textContent = '...';
+
+  try {
+    const r = await fetch(API_BASE + '/admin', {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ action: 'usage', days: days }),
+    });
+    const data = await r.json();
+    if (data.error) { console.error('Usage error:', data.error); return; }
+
+    document.getElementById('usage-total').textContent = (data.total_calls || 0).toLocaleString();
+    document.getElementById('usage-avg-ms').textContent = (data.avg_response_ms || 0) + 'ms';
+
+    var okCount = (data.by_status || {})['ok'] || (data.by_status || {})['success'] || 0;
+    var total = data.total_calls || 1;
+    document.getElementById('usage-success').textContent = Math.round((okCount / total) * 100) + '%';
+
+    // By endpoint
+    var epHtml = '';
+    var eps = Object.entries(data.by_endpoint || {}).sort(function(a,b) { return b[1] - a[1]; });
+    eps.forEach(function(ep) {
+      var pct = Math.round((ep[1] / total) * 100);
+      epHtml += '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);">'
+        + '<span style="font-family:var(--mono);font-size:12px;">' + ep[0] + '</span>'
+        + '<div style="display:flex;align-items:center;gap:8px;">'
+        + '<div style="width:80px;height:6px;background:var(--border);border-radius:3px;overflow:hidden;">'
+        + '<div style="width:' + pct + '%;height:100%;background:var(--teal);border-radius:3px;"></div></div>'
+        + '<span style="font-family:var(--mono);font-size:12px;min-width:40px;text-align:right;">' + ep[1] + '</span>'
+        + '</div></div>';
+    });
+    document.getElementById('usage-by-endpoint').innerHTML = epHtml || '<div style="color:var(--text-3);">No data</div>';
+
+    // By day
+    var dayHtml = '';
+    var sortedDays = Object.entries(data.by_day || {}).sort(function(a,b) { return a[0] > b[0] ? -1 : 1; });
+    var maxDay = Math.max.apply(null, sortedDays.map(function(d) { return d[1]; })) || 1;
+    sortedDays.forEach(function(d) {
+      var pct = Math.round((d[1] / maxDay) * 100);
+      dayHtml += '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;">'
+        + '<span style="font-family:var(--mono);font-size:11px;min-width:80px;color:var(--text-2);">' + d[0] + '</span>'
+        + '<div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden;">'
+        + '<div style="width:' + pct + '%;height:100%;background:var(--teal-mid);border-radius:3px;"></div></div>'
+        + '<span style="font-family:var(--mono);font-size:11px;min-width:30px;text-align:right;">' + d[1] + '</span>'
+        + '</div>';
+    });
+    document.getElementById('usage-by-day').innerHTML = dayHtml || '<div style="color:var(--text-3);">No data</div>';
+  } catch (e) { console.error('Usage load error:', e); }
+}
+
+// ── Document Library ─────────────────────────────────────────────────────────
+
+function toggleDocUploadForm() {
+  var form = document.getElementById('doc-upload-form');
+  form.style.display = form.style.display === 'none' ? '' : 'none';
+  if (form.style.display === 'none') {
+    document.getElementById('doc-preview').innerHTML = '<div style="color:var(--text-3);font-size:13px;text-align:center;padding:20px;"><div style="font-size:24px;margin-bottom:8px;">+</div>Select a file to see preview</div>';
+  }
+}
+
+async function onDocFileSelect(input) {
+  var file = input.files[0];
+  if (!file) return;
+
+  var preview = document.getElementById('doc-preview');
+  var ext = file.name.split('.').pop().toLowerCase();
+
+  // Show preview
+  if (ext === 'pdf') {
+    var url = URL.createObjectURL(file);
+    preview.innerHTML = '<iframe src="' + url + '" style="width:100%;height:100%;border:none;min-height:450px;"></iframe>';
+  } else if (ext === 'csv') {
+    var text = await file.text();
+    var lines = text.split('\n').slice(0, 20).join('\n');
+    preview.innerHTML = '<pre style="padding:12px;font-size:11px;font-family:var(--mono);overflow:auto;max-height:450px;margin:0;white-space:pre-wrap;">' + lines.replace(/</g, '&lt;') + (text.split('\n').length > 20 ? '\n\n... (' + text.split('\n').length + ' rows total)' : '') + '</pre>';
+  } else {
+    preview.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-2);font-size:13px;"><div style="font-size:18px;margin-bottom:8px;">' + file.name + '</div><div>' + (file.size / (1024*1024)).toFixed(1) + ' MB — ' + ext.toUpperCase() + '</div></div>';
+  }
+
+  // AI metadata suggestion
+  var aiStatus = document.getElementById('doc-ai-status');
+  aiStatus.style.display = '';
+  aiStatus.innerHTML = '<span class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:4px;"></span> AI analysing file to suggest metadata...';
+
+  var textPreview = '';
+  try {
+    if (ext === 'csv' || ext === 'txt') {
+      textPreview = (await file.text()).substring(0, 500);
+    } else if (ext === 'xlsx') {
+      textPreview = '(Excel file)';
+    }
+  } catch(e) {}
+
+  try {
+    var r = await fetch(API_BASE + '/tariff-docs', {
+      method: 'POST', headers: getHeaders(),
+      body: JSON.stringify({ action: 'suggest_metadata', file_name: file.name, text_preview: textPreview }),
+    });
+    var data = await r.json();
+    if (data.error) {
+      console.error('AI metadata error:', data.error);
+      aiStatus.innerHTML = '<span style="color:var(--amber);">AI metadata: ' + data.error + '</span>';
+    } else if (data.suggestion) {
+      var s = data.suggestion;
+      if (s.country_code) { var sel = document.getElementById('doc-country'); for (var i=0;i<sel.options.length;i++) { if (sel.options[i].value === s.country_code) { sel.selectedIndex = i; break; } } }
+      if (s.document_type) { var sel2 = document.getElementById('doc-type'); for (var j=0;j<sel2.options.length;j++) { if (sel2.options[j].value === s.document_type) { sel2.selectedIndex = j; break; } } }
+      if (s.hs_chapter) document.getElementById('doc-chapter').value = s.hs_chapter;
+      else document.getElementById('doc-chapter').value = '';
+      if (s.title) document.getElementById('doc-title').value = s.title;
+      if (s.effective_date) document.getElementById('doc-effective').value = s.effective_date;
+      aiStatus.innerHTML = '<span style="color:var(--green);">AI suggested metadata — review and edit as needed</span>';
+    } else {
+      aiStatus.innerHTML = '<span style="color:var(--text-3);">Could not auto-detect metadata — please fill in manually</span>';
+    }
+  } catch(e) {
+    console.error('AI metadata fetch error:', e);
+    aiStatus.innerHTML = '<span style="color:var(--text-3);">AI metadata unavailable — fill in manually</span>';
+  }
+
+  setTimeout(function() { aiStatus.style.display = 'none'; }, 5000);
+}
+
+async function uploadDoc() {
+  var btn = document.getElementById('doc-upload-btn');
+  var errEl = document.getElementById('doc-upload-error');
+  var okEl = document.getElementById('doc-upload-success');
+  errEl.style.display = 'none'; okEl.style.display = 'none';
+
+  var fileInput = document.getElementById('doc-file');
+  var file = fileInput.files[0];
+  var country = document.getElementById('doc-country').value;
+  var docType = document.getElementById('doc-type').value;
+  var chapter = document.getElementById('doc-chapter').value.trim();
+  var title = document.getElementById('doc-title').value.trim();
+  var effective = document.getElementById('doc-effective').value;
+  var source = document.getElementById('doc-source').value.trim();
+  var notes = document.getElementById('doc-notes').value.trim();
+
+  if (!file) { errEl.textContent = 'Select a file'; errEl.style.display = 'block'; return; }
+  if (!country) { errEl.textContent = 'Select a country'; errEl.style.display = 'block'; return; }
+  if (!title) { errEl.textContent = 'Enter a title'; errEl.style.display = 'block'; return; }
+
+  btn.disabled = true; btn.textContent = 'Uploading...';
+
+  var form = new FormData();
+  form.append('file', file);
+  form.append('country_code', country);
+  form.append('document_type', docType);
+  if (chapter) form.append('hs_chapter', chapter);
+  form.append('title', title);
+  if (effective) form.append('effective_date', effective);
+  if (source) form.append('source_url', source);
+  if (notes) form.append('notes', notes);
+
+  try {
+    var uploadHeaders = {};
+    if (currentSession?.access_token) uploadHeaders['Authorization'] = 'Bearer ' + currentSession.access_token;
+    var r = await fetch(API_BASE + '/tariff-docs', { method: 'POST', headers: uploadHeaders, body: form });
+    var data = await r.json();
+    if (data.error || data.status === 'duplicate') {
+      errEl.textContent = data.message || data.error;
+      errEl.style.display = 'block';
+    } else {
+      okEl.textContent = data.message || 'Uploaded successfully';
+      okEl.style.display = 'block';
+      fileInput.value = '';
+      setTimeout(function() { toggleDocUploadForm(); loadDocLibrary(); }, 1500);
+    }
+  } catch(e) { errEl.textContent = 'Failed: ' + e.message; errEl.style.display = 'block'; }
+
+  btn.disabled = false; btn.textContent = 'Upload & Save';
+}
+
+async function loadDocLibrary() {
+  var list = document.getElementById('doc-library-list');
+  list.innerHTML = '<div style="color:var(--text-3);padding:20px;text-align:center;">Loading documents...</div>';
+
+  var countryFilter = document.getElementById('doc-filter-country').value;
+  var payload = countryFilter ? { action: 'list', country_code: countryFilter } : { action: 'list_all' };
+
+  try {
+    var r = await fetch(API_BASE + '/tariff-docs', { method: 'POST', headers: getHeaders(), body: JSON.stringify(payload) });
+    var data = await r.json();
+    var docs = data.documents || [];
+    var byCountry = data.by_country || {};
+
+    // Populate country filter dropdown
+    var filterSelect = document.getElementById('doc-filter-country');
+    var countries = Object.keys(byCountry).sort();
+    if (filterSelect.options.length <= 1) {
+      countries.forEach(function(cc) {
+        var opt = document.createElement('option');
+        opt.value = cc; opt.textContent = cc;
+        filterSelect.appendChild(opt);
+      });
+    }
+
+    document.getElementById('doc-count-label').textContent = docs.length + ' document' + (docs.length !== 1 ? 's' : '');
+
+    if (!docs.length) {
+      list.innerHTML = '<div style="color:var(--text-3);padding:20px;text-align:center;">No documents uploaded yet. Click "Upload Document" to add tariff files.</div>';
+      return;
+    }
+
+    var html = '';
+    countries.forEach(function(cc) {
+      if (countryFilter && cc !== countryFilter) return;
+      var countryDocs = byCountry[cc] || [];
+      html += '<div style="margin-bottom:20px;">';
+      html += '<div style="font-weight:600;font-size:14px;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid var(--border);">' + cc + ' <span style="font-weight:400;color:var(--text-3);font-size:12px;">' + countryDocs.length + ' file' + (countryDocs.length !== 1 ? 's' : '') + '</span></div>';
+      html += '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
+      html += '<thead><tr style="border-bottom:1px solid var(--border);text-align:left;">'
+        + '<th style="padding:6px 8px;">Title</th>'
+        + '<th style="padding:6px 8px;">Type</th>'
+        + '<th style="padding:6px 8px;">Chapter</th>'
+        + '<th style="padding:6px 8px;">Version</th>'
+        + '<th style="padding:6px 8px;">Effective</th>'
+        + '<th style="padding:6px 8px;">Size</th>'
+        + '<th style="padding:6px 8px;">Parse</th>'
+        + '<th style="padding:6px 8px;">Uploaded</th>'
+        + '<th style="padding:6px 8px;">Actions</th>'
+        + '</tr></thead><tbody>';
+      countryDocs.forEach(function(d) {
+        var uploaded = new Date(d.createdat).toLocaleDateString('en-GB', {day:'2-digit',month:'short',year:'2-digit'});
+        var effective = d.effectivedate || '—';
+        var parseColor = d.parsestatus === 'SUCCESS' ? 'var(--green)' : d.parsestatus === 'FAILED' ? 'var(--red)' : 'var(--text-3)';
+        var sizeMb = (d.filesize / (1024 * 1024)).toFixed(1);
+        html += '<tr style="border-bottom:1px solid var(--border);">'
+          + '<td style="padding:6px 8px;font-weight:500;">' + d.title + '<div style="font-family:var(--mono);font-size:10px;color:var(--text-3);">' + d.filename + '</div></td>'
+          + '<td style="padding:6px 8px;"><span style="background:var(--bg);padding:2px 6px;border-radius:4px;font-size:10px;">' + d.documenttype.replace(/_/g,' ') + '</span></td>'
+          + '<td style="padding:6px 8px;font-family:var(--mono);">' + (d.hschapter || '—') + '</td>'
+          + '<td style="padding:6px 8px;text-align:center;font-family:var(--mono);">v' + d.version + '</td>'
+          + '<td style="padding:6px 8px;">' + effective + '</td>'
+          + '<td style="padding:6px 8px;font-family:var(--mono);">' + sizeMb + 'MB</td>'
+          + '<td style="padding:6px 8px;"><span style="color:' + parseColor + ';font-weight:600;font-size:10px;">' + d.parsestatus + (d.rowsextracted ? ' (' + d.rowsextracted + ')' : '') + '</span></td>'
+          + '<td style="padding:6px 8px;">' + uploaded + '</td>'
+          + '<td style="padding:6px 8px;">'
+          + '<button onclick="downloadDoc(' + d.documentid + ')" style="font-size:10px;padding:2px 6px;border:1px solid var(--border);border-radius:4px;background:var(--surface);cursor:pointer;margin-right:3px;" title="Download">DL</button>'
+          + '<button onclick="parseDoc(' + d.documentid + ')" style="font-size:10px;padding:2px 6px;border:1px solid var(--teal-mid);border-radius:4px;background:var(--teal-bg);color:var(--teal);cursor:pointer;margin-right:3px;" title="Parse with AI">Parse</button>'
+          + '<button onclick="deleteDoc(' + d.documentid + ')" style="font-size:10px;padding:2px 6px;border:1px solid #f4a8a8;border-radius:4px;background:var(--red-bg);color:var(--red);cursor:pointer;" title="Archive">Del</button>'
+          + '</td></tr>';
+      });
+      html += '</tbody></table></div>';
+    });
+    list.innerHTML = html;
+  } catch(e) {
+    list.innerHTML = '<div style="color:var(--red);padding:20px;">Failed: ' + e.message + '</div>';
+  }
+}
+
+async function downloadDoc(docId) {
+  try {
+    var r = await fetch(API_BASE + '/tariff-docs', { method:'POST', headers:getHeaders(), body:JSON.stringify({ action:'download', document_id:docId }) });
+    var data = await r.json();
+    if (data.url) window.open(data.url, '_blank');
+    else alert(data.error || 'Download failed');
+  } catch(e) { alert('Failed: ' + e.message); }
+}
+
+async function parseDoc(docId) {
+  if (!confirm('Parse this document with AI? This will extract tariff data and write to the database.')) return;
+  try {
+    var r = await fetch(API_BASE + '/tariff-docs', { method:'POST', headers:getHeaders(), body:JSON.stringify({ action:'parse', document_id:docId }) });
+    var data = await r.json();
+    alert(data.parse_result ? 'Extracted ' + (data.parse_result.rows_extracted || 0) + ' rows' : (data.error || 'Parse failed'));
+    loadDocLibrary();
+  } catch(e) { alert('Failed: ' + e.message); }
+}
+
+async function deleteDoc(docId) {
+  if (!confirm('Archive this document?')) return;
+  await fetch(API_BASE + '/tariff-docs', { method:'POST', headers:getHeaders(), body:JSON.stringify({ action:'delete', document_id:docId }) });
+  loadDocLibrary();
+}
+
+async function loadAdminSuggestions() {
+  var list = document.getElementById('admin-suggestions-list');
+  list.innerHTML = '<div style="color:var(--text-3);padding:20px;text-align:center;">Loading...</div>';
+  var statusFilter = document.getElementById('sug-filter').value;
+  try {
+    var r = await fetch(API_BASE + '/admin', { method:'POST', headers:getHeaders(), body:JSON.stringify({ action:'suggestions', status:statusFilter }) });
+    var data = await r.json();
+    var items = data.suggestions || [];
+    if (!items.length) { list.innerHTML = '<div style="color:var(--text-3);padding:20px;text-align:center;">No suggestions found</div>'; return; }
+
+    list.innerHTML = '<table style="width:100%;border-collapse:collapse;"><thead><tr style="border-bottom:2px solid var(--border);text-align:left;">'
+      + '<th style="padding:8px 12px;">Date</th><th style="padding:8px 12px;">User</th><th style="padding:8px 12px;">Category</th>'
+      + '<th style="padding:8px 12px;">Suggestion</th><th style="padding:8px 12px;">Status</th><th style="padding:8px 12px;">Actions</th></tr></thead><tbody>'
+      + items.map(function(s) {
+        var date = new Date(s.createdat).toLocaleDateString('en-GB', {day:'2-digit',month:'short'});
+        var statusColor = s.status === 'IMPLEMENTED' ? 'var(--green)' : s.status === 'DECLINED' ? 'var(--red)' : s.status === 'REVIEWING' ? 'var(--amber)' : 'var(--text-2)';
+        var actions = '';
+        if (s.status === 'NEW') {
+          actions = '<button onclick="updateSuggestion(' + s.suggestionid + ', \'REVIEWING\')" style="font-size:10px;padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface);cursor:pointer;margin-right:4px;">Review</button>';
+        }
+        if (s.status === 'NEW' || s.status === 'REVIEWING') {
+          actions += '<button onclick="updateSuggestion(' + s.suggestionid + ', \'IMPLEMENTED\')" style="font-size:10px;padding:3px 8px;border:1px solid var(--teal-mid);border-radius:4px;background:var(--teal-bg);color:var(--teal);cursor:pointer;margin-right:4px;">Implement</button>'
+            + '<button onclick="updateSuggestion(' + s.suggestionid + ', \'DECLINED\')" style="font-size:10px;padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface);cursor:pointer;">Decline</button>';
+        }
+        if (s.status === 'IMPLEMENTED' && s.rewardvalue) {
+          actions = '<span style="color:var(--green);font-size:11px;">Reward: ' + s.rewardvalue + '</span>';
+        }
+        return '<tr style="border-bottom:1px solid var(--border);">'
+          + '<td style="padding:8px 12px;font-size:12px;">' + date + '</td>'
+          + '<td style="padding:8px 12px;font-family:var(--mono);font-size:11px;">' + (s.email || '—') + '<br><span style="color:var(--text-3);">' + (s.company || '') + '</span></td>'
+          + '<td style="padding:8px 12px;"><span style="background:var(--bg);padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;">' + s.category + '</span></td>'
+          + '<td style="padding:8px 12px;max-width:300px;">' + s.suggestion + '</td>'
+          + '<td style="padding:8px 12px;"><span style="color:' + statusColor + ';font-weight:600;font-size:11px;">' + s.status + '</span></td>'
+          + '<td style="padding:8px 12px;">' + actions + '</td></tr>';
+      }).join('') + '</tbody></table>';
+  } catch(e) { list.innerHTML = '<div style="color:var(--red);padding:20px;">Failed: ' + e.message + '</div>'; }
+}
+
+async function updateSuggestion(id, status) {
+  await fetch(API_BASE + '/admin', { method:'POST', headers:getHeaders(), body:JSON.stringify({ action:'update_suggestion', suggestion_id:id, status:status }) });
+  loadAdminSuggestions();
+}
+
+async function loadAdminReferrals() {
+  var list = document.getElementById('admin-referrals-list');
+  list.innerHTML = '<div style="color:var(--text-3);padding:20px;text-align:center;">Loading...</div>';
+  try {
+    var r = await fetch(API_BASE + '/admin', { method:'POST', headers:getHeaders(), body:JSON.stringify({ action:'referrals' }) });
+    var data = await r.json();
+    var items = data.referrals || [];
+    if (!items.length) { list.innerHTML = '<div style="color:var(--text-3);padding:20px;text-align:center;">No referrals yet</div>'; return; }
+
+    list.innerHTML = '<table style="width:100%;border-collapse:collapse;"><thead><tr style="border-bottom:2px solid var(--border);text-align:left;">'
+      + '<th style="padding:8px 12px;">Date</th><th style="padding:8px 12px;">Referred By</th><th style="padding:8px 12px;">Referee</th>'
+      + '<th style="padding:8px 12px;">Email</th><th style="padding:8px 12px;">Status</th><th style="padding:8px 12px;">Reward</th></tr></thead><tbody>'
+      + items.map(function(ref) {
+        var date = new Date(ref.createdat).toLocaleDateString('en-GB', {day:'2-digit',month:'short',year:'numeric'});
+        var statusColor = ref.status === 'CONVERTED' ? 'var(--green)' : 'var(--amber)';
+        return '<tr style="border-bottom:1px solid var(--border);">'
+          + '<td style="padding:8px 12px;font-size:12px;">' + date + '</td>'
+          + '<td style="padding:8px 12px;font-family:var(--mono);font-size:11px;">' + (ref.referrername || '—') + '</td>'
+          + '<td style="padding:8px 12px;">' + (ref.refereename || '—') + '</td>'
+          + '<td style="padding:8px 12px;font-family:var(--mono);font-size:11px;">' + ref.refereeemail + '</td>'
+          + '<td style="padding:8px 12px;"><span style="color:' + statusColor + ';font-weight:600;font-size:11px;">' + ref.status + '</span></td>'
+          + '<td style="padding:8px 12px;font-size:12px;">' + (ref.rewardvalue || '—') + '</td></tr>';
+      }).join('') + '</tbody></table>';
+  } catch(e) { list.innerHTML = '<div style="color:var(--red);padding:20px;">Failed: ' + e.message + '</div>'; }
+}
+
+async function loadAdminRewards() {
+  var list = document.getElementById('admin-rewards-list');
+  list.innerHTML = '<div style="color:var(--text-3);padding:20px;text-align:center;">Loading...</div>';
+  try {
+    var r = await fetch(API_BASE + '/admin', { method:'POST', headers:getHeaders(), body:JSON.stringify({ action:'reward_config' }) });
+    var data = await r.json();
+    var items = data.rewards || [];
+
+    list.innerHTML = items.map(function(rw) {
+      return '<div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:12px;">'
+        + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">'
+        + '<div style="font-weight:600;font-size:13px;">' + rw.rewardtype.replace(/_/g, ' ') + '</div>'
+        + '<label style="display:flex;align-items:center;gap:4px;font-size:12px;"><input type="checkbox" ' + (rw.isactive ? 'checked' : '') + ' onchange="saveRewardConfig(\'' + rw.rewardtype + '\', document.getElementById(\'rw-' + rw.rewardtype + '\').value, this.checked)"> Active</label>'
+        + '</div>'
+        + '<div style="font-size:12px;color:var(--text-2);margin-bottom:8px;">' + (rw.description || '') + '</div>'
+        + '<div style="display:flex;gap:8px;align-items:center;">'
+        + '<label style="font-size:12px;color:var(--text-2);">Reward value:</label>'
+        + '<input type="text" id="rw-' + rw.rewardtype + '" value="' + (rw.value || '') + '" style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;">'
+        + '<button onclick="saveRewardConfig(\'' + rw.rewardtype + '\', document.getElementById(\'rw-' + rw.rewardtype + '\').value, true)" style="font-size:11px;padding:6px 12px;border:1px solid var(--border);border-radius:6px;background:var(--surface);cursor:pointer;">Save</button>'
+        + '</div></div>';
+    }).join('');
+  } catch(e) { list.innerHTML = '<div style="color:var(--red);padding:20px;">Failed: ' + e.message + '</div>'; }
+}
+
+async function saveRewardConfig(rewardtype, value, isactive) {
+  await fetch(API_BASE + '/admin', { method:'POST', headers:getHeaders(), body:JSON.stringify({ action:'reward_config', updates:[{ rewardtype, value, isactive }] }) });
+  loadAdminRewards();
+}
+
+// Auto-load admin dashboard when admin tab is shown
+function onAdminScreenShow() {
+  if (currentUser?.is_admin) loadAdminDashboard();
+}
+
+// ── Guided Tour ──────────────────────────────────────────────────────────────
+
+const TOUR_VERSION = '1.0';
+const FEATURE_VERSION = '1.0';
+
+const TOUR_STEPS = [
+  { screen: 'classify', element: '#screen-classify .lookup-form', title: 'Step 1: Classify Products', desc: 'Start here — describe any product in plain English and get HS code suggestions with confidence scores. Uses vector search + Claude AI.' },
+  { screen: 'lookup', element: '#screen-lookup .lookup-form', title: 'Step 2: Tariff Lookup', desc: 'Enter any HS code and import country for MFN rates, preferential rates, VAT, and full landed cost. The code auto-matches to the country\'s format.' },
+  { screen: 'profile', element: '#screen-profile', title: 'Step 3: Your Trade Profile', desc: 'Set your business type, trade routes, and HS chapters. Connect ERPs (Xero, Acumatica) and email (Gmail, Outlook) to unlock personalised intelligence.' },
+  { screen: 'opportunities', element: '.summary-bar', title: 'Step 4: Opportunities', desc: 'AI-identified duty savings and trade advantages, ranked by impact. Share any opportunity via email, Teams, or WhatsApp.' },
+  { screen: 'opportunities', element: '#screen-opportunities .filters', title: 'Step 4: Filter & Manage', desc: 'Filter by type, select items individually or in bulk, and delete or share. Opportunities are generated from your trade profile.' },
+  { screen: 'alerts', element: '#screen-alerts', title: 'Step 5: Trade Alerts', desc: 'Rate changes, sanctions, expiring preferences, and regulatory updates — generated from your profile. Share or dismiss as needed.' },
+];
+
+let tourDriver = null;
+
+function startTour() {
+  var steps = [
+    { screen: null, element: 'nav', title: 'Welcome to Customs Intelligence', desc: 'This guided tour will walk you through the key features in about 60 seconds. You can restart it anytime from the "Tour" link in the header.' },
+  ].concat(TOUR_STEPS);
+  if (currentUser?.is_admin) {
+    steps.push({ screen: 'admin', element: '#screen-admin', title: 'Step 6: Admin Panel', desc: 'Platform KPIs, tenant management, API usage analytics, and tariff document uploads. Admin-only.' });
+  }
+
+  var currentScreen = null;
+
+  tourDriver = window.driver.js.driver({
+    showProgress: true,
+    animate: true,
+    overlayColor: 'rgba(0,0,0,0.55)',
+    popoverClass: 'ci-tour-popover',
+    nextBtnText: 'Next',
+    prevBtnText: 'Back',
+    doneBtnText: 'Finish Tour',
+    steps: steps.map(function(s, idx) {
+      return {
+        element: s.element,
+        popover: { title: 'Guided Tour — ' + s.title, description: s.desc, side: 'bottom', align: 'start' },
+      };
+    }),
+    onNextClick: function() {
+      var nextIdx = tourDriver.getActiveIndex() + 1;
+      if (nextIdx >= steps.length) { tourDriver.moveNext(); return; }
+      var nextStep = steps[nextIdx];
+      if (nextStep.screen !== currentScreen) {
+        navigateToScreen(nextStep.screen);
+        currentScreen = nextStep.screen;
+        setTimeout(function() { tourDriver.moveNext(); }, 200);
+      } else {
+        tourDriver.moveNext();
+      }
+    },
+    onPrevClick: function() {
+      var prevIdx = tourDriver.getActiveIndex() - 1;
+      if (prevIdx < 0) { tourDriver.movePrevious(); return; }
+      var prevStep = steps[prevIdx];
+      if (prevStep.screen !== currentScreen) {
+        navigateToScreen(prevStep.screen);
+        currentScreen = prevStep.screen;
+        setTimeout(function() { tourDriver.movePrevious(); }, 200);
+      } else {
+        tourDriver.movePrevious();
+      }
+    },
+    onDestroyStarted: function() {
+      saveTourState(TOUR_VERSION, FEATURE_VERSION);
+      tourDriver.destroy();
+    },
+  });
+
+  // Start on opportunities screen
+  navigateToScreen('opportunities');
+  currentScreen = 'opportunities';
+  setTimeout(function() { tourDriver.drive(); }, 300);
+}
+
+function navigateToScreen(name) {
+  var tabs = document.querySelectorAll('nav .nav-tab');
+  var targetTab = null;
+  tabs.forEach(function(t) {
+    if (t.getAttribute('onclick') && t.getAttribute('onclick').indexOf("'" + name + "'") !== -1) {
+      targetTab = t;
+    }
+  });
+  showScreen(name, targetTab);
+}
+
+function checkTourState() {
+  var raw = localStorage.getItem('ci_tour');
+  if (!raw) {
+    // First-time user — auto-start tour
+    startTour();
+    return;
+  }
+  try {
+    var state = JSON.parse(raw);
+    // Feature update tour — auto-start if new features since last tour
+    if (state.lastFeatureVersion !== FEATURE_VERSION) {
+      startTour();
+    }
+  } catch (e) { /* ignore */ }
+}
+
+function saveTourState(tourV, featureV) {
+  localStorage.setItem('ci_tour', JSON.stringify({
+    completedVersion: tourV,
+    lastFeatureVersion: featureV,
+    completedAt: new Date().toISOString(),
+  }));
+}
+
+// ── Referral & Suggestion System ─────────────────────────────────────────────
+
+function openReferralModal() {
+  var modal = document.getElementById('referral-modal');
+  modal.style.display = 'flex';
+  document.getElementById('ref-name').value = '';
+  document.getElementById('ref-email').value = '';
+  document.getElementById('referral-error').style.display = 'none';
+  document.getElementById('referral-success').style.display = 'none';
+  // Load reward info
+  fetch(API_BASE + '/engage', { method:'POST', headers:getHeaders(), body:JSON.stringify({ action:'should_prompt_referral' }) })
+    .then(function(r) { return r.json(); })
+    .then(function() {
+      document.getElementById('referral-reward-info').textContent = 'Your reward: 1 month free when your referral signs up';
+      document.getElementById('referral-reward-info').style.display = '';
+    }).catch(function() {});
+}
+
+function openSuggestionModal() {
+  var modal = document.getElementById('suggestion-modal');
+  modal.style.display = 'flex';
+  document.getElementById('sug-text').value = '';
+  document.getElementById('sug-category').value = 'FEATURE';
+  document.getElementById('sug-error').style.display = 'none';
+  document.getElementById('sug-success').style.display = 'none';
+}
+
+function closeModal(id) {
+  document.getElementById(id).style.display = 'none';
+}
+
+async function submitReferral() {
+  var btn = document.getElementById('ref-btn');
+  var errEl = document.getElementById('referral-error');
+  var okEl = document.getElementById('referral-success');
+  errEl.style.display = 'none';
+  okEl.style.display = 'none';
+  var email = document.getElementById('ref-email').value.trim();
+  var name = document.getElementById('ref-name').value.trim();
+  if (!email) { errEl.textContent = 'Please enter their email'; errEl.style.display = 'block'; return; }
+  btn.disabled = true; btn.textContent = 'Sending...';
+  try {
+    var r = await fetch(API_BASE + '/engage', { method:'POST', headers:getHeaders(), body:JSON.stringify({ action:'refer', referee_email:email, referee_name:name }) });
+    var data = await r.json();
+    if (data.error) { errEl.textContent = data.error; errEl.style.display = 'block'; }
+    else { okEl.textContent = data.message || 'Referral sent!'; okEl.style.display = 'block'; setTimeout(function() { closeModal('referral-modal'); }, 2000); }
+  } catch(e) { errEl.textContent = 'Failed: ' + e.message; errEl.style.display = 'block'; }
+  btn.disabled = false; btn.textContent = 'Send Referral';
+}
+
+async function submitSuggestion() {
+  var btn = document.getElementById('sug-btn');
+  var errEl = document.getElementById('sug-error');
+  var okEl = document.getElementById('sug-success');
+  errEl.style.display = 'none';
+  okEl.style.display = 'none';
+  var text = document.getElementById('sug-text').value.trim();
+  var category = document.getElementById('sug-category').value;
+  if (!text) { errEl.textContent = 'Please enter your suggestion'; errEl.style.display = 'block'; return; }
+  btn.disabled = true; btn.textContent = 'Submitting...';
+  try {
+    var r = await fetch(API_BASE + '/engage', { method:'POST', headers:getHeaders(), body:JSON.stringify({ action:'suggest', suggestion:text, category:category }) });
+    var data = await r.json();
+    if (data.error) { errEl.textContent = data.error; errEl.style.display = 'block'; }
+    else { okEl.textContent = data.message || 'Thanks!'; okEl.style.display = 'block'; setTimeout(function() { closeModal('suggestion-modal'); }, 2000); }
+  } catch(e) { errEl.textContent = 'Failed: ' + e.message; errEl.style.display = 'block'; }
+  btn.disabled = false; btn.textContent = 'Submit';
+}
+
+// Referral prompt — show after 3+ sessions
+function checkReferralPrompt() {
+  var sessions = parseInt(localStorage.getItem('ci_sessions') || '0') + 1;
+  localStorage.setItem('ci_sessions', String(sessions));
+  if (sessions >= 3 && !localStorage.getItem('ci_referral_prompted')) {
+    // Check if user has already referred someone
+    fetch(API_BASE + '/engage', { method:'POST', headers:getHeaders(), body:JSON.stringify({ action:'should_prompt_referral' }) })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.should_prompt) {
+          setTimeout(function() { document.getElementById('referral-prompt').style.display = ''; }, 5000);
+        }
+      }).catch(function() {});
+  }
+}
+
+function closeReferralPrompt() {
+  document.getElementById('referral-prompt').style.display = 'none';
+  localStorage.setItem('ci_referral_prompted', 'true');
+}
 
 // init() is called from enterApp() after successful authentication
 </script>

@@ -97,10 +97,25 @@ Deno.serve(async (req: Request) => {
   const action = String(body.action || "");
 
   if (action === "dismiss") {
+    const ids = body.alert_ids;
+    if (Array.isArray(ids) && ids.length) {
+      await supabase.from("alerts").update({ isdismissed: true }).eq("tenantid", tenantId).in("alertid", ids);
+      return json({ status: "dismissed", count: ids.length });
+    }
     const alertId = Number(body.alert_id);
-    if (!alertId) return json({ error: "alert_id required" }, 400);
+    if (!alertId) return json({ error: "alert_id or alert_ids required" }, 400);
     await supabase.from("alerts").update({ isdismissed: true }).eq("alertid", alertId).eq("tenantid", tenantId);
     return json({ status: "dismissed" });
+  }
+
+  if (action === "dismiss_all") {
+    const { error } = await supabase
+      .from("alerts")
+      .update({ isdismissed: true })
+      .eq("tenantid", tenantId)
+      .eq("isdismissed", false);
+    if (error) return json({ error: error.message }, 500);
+    return json({ status: "ok", message: "All alerts dismissed" });
   }
 
   if (action === "actioned") {
@@ -270,15 +285,79 @@ Generate realistic, actionable trade alerts. Return ONLY a JSON array, no markdo
         aiAlerts = JSON.parse(cleaned);
       } catch {}
 
+      // Guardrail: verify each AI-proposed alert against actual DB data
       for (const alert of aiAlerts) {
+        const hsCode = alert.subheading_code || null;
+        const countryCode = alert.country_code || null;
+        let verified = false;
+        let verificationNote = "";
+
+        if (hsCode && countryCode) {
+          // Check 1: Does this HS code exist in our DB for this country?
+          const { data: codeExists } = await supabase
+            .from("commodity_code")
+            .select("commoditycode, nationaldescription")
+            .eq("countrycode", countryCode)
+            .like("commoditycode", hsCode + "%")
+            .eq("isactive", true)
+            .limit(1)
+            .maybeSingle();
+
+          if (codeExists) {
+            verified = true;
+            verificationNote = `HS code verified: ${codeExists.commoditycode} — ${(codeExists.nationaldescription || "").substring(0, 60)}`;
+
+            // Check 2: If alert mentions a rate, verify it
+            if (alert.alert_type === "DUTY_INCREASE" || alert.alert_type === "REGULATORY_CHANGE") {
+              const { data: rateData } = await supabase
+                .from("mfn_rate")
+                .select("appliedmfnrate, dutyexpression")
+                .eq("countrycode", countryCode)
+                .like("commoditycode", hsCode + "%")
+                .is("effectiveto", null)
+                .limit(1)
+                .maybeSingle();
+
+              if (rateData) {
+                verificationNote += `. Current MFN rate: ${rateData.appliedmfnrate}%`;
+              }
+            }
+
+            // Check 3: If alert is about AD, verify we have a matching measure
+            if (alert.alert_type === "AD_INVESTIGATION") {
+              const { data: adData } = await supabase
+                .from("ad_measure")
+                .select("admeasureid, adstatus, adcaseref")
+                .eq("importcountrycode", countryCode)
+                .like("commoditycode", hsCode + "%")
+                .limit(1)
+                .maybeSingle();
+
+              if (adData) {
+                verificationNote += `. AD measure confirmed: ${adData.adcaseref} (${adData.adstatus})`;
+              } else {
+                verificationNote += ". NOTE: No matching AD measure found in DB — AI claim unverified";
+                verified = false;
+              }
+            }
+          } else {
+            verificationNote = `HS code ${hsCode} not found in DB for ${countryCode} — AI claim unverified`;
+          }
+        }
+
+        // Build detail with verification tag
+        const taggedDetail = (verified ? "[VERIFIED] " : "[AI-GENERATED] ") +
+          (alert.detail || "") +
+          (verificationNote ? "\n\n— Verification: " + verificationNote : "");
+
         await supabase.from("alerts").insert({
           tenantid: tenantId,
           alerttype: alert.alert_type || "REGULATORY_CHANGE",
-          severity: alert.severity || "MEDIUM",
-          subheadingcode: alert.subheading_code || null,
-          countrycode: alert.country_code || null,
-          headline: alert.headline || "Trade alert",
-          detail: alert.detail || "",
+          severity: verified ? (alert.severity || "MEDIUM") : "LOW",  // downgrade unverified
+          subheadingcode: hsCode,
+          countrycode: countryCode,
+          headline: (verified ? "" : "⚠ ") + (alert.headline || "Trade alert"),
+          detail: taggedDetail,
           isdismissed: false,
           isactioned: false,
         }).then(() => {});

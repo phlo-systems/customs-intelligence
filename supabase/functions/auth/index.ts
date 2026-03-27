@@ -102,6 +102,7 @@ Deno.serve(async (req: Request) => {
         id: userId,
         email,
         company_name: companyName,
+        is_admin: false,
       },
       session: {
         access_token: session.session?.access_token,
@@ -141,6 +142,7 @@ Deno.serve(async (req: Request) => {
         id: userId,
         email: session.user?.email,
         company_name: session.user?.user_metadata?.company_name || null,
+        is_admin: session.user?.user_metadata?.is_admin === true,
       },
       session: {
         access_token: session.session?.access_token,
@@ -202,6 +204,7 @@ Deno.serve(async (req: Request) => {
         id: user.id,
         email: user.email,
         company_name: user.user_metadata?.company_name || null,
+        is_admin: user.user_metadata?.is_admin === true,
         created_at: user.created_at,
       },
       tenant: ctx || null,
@@ -251,12 +254,50 @@ Deno.serve(async (req: Request) => {
     return json({ message: "API keys cannot be retrieved — only regenerated. Set regenerate: true to create a new one." });
   }
 
+  // ── Reset Password (send email) ──────────────────────────────────────
+  if (action === "reset_password") {
+    const email = String(body.email || "").trim().toLowerCase();
+    if (!email) return json({ error: "email required" }, 400);
+
+    const redirectTo = String(body.redirect_to || "https://customs-intelligence.vercel.app");
+
+    const { error } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
+      redirectTo: redirectTo + "?type=recovery",
+    });
+
+    if (error) return json({ error: error.message }, 400);
+
+    return json({ status: "ok", message: "Password reset email sent. Check your inbox." });
+  }
+
+  // ── Update Password (after reset link click) ───────────────────────
+  if (action === "update_password") {
+    const accessToken = String(body.access_token || "");
+    const newPassword = String(body.new_password || "");
+
+    if (!accessToken) return json({ error: "access_token required" }, 400);
+    if (!newPassword || newPassword.length < 8) return json({ error: "Password must be at least 8 characters" }, 400);
+
+    // Verify the token is valid
+    const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(accessToken);
+    if (userError || !user) return json({ error: "Invalid or expired reset token" }, 401);
+
+    // Update the password
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
+      password: newPassword,
+    });
+
+    if (error) return json({ error: error.message }, 500);
+
+    return json({ status: "ok", message: "Password updated. You can now sign in." });
+  }
+
   // ── Logout ─────────────────────────────────────────────────────────────
   if (action === "logout") {
     return json({ status: "ok", message: "Logged out. Discard client-side tokens." });
   }
 
-  return json({ error: "Unknown action. Use: signup, login, refresh, me, api_key, logout" }, 400);
+  return json({ error: "Unknown action. Use: signup, login, refresh, me, api_key, reset_password, update_password, logout" }, 400);
 });
 
 

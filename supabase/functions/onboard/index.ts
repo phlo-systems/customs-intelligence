@@ -63,7 +63,7 @@ Deno.serve(async (req: Request) => {
 
   if (!tenantId) return json({ error: "Authentication required." }, 401);
 
-  const tenantID:  string = tenantId;
+  const tenantUID: string = tenantId;
 
   // ── GET — return current context ───────────────────────────────────────────
   if (req.method === "GET") {

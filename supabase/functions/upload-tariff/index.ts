@@ -55,17 +55,13 @@ Deno.serve(async (req: Request) => {
 
   if (!tenantId) return json({ error: "Authentication required." }, 401);
 
-  const keyHash = await sha256hex(rawKey);
-  const { data: keyRow, error: keyErr } = await supabase
-    .from("api_key")
-    .select("keyid, tenantid, scopes, isactive, expiresat")
-    .eq("keyhash", keyHash)
-    .eq("isactive", true)
-    .maybeSingle();
-
-  if (keyErr || !keyRow) return json({ error: "Invalid API key" }, 401);
-  if (keyRow.expiresat && new Date(keyRow.expiresat) < new Date())
-    return json({ error: "API key expired" }, 401);
+  // ── Admin check — only admin users can upload tariffs ──────────────────
+  const { data: { user: adminUser } } = await supabase.auth.getUser(
+    (authHeader || "").replace("Bearer ", "")
+  );
+  if (!adminUser?.user_metadata?.is_admin) {
+    return json({ error: "Admin access required." }, 403);
+  }
 
   // ── Parse multipart form ─────────────────────────────────────────────────
   let formData: FormData;
@@ -206,8 +202,13 @@ async function extractWithClaude(
   const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY");
   if (!anthropicKey) throw new Error("ANTHROPIC_API_KEY not configured");
 
-  // Base64 encode the PDF for Claude
-  const base64 = btoa(String.fromCharCode(...fileBytes));
+  // Base64 encode the PDF for Claude (chunked to avoid stack overflow)
+  let binary = "";
+  const chunkSize = 8192;
+  for (let i = 0; i < fileBytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...fileBytes.subarray(i, i + chunkSize));
+  }
+  const base64 = btoa(binary);
 
   const systemPrompt = `You are a customs tariff data extraction specialist. Extract structured tariff data from the uploaded document.
 
