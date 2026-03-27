@@ -1363,7 +1363,13 @@ function enterApp() {
     document.getElementById('header-tenant').textContent =
       (currentUser.company_name || currentUser.email || '') + ' · Customs Intelligence';
   }
+  // Initialize all app modules
   init();
+  setTimeout(loadProfile, 500);
+  setTimeout(checkXeroStatus, 1000);
+  setTimeout(checkAcumaticaStatus, 1500);
+  setTimeout(checkEmailStatus, 2000);
+  setTimeout(loadAlerts, 800);
 }
 
 function logout() {
@@ -2157,7 +2163,7 @@ async function uploadContext() {
   setTimeout(() => { status.textContent = ''; }, 5000);
 }
 
-setTimeout(loadProfile, 500);
+// loadProfile called from enterApp()
 
 // ── Xero Integration ─────────────────────────────────────────────────────────
 async function checkXeroStatus() {
@@ -2368,7 +2374,7 @@ async function refreshXeroLastSync() {
 }
 
 // Check Xero status on page load (after admin tab is available)
-setTimeout(checkXeroStatus, 1000);
+// checkXeroStatus called from enterApp()
 
 // ── Acumatica Integration ────────────────────────────────────────────────────
 async function checkAcumaticaStatus() {
@@ -2544,7 +2550,7 @@ async function runAcumaticaSync(full = false) {
   setTimeout(loadProfile, 1000);
 }
 
-setTimeout(checkAcumaticaStatus, 1500);
+// checkAcumaticaStatus called from enterApp()
 
 // ── Email Integration ────────────────────────────────────────────────────────
 async function checkEmailStatus() {
@@ -2725,7 +2731,7 @@ function toggleSetupHelp(id) {
   if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
 }
 
-setTimeout(checkEmailStatus, 2000);
+// checkEmailStatus called from enterApp()
 
 // ── Alerts ───────────────────────────────────────────────────────────────────
 let allAlerts = [];
@@ -2869,7 +2875,7 @@ async function generateAlerts() {
   btn.textContent = 'Generate Alerts';
 }
 
-setTimeout(loadAlerts, 800);
+// loadAlerts called from enterApp()
 
 // init() is called from enterApp() after successful authentication
 </script>
