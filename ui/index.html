@@ -5694,9 +5694,15 @@ function navigateToScreen(name) {
 }
 
 function checkTourState() {
+  // Skip auto-tour if user just came from onboarding wizard
+  if (localStorage.getItem('ci_onboarded') === 'true') {
+    localStorage.removeItem('ci_onboarded');
+    return;
+  }
+
   var raw = localStorage.getItem('ci_tour');
   if (!raw) {
-    // First-time user — auto-start tour
+    // First-time user (existing, not from wizard) — auto-start tour
     startTour();
     return;
   }
