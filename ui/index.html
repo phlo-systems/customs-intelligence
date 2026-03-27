@@ -4717,22 +4717,23 @@ const TOUR_VERSION = '1.0';
 const FEATURE_VERSION = '1.0';
 
 const TOUR_STEPS = [
-  { screen: 'classify', element: '#screen-classify .lookup-form', title: 'Step 1: Classify Products', desc: 'Start here — describe any product in plain English and get HS code suggestions with confidence scores. Uses vector search + Claude AI.' },
-  { screen: 'lookup', element: '#screen-lookup .lookup-form', title: 'Step 2: Tariff Lookup', desc: 'Enter any HS code and import country for MFN rates, preferential rates, VAT, and full landed cost. The code auto-matches to the country\'s format.' },
-  { screen: 'profile', element: '#screen-profile', title: 'Step 3: Your Trade Profile', desc: 'Set your business type, trade routes, and HS chapters. Connect ERPs (Xero, Acumatica) and email (Gmail, Outlook) to unlock personalised intelligence.' },
-  { screen: 'opportunities', element: '.summary-bar', title: 'Step 4: Opportunities', desc: 'AI-identified duty savings and trade advantages, ranked by impact. Share any opportunity via email, Teams, or WhatsApp.' },
-  { screen: 'opportunities', element: '#screen-opportunities .filters', title: 'Step 4: Filter & Manage', desc: 'Filter by type, select items individually or in bulk, and delete or share. Opportunities are generated from your trade profile.' },
-  { screen: 'alerts', element: '#screen-alerts', title: 'Step 5: Trade Alerts', desc: 'Rate changes, sanctions, expiring preferences, and regulatory updates — generated from your profile. Share or dismiss as needed.' },
+  { screen: 'classify', element: '#screen-classify .lookup-form', title: 'Step 1: Classify Products', desc: 'Don\'t know the HS code? Describe any product in plain English — get top 3 HS code suggestions with confidence scores. Uses vector search + Claude AI.' },
+  { screen: 'lookup', element: '#screen-lookup .lookup-form', title: 'Step 2: Tariff Lookup', desc: 'Full landed cost breakdown: BCD, SWS, anti-dumping duties, IGST/VAT, exemptions, and drawback. Covers India, South Africa, and UK. Auto-matches any HS code length.' },
+  { screen: 'compare', element: '#screen-compare', title: 'Step 3: Compare Routes', desc: 'Side-by-side comparison across trade routes. Importer view: "Where should I source from?" Exporter view: "Where should I sell?" Best route highlighted in green.' },
+  { screen: 'profile', element: '#screen-profile', title: 'Step 4: Your Trade Profile', desc: 'Set your trade routes and product categories. Connect ERPs (Xero, Acumatica) and email (Gmail, Outlook) — we\'ll auto-generate personalised opportunities from your actual trade data.' },
+  { screen: 'opportunities', element: '.summary-bar', title: 'Step 5: Opportunities', desc: 'Duty savings, FTA advantages, and new market opportunities — generated from real tariff data matched to your profile. Each card shows the saving and affected trade route.' },
+  { screen: 'opportunities', element: '#screen-opportunities .opp-list', title: 'Step 5: Share & Act', desc: 'Click any opportunity to expand details. Share instantly via Email, Microsoft Teams, or WhatsApp — one click sends a formatted summary to your team or freight forwarder.' },
+  { screen: 'alerts', element: '#screen-alerts', title: 'Step 6: Trade Alerts', desc: 'Real-time alerts from government data: duty rate changes, new anti-dumping investigations, expiring preferential rates, and regulatory changes. Verified against our database — AI-generated alerts are tagged.' },
 ];
 
 let tourDriver = null;
 
 function startTour() {
   var steps = [
-    { screen: null, element: 'nav', title: 'Welcome to Customs Intelligence', desc: 'This guided tour will walk you through the key features in about 60 seconds. You can restart it anytime from the "Tour" link in the header.' },
+    { screen: null, element: 'nav', title: 'Welcome to Customs Intelligence', desc: 'Your complete tariff and trade intelligence platform. This 90-second tour covers classification, lookup, route comparison, opportunities, and alerts. Restart anytime from "Tour" in the header.' },
   ].concat(TOUR_STEPS);
   if (currentUser?.is_admin) {
-    steps.push({ screen: 'admin', element: '#screen-admin', title: 'Step 6: Admin Panel', desc: 'Platform KPIs, tenant management, API usage analytics, and tariff document uploads. Admin-only.' });
+    steps.push({ screen: 'admin', element: '#screen-admin', title: 'Step 7: Admin Panel', desc: 'Platform KPIs, tenant management, API usage, data freshness monitoring, notification tracker, and tariff document management. Run ad-hoc monitoring checks or review pending government notifications.' });
   }
 
   var currentScreen = null;
