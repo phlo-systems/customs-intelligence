@@ -1246,6 +1246,8 @@
       <div class="nav-tab" onclick="showAdminTab('suggestions', this)">Suggestions</div>
       <div class="nav-tab" onclick="showAdminTab('referrals', this)">Referrals</div>
       <div class="nav-tab" onclick="showAdminTab('rewards', this)">Rewards</div>
+      <div class="nav-tab" onclick="showAdminTab('freshness', this)">Data Freshness</div>
+      <div class="nav-tab" onclick="showAdminTab('notifications', this)">Notifications</div>
     </div>
 
     <!-- ── Overview ── -->
@@ -1458,6 +1460,84 @@
       <div id="admin-rewards-list" style="font-size:13px;"></div>
     </div>
 
+    <!-- ── Data Freshness ── -->
+    <div class="admin-panel" id="admin-freshness" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <div style="font-weight:600;font-size:15px;">Data Freshness — India</div>
+        <button onclick="runAdHocMonitor()" id="btn-run-monitor" style="font-size:12px;padding:6px 14px;background:var(--teal);color:#fff;border:none;border-radius:6px;cursor:pointer;">Run Monitor Now</button>
+      </div>
+      <div id="freshness-status" style="font-size:12px;color:var(--text-3);margin-bottom:16px;display:none;"></div>
+
+      <!-- KPI cards -->
+      <div class="summary-bar" style="grid-template-columns:repeat(4,1fr);margin-bottom:20px;">
+        <div class="stat-card"><div class="stat-label">Data Types Tracked</div><div class="stat-value" id="fresh-total">--</div></div>
+        <div class="stat-card"><div class="stat-label">Stale</div><div class="stat-value" id="fresh-stale" style="color:var(--red);">--</div></div>
+        <div class="stat-card"><div class="stat-label">Pending Notifications</div><div class="stat-value" id="fresh-pending" style="color:var(--amber);">--</div></div>
+        <div class="stat-card"><div class="stat-label">Stale Chapters</div><div class="stat-value" id="fresh-chapters">--</div></div>
+      </div>
+
+      <!-- Data freshness table -->
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;" id="freshness-table">
+          <thead>
+            <tr style="border-bottom:2px solid var(--border);text-align:left;">
+              <th style="padding:8px 12px;font-weight:600;">Data Type</th>
+              <th style="padding:8px 12px;font-weight:600;">Status</th>
+              <th style="padding:8px 12px;font-weight:600;">Last Sync</th>
+              <th style="padding:8px 12px;font-weight:600;">Age</th>
+              <th style="padding:8px 12px;font-weight:600;">Rows</th>
+              <th style="padding:8px 12px;font-weight:600;">Source</th>
+              <th style="padding:8px 12px;font-weight:600;">Next Expected</th>
+            </tr>
+          </thead>
+          <tbody id="freshness-tbody"></tbody>
+        </table>
+      </div>
+
+      <!-- Stale chapters -->
+      <div id="freshness-stale-chapters" style="margin-top:20px;display:none;">
+        <div style="font-weight:600;font-size:13px;margin-bottom:8px;color:var(--red);">Stale Chapters (CBIC update detected)</div>
+        <div id="freshness-stale-list" style="font-size:12px;font-family:var(--mono);"></div>
+      </div>
+
+      <!-- Error chapters -->
+      <div id="freshness-error-chapters" style="margin-top:16px;display:none;">
+        <div style="font-weight:600;font-size:13px;margin-bottom:8px;color:var(--red);">Error Chapters</div>
+        <div id="freshness-error-list" style="font-size:12px;font-family:var(--mono);"></div>
+      </div>
+    </div>
+
+    <!-- ── Notification Tracker ── -->
+    <div class="admin-panel" id="admin-notifications" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <div style="font-weight:600;font-size:15px;">Notification Tracker — India</div>
+        <select id="notif-filter" onchange="loadAdminNotifications()" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;">
+          <option value="">All</option>
+          <option value="NEW" selected>New (Pending)</option>
+          <option value="REVIEWED">Reviewed</option>
+          <option value="APPLIED">Applied</option>
+          <option value="IGNORED">Ignored</option>
+          <option value="PENDING_APPROVAL">Pending Approval</option>
+        </select>
+      </div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;" id="notif-table">
+          <thead>
+            <tr style="border-bottom:2px solid var(--border);text-align:left;">
+              <th style="padding:8px 12px;font-weight:600;">Priority</th>
+              <th style="padding:8px 12px;font-weight:600;">Source</th>
+              <th style="padding:8px 12px;font-weight:600;">Notification</th>
+              <th style="padding:8px 12px;font-weight:600;">Title</th>
+              <th style="padding:8px 12px;font-weight:600;">Published</th>
+              <th style="padding:8px 12px;font-weight:600;">Status</th>
+              <th style="padding:8px 12px;font-weight:600;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="notif-tbody"></tbody>
+        </table>
+      </div>
+      <div id="notif-empty" style="display:none;text-align:center;padding:40px;color:var(--text-3);font-size:13px;">No notifications matching this filter.</div>
+    </div>
 
   </div>
 
@@ -3461,6 +3541,168 @@ function showAdminTab(tab, el) {
   if (tab === 'suggestions') loadAdminSuggestions();
   if (tab === 'referrals') loadAdminReferrals();
   if (tab === 'rewards') loadAdminRewards();
+  if (tab === 'freshness') loadAdminFreshness();
+  if (tab === 'notifications') loadAdminNotifications();
+}
+
+// ── Data Freshness ──────────────────────────────────────────────────────
+async function loadAdminFreshness() {
+  try {
+    const r = await fetch(API_BASE + '/admin', {
+      method: 'POST', headers: getHeaders(),
+      body: JSON.stringify({ action: 'data_freshness', country: 'IN' }),
+    });
+    const data = await r.json();
+    if (data.error) { console.error(data.error); return; }
+
+    document.getElementById('fresh-total').textContent = data.items?.length || 0;
+    document.getElementById('fresh-stale').textContent = data.stale_count || 0;
+    document.getElementById('fresh-pending').textContent = data.pending_notifications || 0;
+    document.getElementById('fresh-chapters').textContent = data.stale_chapters?.length || 0;
+
+    // Freshness table
+    const tbody = document.getElementById('freshness-tbody');
+    tbody.innerHTML = (data.items || []).map(item => {
+      const ageHrs = item.age_hours || 0;
+      const ageStr = ageHrs < 24 ? ageHrs + 'h' : Math.floor(ageHrs / 24) + 'd';
+      const statusColor = item.is_stale ? 'var(--red)' : 'var(--green)';
+      const statusText = item.is_stale ? 'STALE' : 'CURRENT';
+      const lastSync = item.lastsyncat ? new Date(item.lastsyncat).toLocaleDateString() : 'Never';
+      return `<tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:8px 12px;font-weight:500;">${item.datatype}</td>
+        <td style="padding:8px 12px;"><span style="color:${statusColor};font-weight:600;font-size:11px;font-family:var(--mono);">${statusText}</span></td>
+        <td style="padding:8px 12px;font-family:var(--mono);font-size:11px;">${lastSync}</td>
+        <td style="padding:8px 12px;font-family:var(--mono);font-size:11px;">${ageStr}</td>
+        <td style="padding:8px 12px;font-family:var(--mono);">${(item.rowcount || 0).toLocaleString()}</td>
+        <td style="padding:8px 12px;font-size:12px;">${item.sourcename || '—'}</td>
+        <td style="padding:8px 12px;font-size:12px;color:var(--text-3);">${item.nextexpectedupdate || '—'}</td>
+      </tr>`;
+    }).join('');
+
+    // Stale chapters
+    const staleChs = data.stale_chapters || [];
+    const staleDiv = document.getElementById('freshness-stale-chapters');
+    if (staleChs.length > 0) {
+      staleDiv.style.display = '';
+      document.getElementById('freshness-stale-list').innerHTML = staleChs.map(ch =>
+        `<span style="display:inline-block;padding:2px 8px;margin:2px;background:var(--red-bg);color:var(--red);border-radius:4px;">Ch ${ch.chapternum}</span>`
+      ).join('');
+    } else { staleDiv.style.display = 'none'; }
+
+    // Error chapters
+    const errChs = data.error_chapters || [];
+    const errDiv = document.getElementById('freshness-error-chapters');
+    if (errChs.length > 0) {
+      errDiv.style.display = '';
+      document.getElementById('freshness-error-list').innerHTML = errChs.map(ch =>
+        `<div style="margin:4px 0;"><span style="color:var(--red);font-weight:500;">Ch ${ch.chapternum}:</span> ${ch.errormessage || 'Unknown error'}</div>`
+      ).join('');
+    } else { errDiv.style.display = 'none'; }
+
+  } catch (e) { console.error('Freshness load error:', e); }
+}
+
+async function runAdHocMonitor() {
+  const btn = document.getElementById('btn-run-monitor');
+  const status = document.getElementById('freshness-status');
+  btn.disabled = true;
+  btn.textContent = 'Running...';
+  status.style.display = '';
+  status.textContent = 'Checking CBIC API for updates, scanning for new notifications...';
+
+  try {
+    const r = await fetch(API_BASE + '/admin', {
+      method: 'POST', headers: getHeaders(),
+      body: JSON.stringify({ action: 'run_monitor', country: 'IN' }),
+    });
+    const data = await r.json();
+
+    const newNotifs = data.new_notifications?.length || 0;
+    const staleChs = data.stale_chapters?.length || 0;
+    const chaptersChecked = data.chapters_checked || 0;
+    const rules = data.rules_engine || {};
+    const alertsCreated = rules.alerts_created || 0;
+    const oppsCreated = rules.opportunities_created || 0;
+
+    status.innerHTML = `<span style="color:var(--teal);font-weight:500;">Monitor complete.</span>
+      Chapters checked: ${chaptersChecked} | Stale: ${staleChs} |
+      New notifications: ${newNotifs} |
+      Alerts generated: ${alertsCreated} | Opportunities: ${oppsCreated}`;
+
+    // Reload freshness data
+    loadAdminFreshness();
+  } catch (e) {
+    status.innerHTML = `<span style="color:var(--red);">Error: ${e.message}</span>`;
+  }
+  btn.disabled = false;
+  btn.textContent = 'Run Monitor Now';
+}
+
+// ── Notification Tracker ────────────────────────────────────────────────
+async function loadAdminNotifications() {
+  const filter = document.getElementById('notif-filter').value;
+  try {
+    const r = await fetch(API_BASE + '/admin', {
+      method: 'POST', headers: getHeaders(),
+      body: JSON.stringify({ action: 'notifications', country: 'IN', status: filter || undefined, limit: 100 }),
+    });
+    const data = await r.json();
+    const notifs = data.notifications || [];
+    const tbody = document.getElementById('notif-tbody');
+    const empty = document.getElementById('notif-empty');
+
+    if (notifs.length === 0) {
+      tbody.innerHTML = '';
+      empty.style.display = '';
+      return;
+    }
+    empty.style.display = 'none';
+
+    const priorityColors = { CRITICAL: 'var(--red)', HIGH: 'var(--amber)', MEDIUM: 'var(--text-2)', LOW: 'var(--text-3)' };
+    const priorityBg = { CRITICAL: 'var(--red-bg)', HIGH: 'var(--amber-bg)', MEDIUM: 'var(--bg)', LOW: 'var(--bg)' };
+
+    tbody.innerHTML = notifs.map(n => {
+      const pColor = priorityColors[n.priority] || 'var(--text-2)';
+      const pBg = priorityBg[n.priority] || 'var(--bg)';
+      const pubDate = n.publishdate || '—';
+      const statusBadge = n.status === 'NEW'
+        ? '<span style="background:var(--amber-bg);color:var(--amber);padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;">NEW</span>'
+        : n.status === 'APPLIED'
+        ? '<span style="background:var(--green-bg);color:var(--green);padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;">APPLIED</span>'
+        : `<span style="background:var(--bg);color:var(--text-3);padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;">${n.status}</span>`;
+
+      return `<tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:8px 12px;"><span style="background:${pBg};color:${pColor};padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;font-family:var(--mono);">${n.priority}</span></td>
+        <td style="padding:8px 12px;font-family:var(--mono);font-size:11px;">${n.source}</td>
+        <td style="padding:8px 12px;font-weight:500;">${n.notificationref}</td>
+        <td style="padding:8px 12px;font-size:12px;max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${n.title || '—'}</td>
+        <td style="padding:8px 12px;font-family:var(--mono);font-size:11px;">${pubDate}</td>
+        <td style="padding:8px 12px;">${statusBadge}</td>
+        <td style="padding:8px 12px;">
+          ${n.status === 'NEW' ? `
+            <button onclick="updateNotifStatus(${n.notificationid}, 'REVIEWED')" style="font-size:10px;padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface);cursor:pointer;margin-right:4px;">Review</button>
+            <button onclick="updateNotifStatus(${n.notificationid}, 'APPLIED')" style="font-size:10px;padding:3px 8px;border:1px solid var(--teal);border-radius:4px;background:var(--teal-bg);color:var(--teal);cursor:pointer;margin-right:4px;">Apply</button>
+            <button onclick="updateNotifStatus(${n.notificationid}, 'IGNORED')" style="font-size:10px;padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text-3);cursor:pointer;">Ignore</button>
+          ` : n.status === 'REVIEWED' ? `
+            <button onclick="updateNotifStatus(${n.notificationid}, 'APPLIED')" style="font-size:10px;padding:3px 8px;border:1px solid var(--teal);border-radius:4px;background:var(--teal-bg);color:var(--teal);cursor:pointer;">Apply</button>
+          ` : `<span style="font-size:10px;color:var(--text-3);">${n.reviewedby ? 'by ' + n.reviewedby : ''}</span>`}
+        </td>
+      </tr>`;
+    }).join('');
+  } catch (e) { console.error('Notifications load error:', e); }
+}
+
+async function updateNotifStatus(notifId, newStatus) {
+  try {
+    const r = await fetch(API_BASE + '/admin', {
+      method: 'POST', headers: getHeaders(),
+      body: JSON.stringify({ action: 'update_notification', notification_id: notifId, status: newStatus }),
+    });
+    const data = await r.json();
+    if (data.status === 'ok') {
+      loadAdminNotifications(); // reload
+    }
+  } catch (e) { console.error('Update notification error:', e); }
 }
 
 async function loadAdminDashboard() {
