@@ -2747,14 +2747,21 @@ async function generateOppsNow() {
   if (btn) { btn.disabled = true; btn.textContent = 'Analysing your trade routes...'; }
 
   try {
-    // Step 1: Generate AI-powered alerts from tenant profile
-    await fetch(API_BASE + '/alerts', {
-      method: 'POST', headers: getHeaders(),
-      body: JSON.stringify({ action: 'generate' }),
-    });
-    if (btn) btn.textContent = 'Finding opportunities...';
+    // Step 1: Generate AI-powered alerts + opportunities from tenant profile
+    if (btn) btn.textContent = 'Analysing your trade routes...';
+    const [alertRes, oppRes] = await Promise.all([
+      fetch(API_BASE + '/alerts', {
+        method: 'POST', headers: getHeaders(),
+        body: JSON.stringify({ action: 'generate' }),
+      }),
+      fetch(API_BASE + '/opportunities', {
+        method: 'POST', headers: getHeaders(),
+        body: JSON.stringify({ action: 'generate' }),
+      }),
+    ]);
+    if (btn) btn.textContent = 'Adding insights...';
 
-    // Step 2: Enrich any existing opportunities with AI insights
+    // Step 2: Enrich new opportunities with detailed AI insights
     await fetch(API_BASE + '/enrich-opportunities', {
       method: 'POST', headers: getHeaders(),
       body: JSON.stringify({ batch_size: 30 }),

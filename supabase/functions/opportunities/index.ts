@@ -9,6 +9,7 @@
 //   ?type=DUTY_REDUCTION  (filter by opportunity type)
 //   ?min_saving=1000   (filter by minimum ZAR saving per 10K)
 
+import Anthropic from "https://esm.sh/@anthropic-ai/sdk@0.27.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -82,7 +83,118 @@ Deno.serve(async (req: Request) => {
       return json({ status: "ok", message: "All opportunities dismissed" });
     }
 
-    return json({ error: "Unknown action. Use: dismiss, dismiss_all" }, 400);
+    if (action === "action") {
+      const id = body.opportunity_id;
+      if (!id) return json({ error: "opportunity_id required" }, 400);
+      await supabase.from("opportunities").update({ isactioned: true }).eq("opportunityid", id).eq("tenantid", tenantId);
+      return json({ status: "ok" });
+    }
+
+    if (action === "log_behaviour") {
+      await supabase.from("tenant_behaviour_log").insert({
+        tenantid: tenantId,
+        actiontype: String(body.action_type || "OPPORTUNITY_VIEWED"),
+        subheadingcode: body.subheading_code || null,
+        importcountrycode: body.import_country || null,
+        exportcountrycode: body.export_country || null,
+        referenceid: body.reference_id || null,
+      });
+      return json({ status: "ok" });
+    }
+
+    if (action === "generate") {
+      // Fetch tenant context
+      const { data: ctx } = await supabase
+        .from("tenant_context")
+        .select("*")
+        .eq("tenantid", tenantId)
+        .maybeSingle();
+
+      const hsChapters = ctx?.primaryhschapters || [];
+      const origins = ctx?.activeorigincountries || [];
+      const destinations = ctx?.activedestcountries || [];
+      const markets = ctx?.targetmarkets || [];
+      const businessType = ctx?.businesstype || "trader";
+      const topSuppliers = ctx?.topsuppliercountries || [];
+      const topCustomers = ctx?.topcustomercountries || [];
+
+      if (hsChapters.length === 0 && origins.length === 0) {
+        return json({ status: "ok", generated: 0, message: "Set up your trade profile first to generate opportunities." });
+      }
+
+      try {
+        const anthropic = new Anthropic({ apiKey: Deno.env.get("ANTHROPIC_API_KEY")! });
+        const msg = await anthropic.messages.create({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1500,
+          messages: [{ role: "user", content: `You are a customs and trade intelligence analyst. Today is ${new Date().toISOString().split("T")[0]}.
+
+Generate 5-8 trade OPPORTUNITIES for this company:
+- Business type: ${businessType}
+- Products (HS chapters): ${hsChapters.join(", ")}
+- Buy from: ${origins.join(", ")}
+- Sell to: ${destinations.join(", ")}
+- Target markets: ${markets.join(", ")}
+- Top supplier countries: ${topSuppliers.join(", ") || "unknown"}
+- Top customer countries: ${topCustomers.join(", ") || "unknown"}
+
+Focus on ACTIONABLE opportunities:
+- Duty savings through FTAs or exemptions
+- New markets with lower tariffs for their products
+- Competitor disadvantages (where their origin has preferential access)
+- Upcoming trade agreement benefits
+- Drawback or duty relief schemes they could claim
+
+Return ONLY a JSON array. Each opportunity:
+{
+  "opportunity_type": "DUTY_REDUCTION|NEW_FTA|COMPETITOR_DISADVANTAGE|NEW_MARKET|COMPLIANCE_EASE",
+  "subheading_code": "6-digit HS or null",
+  "import_country": "2-letter ISO",
+  "export_country": "2-letter ISO or null",
+  "saving_pct": number or null,
+  "headline": "One-line headline",
+  "insight": "2-3 sentences of actionable advice for this specific business"
+}` }],
+        });
+
+        let aiOpps: any[] = [];
+        const raw = msg.content[0].type === "text" ? msg.content[0].text.trim() : "[]";
+        try {
+          const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+          aiOpps = JSON.parse(cleaned);
+        } catch { /* parse failed */ }
+
+        let created = 0;
+        for (const opp of aiOpps) {
+          const headline = (opp.headline || "Trade opportunity").substring(0, 200);
+          // Tag as AI-generated
+          const insight = "[AI-GENERATED] " + (opp.insight || "");
+
+          await supabase.from("opportunities").insert({
+            tenantid: tenantId,
+            opportunitytype: opp.opportunity_type || "NEW_MARKET",
+            subheadingcode: opp.subheading_code || null,
+            importcountrycode: opp.import_country || null,
+            exportcountrycode: opp.export_country || null,
+            savingpct: opp.saving_pct || null,
+            savingamtper10k: opp.saving_pct ? Math.round(opp.saving_pct * 100) : null,
+            headline: headline,
+            aiinsight: insight,
+            aiinsightgeneratedat: new Date().toISOString(),
+            isdismissed: false,
+            isactioned: false,
+          });
+          created++;
+        }
+
+        return json({ status: "ok", generated: created });
+      } catch (e: unknown) {
+        console.error("AI opportunity generation failed:", e);
+        return json({ status: "ok", generated: 0, error: String(e) });
+      }
+    }
+
+    return json({ error: "Unknown action. Use: dismiss, dismiss_all, generate, action, log_behaviour" }, 400);
   }
 
   if (req.method !== "GET") return json({ error: "GET or POST required" }, 405);
