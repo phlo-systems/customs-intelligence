@@ -28,14 +28,14 @@ logger = logging.getLogger(__name__)
 # Tariff item: 4 digits, optionally followed by 2-digit groups separated by space
 # e.g. "0101", "0101 21", "0101 21 00", "2801 10 00"
 RE_TARIFF_LINE = re.compile(
-    r"^(\d{4}(?:\s+\d{2}){0,2})\s+"  # tariff code
+    r"^\*{0,3}(\d{4}(?:\s+\d{2}){0,2})\s+"  # tariff code (optional leading asterisks)
 )
 
 # Rate pattern: optional asterisks + number% or Free
 # Also match bare numbers at end of line (some PDFs drop the % sign)
 RE_RATE = re.compile(r"\*{0,3}(\d+(?:\.\d+)?)\s*%")
 RE_RATE_BARE = re.compile(r"\s(\d+(?:\.\d+))\s*$")  # bare number at end of line
-RE_FREE = re.compile(r"\*{0,3}Free", re.IGNORECASE)
+RE_FREE = re.compile(r"\*{0,3}Free%?", re.IGNORECASE)
 
 # Unit patterns — common Indian tariff units
 KNOWN_UNITS = {
@@ -101,6 +101,8 @@ class INParser:
         with pdfplumber.open(pdf_path) as pdf:
             for page in pdf.pages:
                 text = page.extract_text() or ""
+                # Normalize special characters: í → - (PDF encoding artifact)
+                text = text.replace("í", "-")
                 for line in text.split("\n"):
                     stripped = line.strip()
                     if stripped:
