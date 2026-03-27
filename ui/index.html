@@ -2224,23 +2224,55 @@ function renderResult(d) {
     ? `<div class="pref-banner">✓ Preferential rate applies — ${duty.pref_agreement} (${pct(duty.pref_rate_pct)} vs MFN ${pct(duty.mfn_rate_pct)})</div>`
     : '';
 
+  // SWS row (India only)
+  const swsRow = duty.sws_rate_pct
+    ? `<div class="result-row"><span class="result-key">Social Welfare Surcharge</span><span class="result-val">${pct(duty.sws_rate_pct)}</span></div>`
+    : '';
+
+  // Indirect tax label (GST for India, VAT otherwise)
+  const taxRows = (d.indirect_tax?.taxes || []);
+  const taxLabel = taxRows.length === 1 && taxRows[0].tax_type === 'GST' ? 'IGST' : 'VAT/Tax';
+
+  // Trade remedies
+  const trRows = (d.trade_remedies?.measures || []);
+  const trSection = trRows.length > 0
+    ? trRows.map(m => `<div class="result-row">
+        <span class="result-key" style="color:var(--red);">${m.type.replace('_',' ')} duty</span>
+        <span class="result-val amber">${m.rate_pct ? pct(m.rate_pct) + ' CIF' : m.ad_amount ? curr + ' ' + fmt(m.ad_amount) : 'see detail'}</span>
+      </div>
+      <div style="font-size:10px;color:var(--text-3);padding:0 12px 8px 12px;">${m.status} — ${m.case_ref || ''}</div>`).join('')
+    : '';
+
+  // Drawback info
+  const drawbackSection = d.drawback
+    ? `<div style="margin-top:12px;padding:10px 14px;background:var(--green-bg);border-radius:8px;font-size:12px;">
+        <span style="font-weight:600;color:var(--green);">Drawback available:</span>
+        ${d.drawback.drawback_rate_pct}% of FOB value${d.drawback.drawback_cap_amt ? ' (cap ' + d.drawback.drawback_cap_currency + ' ' + fmt(d.drawback.drawback_cap_amt) + '/' + (d.drawback.drawback_unit || 'unit') + ')' : ''}
+      </div>`
+    : '';
+
   const ratesSection = `
-    <div class="result-row"><span class="result-key">MFN rate</span><span class="result-val">${pct(duty.mfn_rate_pct)}</span></div>
+    <div class="result-row"><span class="result-key">MFN rate (BCD)</span><span class="result-val">${pct(duty.mfn_rate_pct)}</span></div>
+    ${swsRow}
     <div class="result-row"><span class="result-key">Effective duty rate</span><span class="result-val teal">${pct(duty.effective_rate_pct)}</span></div>
-    <div class="result-row"><span class="result-key">VAT rate</span><span class="result-val">${pct(d.indirect_tax?.vat_rate_pct)}</span></div>
+    ${trSection}
+    <div class="result-row"><span class="result-key">${taxLabel} rate</span><span class="result-val">${pct(d.indirect_tax?.vat_rate_pct)}</span></div>
     <div class="result-row"><span class="result-key">Total border rate</span><span class="result-val green">${pct(sum.total_border_rate_pct)}</span></div>`;
 
   const amountsSection = !isRates ? `
     <div class="result-row"><span class="result-key">Customs value</span><span class="result-val">${curr} ${fmt(sum.customs_value)}</span></div>
-    <div class="result-row"><span class="result-key">Duty</span><span class="result-val">${curr} ${fmt(sum.duty_amount)}</span></div>
-    <div class="result-row"><span class="result-key">VAT</span><span class="result-val">${curr} ${fmt(sum.vat_amount)}</span></div>
-    ${sum.ad_surcharge > 0 ? `<div class="result-row"><span class="result-key">AD surcharge</span><span class="result-val amber">${curr} ${fmt(sum.ad_surcharge)}</span></div>` : ''}
+    <div class="result-row"><span class="result-key">BCD</span><span class="result-val">${curr} ${fmt(sum.duty_amount)}</span></div>
+    ${sum.sws_amount > 0 ? `<div class="result-row"><span class="result-key">SWS (10% of BCD)</span><span class="result-val">${curr} ${fmt(sum.sws_amount)}</span></div>` : ''}
+    ${sum.ad_surcharge > 0 ? `<div class="result-row"><span class="result-key" style="color:var(--red);">Anti-dumping / Safeguard</span><span class="result-val amber">${curr} ${fmt(sum.ad_surcharge)}</span></div>` : ''}
+    <div class="result-row"><span class="result-key">${taxLabel}</span><span class="result-val">${curr} ${fmt(sum.vat_amount)}</span></div>
     <div class="result-row"><span class="result-key">Total border cost</span><span class="result-val">${curr} ${fmt(sum.total_border_cost)}</span></div>
     <div class="result-total">
       <div class="result-total-label">Total Landed Cost</div>
       <div class="result-total-val">${curr} ${fmt(sum.total_landed_cost)}</div>
-    </div>`
-    : `<div style="font-size:12px;color:var(--text-3);margin-top:12px;padding:10px 12px;background:var(--bg);border-radius:6px;">Add a customs value to calculate currency amounts.</div>`;
+    </div>
+    ${drawbackSection}`
+    : `<div style="font-size:12px;color:var(--text-3);margin-top:12px;padding:10px 12px;background:var(--bg);border-radius:6px;">Add a customs value to calculate currency amounts.</div>
+    ${drawbackSection}`;
 
   const desc = inp.commodity_description
     ? `<div class="result-desc">${inp.commodity_description.substring(0, 120)}${inp.commodity_description.length > 120 ? '…' : ''}</div>`
