@@ -2128,8 +2128,10 @@ function enterApp() {
     document.getElementById('header-tenant').textContent =
       (currentUser.company_name || currentUser.email || '') + ' · Customs Intelligence';
     // Show Admin tab only for admin users
-    if (currentUser.is_admin) {
+    if (currentUser.is_admin === true) {
       document.getElementById('nav-admin').style.display = '';
+    } else {
+      document.getElementById('nav-admin').style.display = 'none';
     }
   }
   // Initialize all app modules
@@ -2182,6 +2184,7 @@ function logout() {
   currentUser = null;
   document.getElementById('auth-screen').style.display = '';
   document.getElementById('app-wrap').style.display = 'none';
+  document.getElementById('nav-admin').style.display = 'none';
 }
 
 // Check for password recovery token in URL (Supabase redirects with hash fragment)
