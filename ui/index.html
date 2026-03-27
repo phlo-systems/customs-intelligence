@@ -2744,26 +2744,39 @@ function renderResult(d) {
 
 async function generateOppsNow() {
   const btn = document.getElementById('gen-opps-btn');
-  if (btn) { btn.disabled = true; btn.textContent = 'Generating...'; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Analysing your trade routes...'; }
 
   try {
-    // Generate alerts first (includes AI-powered)
+    // Step 1: Generate AI-powered alerts from tenant profile
     await fetch(API_BASE + '/alerts', {
       method: 'POST', headers: getHeaders(),
       body: JSON.stringify({ action: 'generate' }),
     });
+    if (btn) btn.textContent = 'Finding opportunities...';
 
-    // Enrich opportunities
+    // Step 2: Enrich any existing opportunities with AI insights
     await fetch(API_BASE + '/enrich-opportunities', {
       method: 'POST', headers: getHeaders(),
       body: JSON.stringify({ batch_size: 30 }),
     });
 
-    // Reload
+    // Reload both screens
     await loadOpportunities();
     loadAlerts();
+
+    // If still no opportunities, show a helpful message
+    if (!allOpps || allOpps.length === 0) {
+      document.getElementById('opp-list').innerHTML = `<div class="empty">
+        <div class="empty-title">Building your intelligence feed</div>
+        <div style="color:var(--text-3);font-size:13px;margin:8px 0;">
+          We've generated trade alerts based on your profile. Opportunities are generated from tariff data analysis and will appear as our system identifies savings on your specific trade routes.
+          Check the <strong>Alerts</strong> tab for immediate intelligence.
+        </div>
+      </div>`;
+    }
   } catch (e) {
     console.error('Generate failed:', e);
+    if (btn) btn.textContent = 'Try again';
   }
   if (btn) { btn.disabled = false; btn.textContent = 'Generate Opportunities'; }
 }
