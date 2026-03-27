@@ -26,6 +26,15 @@ DECLARE
     v_all_chapters TEXT[];
 BEGIN
 
+    -- Helper: clean description text (remove leading dashes, kg refs)
+    CREATE OR REPLACE FUNCTION _clean_desc(t TEXT) RETURNS TEXT LANGUAGE sql IMMUTABLE AS $$
+        SELECT regexp_replace(
+            regexp_replace(
+                regexp_replace(COALESCE(t,''), '^[\s\-]+', '', 'g'),
+            '\s*kg\s+\d{4}\.\d+\s*', ' ', 'g'),
+        '\s+', ' ', 'g');
+    $$;
+
     FOR v_tenant IN
         SELECT tc.*
         FROM TENANT_CONTEXT tc

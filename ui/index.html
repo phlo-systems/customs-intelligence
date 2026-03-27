@@ -1085,20 +1085,22 @@
         <div class="stat-value" id="stat-total">—</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">Top Saving / ZAR 10K</div>
+        <div class="stat-label">Biggest Saving</div>
         <div class="stat-value green" id="stat-top">—</div>
         <div class="stat-sub" id="stat-top-hs">—</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">Agreements Active</div>
+        <div class="stat-label">Trade Agreements</div>
         <div class="stat-value teal" id="stat-agreements">—</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">Import Market</div>
-        <div class="stat-value">ZA</div>
-        <div class="stat-sub">South Africa</div>
+        <div class="stat-label">Markets Covered</div>
+        <div class="stat-value" id="stat-markets">—</div>
+        <div class="stat-sub" id="stat-markets-list">—</div>
       </div>
     </div>
+
+    <div id="opp-data-age" style="font-size:11px;color:var(--text-3);font-family:var(--mono);margin-bottom:12px;"></div>
 
     <div class="filters" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
       <div style="display:flex;align-items:center;gap:6px;">
@@ -1145,8 +1147,8 @@
         </div>
         <div class="form-group">
           <label>Commodity Code</label>
-          <input type="text" id="l-code" value="20041010" placeholder="e.g. 20041010 or 2004101000">
-          <div class="hint">Any HS code length — auto-matched to the import country's national format</div>
+          <input type="text" id="l-code" value="" placeholder="e.g. 74081110 or 2801">
+          <div class="hint">Any HS code length — auto-matched to national format. <a href="#" onclick="event.preventDefault();showScreen('classify',document.querySelectorAll('nav .nav-tab')[3])" style="color:var(--teal);">Don't know the code? Use Classify</a></div>
         </div>
         <div class="form-group">
           <label>Customs Value (optional)</label>
@@ -1356,6 +1358,7 @@
         <div class="form-group">
           <label>Primary HS Chapters</label>
           <input type="text" id="p-hs-chapters" placeholder="e.g. 20, 74, 18">
+          <div class="hint" id="p-hs-names" style="color:var(--teal);"></div>
           <div class="hint">Comma-separated chapter numbers</div>
         </div>
         <div class="form-group">
@@ -2156,6 +2159,35 @@ async function init() {
   loadOpportunities();
 }
 
+// ── HS Chapter Names ──────────────────────────────────────────────────────────
+const HS_CHAPTERS = {
+  '01':'Live animals','02':'Meat','03':'Fish & seafood','04':'Dairy & eggs','05':'Animal products NES',
+  '06':'Live plants','07':'Vegetables','08':'Fruits & nuts','09':'Coffee, tea, spices','10':'Cereals',
+  '11':'Milling products','12':'Oilseeds','13':'Lac, gums, resins','14':'Vegetable plaiting',
+  '15':'Fats & oils','16':'Meat/fish preparations','17':'Sugar','18':'Cocoa','19':'Cereal preparations',
+  '20':'Vegetable/fruit preparations','21':'Food preparations NES','22':'Beverages','23':'Food residues','24':'Tobacco',
+  '25':'Salt, earth, stone','26':'Ores','27':'Mineral fuels','28':'Inorganic chemicals','29':'Organic chemicals',
+  '30':'Pharmaceuticals','31':'Fertilizers','32':'Dyes & paints','33':'Cosmetics & oils','34':'Soap & candles',
+  '35':'Albumins & glues','36':'Explosives','37':'Photo goods','38':'Chemical products NES',
+  '39':'Plastics','40':'Rubber','41':'Leather','42':'Leather articles','43':'Furskins',
+  '44':'Wood','45':'Cork','46':'Straw/plaiting','47':'Wood pulp','48':'Paper','49':'Printed matter',
+  '50':'Silk','51':'Wool','52':'Cotton','53':'Vegetable fibres','54':'Man-made filaments','55':'Man-made staple',
+  '56':'Wadding & felt','57':'Carpets','58':'Special woven','59':'Coated textiles','60':'Knitted fabrics',
+  '61':'Knitted apparel','62':'Woven apparel','63':'Textile articles NES',
+  '64':'Footwear','65':'Headgear','66':'Umbrellas','67':'Feathers',
+  '68':'Stone articles','69':'Ceramics','70':'Glass','71':'Precious metals & jewelry',
+  '72':'Iron & steel','73':'Iron/steel articles','74':'Copper','75':'Nickel','76':'Aluminium',
+  '78':'Lead','79':'Zinc','80':'Tin','81':'Other base metals','82':'Tools','83':'Base metal articles NES',
+  '84':'Machinery','85':'Electrical equipment','86':'Railway','87':'Vehicles','88':'Aircraft','89':'Ships',
+  '90':'Optical & medical','91':'Clocks & watches','92':'Musical instruments','93':'Arms',
+  '94':'Furniture','95':'Toys & games','96':'Manufactured NES','97':'Art & antiques',
+};
+
+function hsChapterName(code) {
+  const ch = String(code).padStart(2,'0');
+  return HS_CHAPTERS[ch] || 'Chapter ' + ch;
+}
+
 // ── Country Dropdowns ─────────────────────────────────────────────────────────
 const SUPABASE_URL = 'https://epytgmksddhvwziwxhuq.supabase.co';
 let countryList = [];
@@ -2213,6 +2245,15 @@ async function loadCountryDropdowns() {
   // Initialize compare screen chips
   initCompareChips();
 
+  // Live HS chapter name display
+  const hsInput = document.getElementById('p-hs-chapters');
+  if (hsInput) {
+    hsInput.addEventListener('input', function() {
+      const chapters = this.value.split(',').map(s => s.trim()).filter(Boolean);
+      document.getElementById('p-hs-names').textContent = chapters.map(c => hsChapterName(c)).join(', ');
+    });
+  }
+
   // Auto-update currency when import country changes
   const importSelect = document.getElementById('l-import');
   if (importSelect) {
@@ -2237,12 +2278,29 @@ async function loadOpportunities() {
 
     const top = allOpps[0];
     if (top) {
-      document.getElementById('stat-top').textContent    = `ZAR ${Number(top.savingamtper10k).toLocaleString()}`;
-      document.getElementById('stat-top-hs').textContent = `HS ${top.subheadingcode} · ${top.exportcountrycode}→${top.importcountrycode}`;
+      const savePct = top.savingpct ? Number(top.savingpct).toFixed(0) + 'pp' : '—';
+      document.getElementById('stat-top').textContent    = savePct;
+      const cName = (countryList.find(c => c.countrycode === top.importcountrycode) || {}).countryname || top.importcountrycode;
+      document.getElementById('stat-top-hs').textContent = `HS ${top.subheadingcode} · ${cName}`;
     }
 
     const agreements = [...new Set(allOpps.map(o => o.agreementcode).filter(Boolean))];
     document.getElementById('stat-agreements').textContent = agreements.length;
+
+    // Markets covered
+    const markets = [...new Set(allOpps.map(o => o.importcountrycode).filter(Boolean))];
+    document.getElementById('stat-markets').textContent = markets.length;
+    document.getElementById('stat-markets-list').textContent = markets.slice(0, 4).map(m =>
+      (countryList.find(c => c.countrycode === m) || {}).countryname || m
+    ).join(', ');
+
+    // Data freshness indicator
+    const newest = allOpps[0]?.detectedat;
+    if (newest) {
+      const age = Math.floor((Date.now() - new Date(newest).getTime()) / 3600000);
+      const ageStr = age < 1 ? 'just now' : age < 24 ? age + 'h ago' : Math.floor(age/24) + 'd ago';
+      document.getElementById('opp-data-age').textContent = 'Data as of ' + new Date(newest).toLocaleDateString() + ' (' + ageStr + ')';
+    }
 
     renderOpps(allOpps);
   } catch(e) {
@@ -2299,7 +2357,7 @@ function oppCard(o, i) {
             <span class="opp-hs">· HS ${o.subheadingcode}</span>
             ${agr}
           </div>
-          <div class="opp-headline">${o.headline}</div>
+          <div class="opp-headline">${(o.headline||'').replace(/^[\s\-]+/,'').replace(/\d+\.\d{4}pp/g, m => parseFloat(m)+'pp')}</div>
         </div>
         <div class="opp-actions">
           <div class="opp-type-tag">${label}</div>
@@ -3070,7 +3128,10 @@ async function loadProfile() {
     const p = data.profile || {};
     if (p.business_type) document.getElementById('p-business-type').value = p.business_type;
     if (p.annual_volume_range) document.getElementById('p-volume').value = p.annual_volume_range;
-    if (p.primary_hs_chapters?.length) document.getElementById('p-hs-chapters').value = p.primary_hs_chapters.join(', ');
+    if (p.primary_hs_chapters?.length) {
+      document.getElementById('p-hs-chapters').value = p.primary_hs_chapters.join(', ');
+      document.getElementById('p-hs-names').textContent = p.primary_hs_chapters.map(c => hsChapterName(c)).join(', ');
+    }
     if (p.active_origins?.length) document.getElementById('p-origins').value = p.active_origins.join(', ');
     if (p.active_destinations?.length) document.getElementById('p-destinations').value = p.active_destinations.join(', ');
     if (p.target_markets?.length) document.getElementById('p-markets').value = p.target_markets.join(', ');
