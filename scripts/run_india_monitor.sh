@@ -36,11 +36,23 @@ echo "=== Running rules engine ===" >> "$LOG_FILE"
 $PYTHON -c "
 import os, requests, json
 url = os.environ['SUPABASE_URL']; key = os.environ['SUPABASE_SERVICE_KEY']
-resp = requests.post(f'{url}/rest/v1/rpc/run_rules_engine',
-    headers={'apikey':key,'Authorization':f'Bearer {key}','Content-Type':'application/json'},
+hdrs = {'apikey':key,'Authorization':f'Bearer {key}','Content-Type':'application/json'}
+
+# Rules engine (alerts from rate changes, AD measures, etc.)
+r1 = requests.post(f'{url}/rest/v1/rpc/run_rules_engine', headers=hdrs,
     json={'p_lookback_days':7,'p_country':'IN'}, timeout=30)
-print(json.dumps(resp.json(), indent=2))
+print('Rules engine:', json.dumps(r1.json(), indent=2))
+
+# Personalised opportunities (per tenant profile)
+r2 = requests.post(f'{url}/rest/v1/rpc/generate_personalised_opportunities', headers=hdrs,
+    json={'p_country':'IN'}, timeout=30)
+print('Personalised opps:', json.dumps(r2.json(), indent=2))
 " >> "$LOG_FILE" 2>&1 || true
+
+# Update exchange rates
+echo "" >> "$LOG_FILE"
+echo "=== Updating exchange rates ===" >> "$LOG_FILE"
+$PYTHON -m scripts.exchange_rate_updater >> "$LOG_FILE" 2>&1 || true
 
 # Clean up old logs (keep 30 days)
 find "$LOG_DIR" -name "india-monitor-*.log" -mtime +30 -delete 2>/dev/null || true

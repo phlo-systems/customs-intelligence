@@ -155,35 +155,62 @@ async function generateInsight(
 
   const oppTypeDesc = OPPORTUNITY_TYPE_CONTEXT[opp.opportunitytype] ?? "a trade opportunity";
 
-  const tenantDesc = context ? `
-Business type: ${context.businesstype ?? "trader"}
-Primary HS chapters: ${(context.primaryhschapters ?? []).join(", ")}
-Active origins: ${(context.activeorigincountries ?? []).join(", ")}
-Active destinations: ${(context.activedestcountries ?? []).join(", ")}
-Target markets: ${(context.targetmarkets ?? []).join(", ")}
-Annual volume: ${context.annualvolumerange ?? "unknown"}
-` : "No detailed context available.";
+  // Build rich tenant context from all 5 layers
+  let tenantDesc = "No detailed context available.";
+  if (context) {
+    const parts: string[] = [];
+    // Layer 1: Onboarding
+    parts.push(`Business type: ${context.businesstype ?? "trader"}`);
+    if (context.primaryhschapters?.length) parts.push(`Primary HS chapters: ${context.primaryhschapters.join(", ")}`);
+    if (context.annualvolumerange) parts.push(`Annual volume: ${context.annualvolumerange}`);
+    // Layer 2: Product library
+    if (context.activeorigincountries?.length) parts.push(`Source countries: ${context.activeorigincountries.join(", ")}`);
+    if (context.activedestcountries?.length) parts.push(`Destination countries: ${context.activedestcountries.join(", ")}`);
+    if (context.targetmarkets?.length) parts.push(`Target markets: ${context.targetmarkets.join(", ")}`);
+    // Layer 3: Behavioral signals
+    if (context.highinterestcountries?.length) parts.push(`High-interest countries (recent searches): ${context.highinterestcountries.join(", ")}`);
+    if (context.primaryfocus) parts.push(`Primary focus: ${context.primaryfocus}`);
+    // Layer 4: ERP data
+    if (context.erpconnected) {
+      parts.push(`ERP connected: ${context.erptype}`);
+      if (context.topsuppliercountries?.length) parts.push(`Top supplier countries (from invoices): ${context.topsuppliercountries.join(", ")}`);
+      if (context.topcustomercountries?.length) parts.push(`Top customer countries (from invoices): ${context.topcustomercountries.join(", ")}`);
+      if (context.avgpovaluegbp) parts.push(`Avg PO value: GBP ${context.avgpovaluegbp}`);
+    }
+    // Layer 5: Email context
+    if (context.emailconnected) {
+      if (context.knowncompetitororigins?.length) parts.push(`Known competitor origins (from emails): ${context.knowncompetitororigins.join(", ")}`);
+      if (context.knowntradebarriers?.length) parts.push(`Known trade barriers (from emails): ${context.knowntradebarriers.join(", ")}`);
+    }
+    tenantDesc = parts.join("\n");
+  }
 
-  const prompt = `You are a customs and trade expert writing concise opportunity insights for commodity traders.
+  const prompt = `You are a customs and trade intelligence analyst writing personalised insights for a specific trader.
 
-The trader's profile:
+TRADER PROFILE:
 ${tenantDesc}
 
-The opportunity:
+OPPORTUNITY:
 - Type: ${opp.opportunitytype} — ${oppTypeDesc}
+- Headline: ${opp.headline ?? ""}
 - HS subheading: ${opp.subheadingcode}
-- Route: ${opp.exportcountrycode} → ${opp.importcountrycode}
+- Route: ${opp.exportcountrycode ?? "?"} → ${opp.importcountrycode ?? "?"}
 - Agreement: ${opp.agreementcode ?? "N/A"}
-- Duty saving: ${opp.savingpct ?? 0}pp
-- Saving per ZAR 10,000 shipment: ZAR ${opp.savingamtper10k ?? 0}
+- Duty saving: ${opp.savingpct ?? 0} percentage points
+- Estimated saving per 10,000 shipment: ${opp.savingamtper10k ?? 0}
 
 Write exactly 2-3 sentences that:
-1. Explain what this opportunity means specifically for this trader
-2. State the concrete financial benefit
-3. Suggest one practical action they should take
+1. Connect this opportunity to the trader's SPECIFIC business — reference their trade routes, supplier countries, or product categories where relevant
+2. Quantify the impact: use their avg PO value if available, otherwise use the saving percentage
+3. Give ONE concrete next step (e.g. "request a Certificate of Origin from your GB supplier", "contact your freight forwarder about routing via...", "review the Rules of Origin for...")
 
-Be direct and specific. Use plain English. No jargon. No bullet points. No headings.
-Do not start with "This opportunity" or "As a trader". Start with the commodity or the route.`;
+RULES:
+- Be direct and specific to THIS trader's situation
+- If their ERP/email data reveals relevant supplier or competitor info, reference it
+- If the opportunity involves a country they're already active in, acknowledge that
+- If it involves a new market, frame it as expansion potential
+- Start with the commodity or the route, never with "This opportunity" or "As a"
+- No bullet points, no headings, plain English`;
 
   const message = await anthropic.messages.create({
     model:      "claude-sonnet-4-20250514",
