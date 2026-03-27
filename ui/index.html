@@ -2833,7 +2833,7 @@ function setOppView(view) {
   document.getElementById('opp-swipe-view').style.display = view === 'swipe' ? '' : 'none';
 
   if (view === 'swipe') {
-    swipeOpps = (allOpps || []).filter(o => !o.isdismissed && !o.isactioned);
+    swipeOpps = (allOpps || []).filter(o => !o.isdismissed);
     swipeIndex = 0;
     swipeHistory = [];
     swipeStats = { actioned: 0, dismissed: 0 };
