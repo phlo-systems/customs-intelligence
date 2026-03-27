@@ -429,6 +429,71 @@
 
   .page-loader { display: flex; align-items: center; gap: 10px; padding: 40px 0; color: var(--text-3); font-size: 13px; }
 
+  /* ── Commodity Code Autocomplete ── */
+  .hs-autocomplete {
+    position: relative;
+  }
+  .hs-autocomplete input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 16px;
+    font-family: var(--sans);
+    background: var(--surface);
+    min-height: 44px;
+  }
+  .hs-autocomplete input:focus { border-color: var(--teal); outline: none; }
+  .hs-suggestions {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+    z-index: 50;
+    max-height: 240px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .hs-suggestions.open { display: block; }
+  .hs-suggestion {
+    padding: 10px 14px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid var(--bg);
+    font-size: 13px;
+  }
+  .hs-suggestion:last-child { border-bottom: none; }
+  .hs-suggestion:hover, .hs-suggestion.active { background: var(--teal-bg); }
+  .hs-suggestion-code {
+    font-family: var(--mono);
+    font-weight: 500;
+    color: var(--teal);
+    white-space: nowrap;
+    font-size: 12px;
+  }
+  .hs-suggestion-desc {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-2);
+  }
+  .hs-hint {
+    font-size: 11px;
+    color: var(--text-3);
+    margin-top: 4px;
+  }
+
   .country-select {
     width: 100%;
     padding: 10px 12px;
@@ -1152,9 +1217,12 @@
           </select>
         </div>
         <div class="form-group">
-          <label>Commodity Code</label>
-          <input type="text" id="l-code" value="" placeholder="e.g. 74081110 or 2801">
-          <div class="hint">Any HS code length — auto-matched to national format. <a href="#" onclick="event.preventDefault();showScreen('classify',document.querySelectorAll('nav .nav-tab')[3])" style="color:var(--teal);">Don't know the code? Use Classify</a></div>
+          <label>Commodity Code or Product Name</label>
+          <div class="hs-autocomplete">
+            <input type="text" id="l-code" placeholder="e.g. 74081110 or type 'copper wire'" autocomplete="off">
+            <div class="hs-suggestions" id="l-code-suggestions"></div>
+          </div>
+          <div class="hs-hint">Type a code or product name — suggestions appear after 3 characters</div>
         </div>
         <div class="form-group">
           <label>Customs Value (optional)</label>
@@ -1203,8 +1271,11 @@
               <select id="cmp-import" class="country-select" style="width:100%;padding:10px 12px;font-size:16px;"><option value="">Select...</option></select>
             </div>
             <div class="form-group" style="margin:0;">
-              <label>Commodity Code</label>
-              <input type="text" id="cmp-code" placeholder="e.g. 74081110" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+              <label>Code or Product</label>
+              <div class="hs-autocomplete">
+                <input type="text" id="cmp-code" placeholder="e.g. copper wire" autocomplete="off">
+                <div class="hs-suggestions" id="cmp-code-suggestions"></div>
+              </div>
             </div>
             <div class="form-group" style="margin:0;">
               <label>CIF Value (optional)</label>
@@ -1225,8 +1296,11 @@
               <select id="cmp-export" class="country-select" style="width:100%;padding:10px 12px;font-size:16px;"><option value="">Select...</option></select>
             </div>
             <div class="form-group" style="margin:0;">
-              <label>Commodity Code</label>
-              <input type="text" id="cmp-code-ex" placeholder="e.g. 74081110" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+              <label>Code or Product</label>
+              <div class="hs-autocomplete">
+                <input type="text" id="cmp-code-ex" placeholder="e.g. rice or 1006" autocomplete="off">
+                <div class="hs-suggestions" id="cmp-code-ex-suggestions"></div>
+              </div>
             </div>
             <div class="form-group" style="margin:0;">
               <label>CIF Value (optional)</label>
@@ -2240,8 +2314,9 @@ async function loadCountryDropdowns() {
     else if (currentVal) select.value = currentVal;
   });
 
-  // Initialize compare screen chips
+  // Initialize compare screen chips and HS autocomplete
   initCompareChips();
+  initAllHSAutocomplete();
 
   // Live HS chapter name display
   const hsInput = document.getElementById('p-hs-chapters');
@@ -2597,6 +2672,149 @@ function renderResult(d) {
     ${prefBanner}
     ${ratesSection}
     ${amountsSection}`;
+}
+
+// ── HS Code Autocomplete ─────────────────────────────────────────────────────
+
+let hsSearchTimer = null;
+
+function initHSAutocomplete(inputId, suggestionsId) {
+  const input = document.getElementById(inputId);
+  const suggestions = document.getElementById(suggestionsId);
+  if (!input || !suggestions) return;
+
+  input.addEventListener('input', function() {
+    const val = this.value.trim();
+    clearTimeout(hsSearchTimer);
+
+    // If starts with digit, treat as HS code — no autocomplete needed
+    if (/^\d/.test(val)) {
+      suggestions.classList.remove('open');
+      return;
+    }
+
+    // Need 3+ chars for text search
+    if (val.length < 3) {
+      suggestions.classList.remove('open');
+      return;
+    }
+
+    // Debounce 300ms
+    hsSearchTimer = setTimeout(() => searchHS(val, inputId, suggestionsId), 300);
+  });
+
+  // Close on click outside
+  document.addEventListener('click', function(e) {
+    if (!input.contains(e.target) && !suggestions.contains(e.target)) {
+      suggestions.classList.remove('open');
+    }
+  });
+
+  // Keyboard navigation
+  input.addEventListener('keydown', function(e) {
+    if (!suggestions.classList.contains('open')) return;
+    const items = suggestions.querySelectorAll('.hs-suggestion');
+    const active = suggestions.querySelector('.hs-suggestion.active');
+    let idx = Array.from(items).indexOf(active);
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (active) active.classList.remove('active');
+      idx = (idx + 1) % items.length;
+      items[idx].classList.add('active');
+      items[idx].scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (active) active.classList.remove('active');
+      idx = idx <= 0 ? items.length - 1 : idx - 1;
+      items[idx].classList.add('active');
+      items[idx].scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'Enter' && active) {
+      e.preventDefault();
+      active.click();
+    } else if (e.key === 'Escape') {
+      suggestions.classList.remove('open');
+    }
+  });
+}
+
+async function searchHS(query, inputId, suggestionsId) {
+  const suggestions = document.getElementById(suggestionsId);
+
+  // Determine which country to search in
+  let country = 'IN'; // default
+  if (inputId === 'l-code') {
+    country = document.getElementById('l-import')?.value || 'IN';
+  } else if (inputId === 'cmp-code') {
+    country = document.getElementById('cmp-import')?.value || 'IN';
+  } else if (inputId === 'cmp-code-ex') {
+    // For exporter view, search in a destination country that has data
+    const chips = document.querySelectorAll('#cmp-destinations .cmp-chip.active');
+    country = chips.length > 0 ? chips[0].dataset.code : 'IN';
+  }
+
+  try {
+    const r = await fetch(API_BASE + '/tariff-lookup', {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({
+        import_country: country,
+        commodity_code: '0000', // dummy — we're using the search below instead
+      }),
+    });
+    // Actually, let's search the DB directly via the classify endpoint concept
+    // Better: search commodity_code descriptions via Supabase REST
+  } catch(e) {}
+
+  // Search commodity descriptions via classify edge function
+  try {
+    const r = await fetch(API_BASE + '/classify', {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ description: query, country: country }),
+    });
+    const data = await r.json();
+    // Classify returns {suggestions:[{commodity_code, subheading_code, confidence, reasoning}]}
+    // or {commodity_code, description} for cache hits
+    let results = [];
+    if (data.suggestions) {
+      results = data.suggestions.map(s => ({
+        commoditycode: s.commodity_code,
+        nationaldescription: s.reasoning || s.description || query,
+      }));
+    } else if (data.commodity_code) {
+      results = [{ commoditycode: data.commodity_code, nationaldescription: data.description || query }];
+    }
+
+    if (!results.length) {
+      suggestions.innerHTML = '<div style="padding:12px 14px;color:var(--text-3);font-size:12px;">No matches found for "' + query + '" in ' + country + '</div>';
+      suggestions.classList.add('open');
+      return;
+    }
+
+    suggestions.innerHTML = results.map(r => {
+      const desc = (r.nationaldescription || '').replace(/^[\s\-]+/, '').substring(0, 50);
+      return `<div class="hs-suggestion" onclick="selectHS('${inputId}', '${suggestionsId}', '${r.commoditycode}', '${desc.replace(/'/g, "\\'")}')">
+        <span class="hs-suggestion-code">${r.commoditycode}</span>
+        <span class="hs-suggestion-desc">${desc}</span>
+      </div>`;
+    }).join('');
+    suggestions.classList.add('open');
+  } catch(e) {
+    console.error('HS search error:', e);
+  }
+}
+
+function selectHS(inputId, suggestionsId, code, desc) {
+  document.getElementById(inputId).value = code;
+  document.getElementById(suggestionsId).classList.remove('open');
+}
+
+// Initialize autocomplete on all HS code inputs
+function initAllHSAutocomplete() {
+  initHSAutocomplete('l-code', 'l-code-suggestions');
+  initHSAutocomplete('cmp-code', 'cmp-code-suggestions');
+  initHSAutocomplete('cmp-code-ex', 'cmp-code-ex-suggestions');
 }
 
 // ── Compare Routes ───────────────────────────────────────────────────────────
