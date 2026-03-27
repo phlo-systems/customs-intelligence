@@ -1435,7 +1435,7 @@
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
         <div class="form-group" style="margin:0;">
           <label>What do you do?</label>
-          <select id="p-business-type" class="country-select">
+          <select id="p-business-type" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:16px;min-height:44px;background:var(--surface);">
             <option value="">Select...</option>
             <option value="TRADER">Trader (buy & sell internationally)</option>
             <option value="IMPORTER">Importer (buy from overseas)</option>
@@ -1446,7 +1446,7 @@
         </div>
         <div class="form-group" style="margin:0;">
           <label>Annual trade volume (USD)</label>
-          <select id="p-volume" class="country-select">
+          <select id="p-volume" style="width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:16px;min-height:44px;background:var(--surface);">
             <option value="">Select...</option>
             <option value="<500K">Under $500K</option>
             <option value="500K-2M">$500K – $2M</option>
@@ -2610,6 +2610,7 @@ function showScreen(name, el) {
   document.getElementById(`screen-${name}`).classList.add('active');
   if (el) el.classList.add('active');
   if (name === 'admin') onAdminScreenShow();
+  if (name === 'profile') initProfileChips();
 }
 
 // ── Tariff Lookup ─────────────────────────────────────────────────────────────
@@ -3615,20 +3616,20 @@ const PRODUCT_CATEGORIES = [
 ];
 
 function initProfileChips() {
-  // Product category chips
+  // Product category chips (skip if already populated)
   const prodDiv = document.getElementById('p-product-chips');
-  if (prodDiv) {
+  if (prodDiv && prodDiv.children.length === 0) {
     prodDiv.innerHTML = PRODUCT_CATEGORIES.map(cat =>
-      `<div class="filter-chip profile-cat-chip" data-chapters="${cat.chapters.join(',')}" onclick="toggleProfileChip(this,'product')" style="font-size:12px;">${cat.label}</div>`
+      `<div class="filter-chip profile-cat-chip" data-chapters="${cat.chapters.join(',')}" onclick="toggleProfileChip(this,'product')" style="font-size:13px;padding:8px 14px;border:1px solid var(--border-md);">${cat.label}</div>`
     ).join('');
   }
 
   // Country chips for origins, destinations, markets
   ['p-origins-chips','p-destinations-chips','p-markets-chips'].forEach(divId => {
     const div = document.getElementById(divId);
-    if (div) {
+    if (div && div.children.length === 0) {
       div.innerHTML = countryList.map(c =>
-        `<div class="filter-chip profile-country-chip" data-code="${c.countrycode}" onclick="toggleProfileChip(this,'country')" style="font-size:11px;padding:4px 8px;">${c.countrycode}</div>`
+        `<div class="filter-chip profile-country-chip" data-code="${c.countrycode}" onclick="toggleProfileChip(this,'country')" style="font-size:12px;padding:6px 10px;border:1px solid var(--border-md);">${c.countryname}</div>`
       ).join('');
     }
   });
