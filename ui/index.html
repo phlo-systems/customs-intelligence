@@ -1383,42 +1383,51 @@ function logout() {
 }
 
 // Check for existing session on page load
-if (currentSession?.access_token) {
-  // Verify token is still valid
-  fetch(API_BASE + '/auth', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + currentSession.access_token },
-    body: JSON.stringify({ action: 'me' }),
-  }).then(r => r.json()).then(data => {
+(async function checkSession() {
+  if (!currentSession?.access_token) {
+    document.getElementById('auth-screen').style.display = '';
+    return;
+  }
+
+  try {
+    // Verify token
+    const r = await fetch(API_BASE + '/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + currentSession.access_token },
+      body: JSON.stringify({ action: 'me' }),
+    });
+    const data = await r.json();
+
     if (data.user) {
       currentUser = data.user;
       localStorage.setItem('ci_user', JSON.stringify(data.user));
       enterApp();
-    } else {
-      // Token expired — try refresh
-      if (currentSession.refresh_token) {
-        fetch(API_BASE + '/auth', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'refresh', refresh_token: currentSession.refresh_token }),
-        }).then(r => r.json()).then(rd => {
-          if (rd.session) {
-            currentSession = rd.session;
-            localStorage.setItem('ci_session', JSON.stringify(rd.session));
-            enterApp();
-          } else {
-            logout();
-          }
-        }).catch(() => logout());
-      } else {
-        logout();
+      return;
+    }
+
+    // Token expired — try refresh
+    if (currentSession.refresh_token) {
+      const rr = await fetch(API_BASE + '/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'refresh', refresh_token: currentSession.refresh_token }),
+      });
+      const rd = await rr.json();
+
+      if (rd.session) {
+        currentSession = rd.session;
+        localStorage.setItem('ci_session', JSON.stringify(rd.session));
+        enterApp();
+        return;
       }
     }
-  }).catch(() => logout());
-} else {
-  // No session — show login
-  document.getElementById('auth-screen').style.display = '';
-}
+  } catch (e) {
+    console.error('Session check failed:', e);
+  }
+
+  // All checks failed — show login
+  logout();
+})();
 
 const TYPE_LABELS = {
   DUTY_REDUCTION:          'Duty Reduction',

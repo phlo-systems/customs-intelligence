@@ -35,23 +35,35 @@ Deno.serve(async (req: Request) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
 
-  // ── Validate API key ───────────────────────────────────────────────────────
-  const rawKey = req.headers.get("x-api-key");
-  if (!rawKey) return json({ error: "Missing X-API-Key header" }, 401);
+  // ── Resolve tenant (JWT or API key) ─────────────────────────────────────
+  let tenantId: string | null = null;
 
-  const keyHash = await sha256hex(rawKey);
+  // Try JWT first (from frontend login)
+  const authHeader = req.headers.get("authorization");
+  if (authHeader?.startsWith("Bearer ")) {
+    const token = authHeader.replace("Bearer ", "");
+    const { data: { user } } = await supabase.auth.getUser(token);
+    if (user) tenantId = user.id;
+  }
 
-  const { data: keyRow, error: keyErr } = await supabase
-    .from("api_key")
-    .select("keyid, tenantid, tenantuid, isactive")
-    .eq("keyhash", keyHash)
-    .eq("isactive", true)
-    .maybeSingle();
+  // Fall back to X-API-Key (programmatic access)
+  if (!tenantId) {
+    const rawKey = req.headers.get("x-api-key");
+    if (rawKey) {
+      const keyHash = await sha256hex(rawKey);
+      const { data: keyRow } = await supabase
+        .from("api_key")
+        .select("tenantuid")
+        .eq("keyhash", keyHash)
+        .eq("isactive", true)
+        .maybeSingle();
+      if (keyRow?.tenantuid) tenantId = keyRow.tenantuid;
+    }
+  }
 
-  if (keyErr || !keyRow) return json({ error: "Invalid API key" }, 401);
+  if (!tenantId) return json({ error: "Authentication required." }, 401);
 
-  const tenantUID: string = keyRow.tenantuid;
-  const tenantID:  string = keyRow.tenantid;
+  const tenantID:  string = tenantId;
 
   // ── GET — return current context ───────────────────────────────────────────
   if (req.method === "GET") {

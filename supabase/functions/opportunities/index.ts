@@ -25,19 +25,33 @@ Deno.serve(async (req: Request) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
 
-  // ── Validate API key ───────────────────────────────────────────────────────
-  const rawKey = req.headers.get("x-api-key");
-  if (!rawKey) return json({ error: "Missing X-API-Key header" }, 401);
+  // ── Resolve tenant (JWT or API key) ─────────────────────────────────────
+  let tenantId: string | null = null;
 
-  const keyHash = await sha256hex(rawKey);
-  const { data: keyRow, error: keyErr } = await supabase
-    .from("api_key")
-    .select("keyid, tenantuid, isactive")
-    .eq("keyhash", keyHash)
-    .eq("isactive", true)
-    .maybeSingle();
+  // Try JWT first (from frontend login)
+  const authHeader = req.headers.get("authorization");
+  if (authHeader?.startsWith("Bearer ")) {
+    const token = authHeader.replace("Bearer ", "");
+    const { data: { user } } = await supabase.auth.getUser(token);
+    if (user) tenantId = user.id;
+  }
 
-  if (keyErr || !keyRow) return json({ error: "Invalid API key" }, 401);
+  // Fall back to X-API-Key (programmatic access)
+  if (!tenantId) {
+    const rawKey = req.headers.get("x-api-key");
+    if (rawKey) {
+      const keyHash = await sha256hex(rawKey);
+      const { data: keyRow } = await supabase
+        .from("api_key")
+        .select("tenantuid")
+        .eq("keyhash", keyHash)
+        .eq("isactive", true)
+        .maybeSingle();
+      if (keyRow?.tenantuid) tenantId = keyRow.tenantuid;
+    }
+  }
+
+  if (!tenantId) return json({ error: "Authentication required." }, 401);
 
   // ── Parse query params ─────────────────────────────────────────────────────
   const url        = new URL(req.url);
@@ -55,7 +69,7 @@ Deno.serve(async (req: Request) => {
       aiinsightgeneratedat, isactioned, isdismissed,
       expiresat, detectedat
     `)
-    .eq("tenantid", keyRow.tenantuid)
+    .eq("tenantid", tenantId)
     .eq("isdismissed", false)
     .gte("savingamtper10k", minSaving)
     .order("savingamtper10k", { ascending: false, nullsFirst: false })

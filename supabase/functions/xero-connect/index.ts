@@ -116,7 +116,7 @@ Deno.serve(async (req: Request) => {
                 .eq("keyhash", keyHash)
                 .eq("isactive", true)
                 .maybeSingle();
-              if (keyRow?.tenantuid) tenantUID = keyRow.tenantuid;
+              if (keyRow?.tenantuid) tenantUID = tenantId;
             }
           } catch { /* use default */ }
         }
@@ -158,22 +158,33 @@ Deno.serve(async (req: Request) => {
 
   // ── POST: Token refresh, disconnect, or status ───────────────────────────
   if (req.method === "POST") {
-    // Validate API key
+  // ── Resolve tenant (JWT or API key) ─────────────────────────────────────
+  let tenantId: string | null = null;
+
+  // Try JWT first (from frontend login)
+  const authHeader = req.headers.get("authorization");
+  if (authHeader?.startsWith("Bearer ")) {
+    const token = authHeader.replace("Bearer ", "");
+    const { data: { user } } = await supabase.auth.getUser(token);
+    if (user) tenantId = user.id;
+  }
+
+  // Fall back to X-API-Key (programmatic access)
+  if (!tenantId) {
     const rawKey = req.headers.get("x-api-key");
-    if (!rawKey) return json({ error: "Missing X-API-Key" }, 401);
+    if (rawKey) {
+      const keyHash = await sha256hex(rawKey);
+      const { data: keyRow } = await supabase
+        .from("api_key")
+        .select("tenantuid")
+        .eq("keyhash", keyHash)
+        .eq("isactive", true)
+        .maybeSingle();
+      if (keyRow?.tenantuid) tenantId = keyRow.tenantuid;
+    }
+  }
 
-    const keyHash = await sha256hex(rawKey);
-    const { data: keyRow } = await supabase
-      .from("api_key")
-      .select("keyid, tenantid, tenantuid, isactive")
-      .eq("keyhash", keyHash)
-      .eq("isactive", true)
-      .maybeSingle();
-
-    if (!keyRow) return json({ error: "Invalid API key" }, 401);
-
-    // Use tenantuid (UUID) consistently — this is what the callback writes
-    const tenantId = keyRow.tenantuid || keyRow.tenantid;
+  if (!tenantId) return json({ error: "Authentication required." }, 401);
 
     let body: Record<string, unknown>;
     try { body = await req.json(); }
