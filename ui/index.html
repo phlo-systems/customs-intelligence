@@ -429,6 +429,20 @@
 
   .page-loader { display: flex; align-items: center; gap: 10px; padding: 40px 0; color: var(--text-3); font-size: 13px; }
 
+  .country-select {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: var(--sans);
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    appearance: auto;
+  }
+  .country-select:focus { border-color: var(--teal); outline: none; }
+
   .screen { display: none; }
   .screen.active { display: block; }
 
@@ -1112,12 +1126,16 @@
         <div class="form-title">Tariff Lookup</div>
         <div class="form-group">
           <label>Export Country (optional)</label>
-          <input type="text" id="l-export" value="" maxlength="2" placeholder="e.g. GB">
+          <select id="l-export" class="country-select">
+            <option value="">— Select origin country —</option>
+          </select>
           <div class="hint">Required for preferential rates, AD duties & origin-specific measures. Leave blank for MFN only.</div>
         </div>
         <div class="form-group">
           <label>Import Country</label>
-          <input type="text" id="l-import" value="ZA" maxlength="2" placeholder="e.g. ZA">
+          <select id="l-import" class="country-select">
+            <option value="">— Select import country —</option>
+          </select>
         </div>
         <div class="form-group">
           <label>Commodity Code</label>
@@ -1131,7 +1149,17 @@
         </div>
         <div class="form-group">
           <label>Currency</label>
-          <input type="text" id="l-currency" value="ZAR" maxlength="3">
+          <select id="l-currency">
+            <option value="USD">USD — US Dollar</option>
+            <option value="EUR">EUR — Euro</option>
+            <option value="GBP">GBP — British Pound</option>
+            <option value="INR">INR — Indian Rupee</option>
+            <option value="ZAR" selected>ZAR — South African Rand</option>
+            <option value="CNY">CNY — Chinese Yuan</option>
+            <option value="JPY">JPY — Japanese Yen</option>
+            <option value="AED">AED — UAE Dirham</option>
+            <option value="BRL">BRL — Brazilian Real</option>
+          </select>
         </div>
         <button class="lookup-btn" onclick="runLookup()" id="lookup-btn">Run Lookup</button>
       </div>
@@ -1166,7 +1194,9 @@
 
         <div class="form-group">
           <label>Import Country</label>
-          <input type="text" id="c-country" value="ZA" maxlength="2">
+          <select id="c-country" class="country-select">
+            <option value="">— Select country —</option>
+          </select>
           <div class="hint">HS classification is universal — country sets the national code and MFN rate</div>
         </div>
 
@@ -1439,26 +1469,8 @@
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
               <div class="form-group">
                 <label style="font-size:12px;">Country</label>
-                <select id="doc-country" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;">
-                  <option value="">Select...</option>
-                  <option value="IN">IN — India</option>
-                  <option value="BR">BR — Brazil</option>
-                  <option value="AU">AU — Australia</option>
-                  <option value="TH">TH — Thailand</option>
-                  <option value="MX">MX — Mexico</option>
-                  <option value="CL">CL — Chile</option>
-                  <option value="PH">PH — Philippines</option>
-                  <option value="AR">AR — Argentina</option>
-                  <option value="UY">UY — Uruguay</option>
-                  <option value="SA">SA — Saudi Arabia</option>
-                  <option value="AE">AE — UAE</option>
-                  <option value="OM">OM — Oman</option>
-                  <option value="DO">DO — Dom. Republic</option>
-                  <option value="AO">AO — Angola</option>
-                  <option value="MU">MU — Mauritius</option>
-                  <option value="ZA">ZA — South Africa</option>
-                  <option value="NA">NA — Namibia</option>
-                  <option value="GB">GB — United Kingdom</option>
+                <select id="doc-country" class="country-select" style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;">
+                  <option value="">Select country...</option>
                 </select>
               </div>
               <div class="form-group">
@@ -2057,10 +2069,77 @@ async function init() {
     const ctx = await r.json();
     if (ctx.tenantid) {
       document.getElementById('header-tenant').textContent =
-        `${ctx.businesstype ?? 'TRADER'} · ${ctx.annualvolumerange ?? ''} · ZA Import Intelligence`;
+        `${ctx.businesstype ?? 'TRADER'} · ${ctx.annualvolumerange ?? ''} · Customs Intelligence`;
     }
   } catch(e) {}
+  loadCountryDropdowns();
   loadOpportunities();
+}
+
+// ── Country Dropdowns ─────────────────────────────────────────────────────────
+const SUPABASE_URL = 'https://epytgmksddhvwziwxhuq.supabase.co';
+let countryList = [];
+
+async function loadCountryDropdowns() {
+  try {
+    // Fetch countries from DB — use service key via anon for public read
+    const r = await fetch(SUPABASE_URL + '/rest/v1/country?isactive=eq.true&select=countrycode,countryname&order=countryname', {
+      headers: { 'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVweXRnbWtzZGRodnd6aXd4aHVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDMwNzc3MDcsImV4cCI6MjA1ODY1MzcwN30.bI8B8sHK7xCCRl4FWvjL9FRh1cxo-VBagG_A-v9WVXE' },
+    });
+    countryList = await r.json();
+  } catch(e) {
+    // Fallback: hardcoded list of our main countries
+    countryList = [
+      {countrycode:'AO',countryname:'Angola'},{countrycode:'AR',countryname:'Argentina'},
+      {countrycode:'AU',countryname:'Australia'},{countrycode:'BR',countryname:'Brazil'},
+      {countrycode:'CL',countryname:'Chile'},{countrycode:'CN',countryname:'China'},
+      {countrycode:'DO',countryname:'Dominican Republic'},{countrycode:'IN',countryname:'India'},
+      {countrycode:'MU',countryname:'Mauritius'},{countrycode:'MX',countryname:'Mexico'},
+      {countrycode:'NA',countryname:'Namibia'},{countrycode:'OM',countryname:'Oman'},
+      {countrycode:'PH',countryname:'Philippines'},{countrycode:'SA',countryname:'Saudi Arabia'},
+      {countrycode:'ZA',countryname:'South Africa'},{countrycode:'TH',countryname:'Thailand'},
+      {countrycode:'AE',countryname:'United Arab Emirates'},{countrycode:'GB',countryname:'United Kingdom'},
+      {countrycode:'UY',countryname:'Uruguay'},
+    ];
+  }
+
+  // Filter out non-country entries
+  countryList = countryList.filter(c => c.countrycode !== 'XX');
+
+  // Populate all country-select dropdowns
+  document.querySelectorAll('.country-select').forEach(select => {
+    const id = select.id;
+    const currentVal = select.value;
+    const hasBlank = select.querySelector('option[value=""]');
+
+    // Build options
+    const opts = countryList.map(c =>
+      `<option value="${c.countrycode}">${c.countryname} (${c.countrycode})</option>`
+    ).join('');
+
+    // Keep the blank option if it exists
+    if (hasBlank) {
+      select.innerHTML = `<option value="">${hasBlank.textContent}</option>` + opts;
+    } else {
+      select.innerHTML = opts;
+    }
+
+    // Set defaults based on field ID
+    if (id === 'l-import') select.value = 'IN';
+    else if (id === 'c-country') select.value = 'ZA';
+    else if (currentVal) select.value = currentVal;
+  });
+
+  // Auto-update currency when import country changes
+  const importSelect = document.getElementById('l-import');
+  if (importSelect) {
+    importSelect.addEventListener('change', function() {
+      const currencyMap = {IN:'INR',ZA:'ZAR',GB:'GBP',NA:'ZAR',BR:'BRL',CN:'CNY',AU:'AUD',AE:'AED',SA:'SAR',JP:'JPY'};
+      const curr = currencyMap[this.value] || 'USD';
+      const currSelect = document.getElementById('l-currency');
+      if (currSelect) currSelect.value = curr;
+    });
+  }
 }
 
 // ── Opportunities ─────────────────────────────────────────────────────────────
