@@ -2199,27 +2199,19 @@ const SUPABASE_URL = 'https://epytgmksddhvwziwxhuq.supabase.co';
 let countryList = [];
 
 async function loadCountryDropdowns() {
-  try {
-    // Fetch countries from DB — use service key via anon for public read
-    const r = await fetch(SUPABASE_URL + '/rest/v1/country?isactive=eq.true&select=countrycode,countryname&order=countryname', {
-      headers: { 'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVweXRnbWtzZGRodnd6aXd4aHVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDMwNzc3MDcsImV4cCI6MjA1ODY1MzcwN30.bI8B8sHK7xCCRl4FWvjL9FRh1cxo-VBagG_A-v9WVXE' },
-    });
-    countryList = await r.json();
-  } catch(e) {
-    // Fallback: hardcoded list of our main countries
-    countryList = [
-      {countrycode:'AO',countryname:'Angola'},{countrycode:'AR',countryname:'Argentina'},
-      {countrycode:'AU',countryname:'Australia'},{countrycode:'BR',countryname:'Brazil'},
-      {countrycode:'CL',countryname:'Chile'},{countrycode:'CN',countryname:'China'},
-      {countrycode:'DO',countryname:'Dominican Republic'},{countrycode:'IN',countryname:'India'},
-      {countrycode:'MU',countryname:'Mauritius'},{countrycode:'MX',countryname:'Mexico'},
-      {countrycode:'NA',countryname:'Namibia'},{countrycode:'OM',countryname:'Oman'},
-      {countrycode:'PH',countryname:'Philippines'},{countrycode:'SA',countryname:'Saudi Arabia'},
-      {countrycode:'ZA',countryname:'South Africa'},{countrycode:'TH',countryname:'Thailand'},
-      {countrycode:'AE',countryname:'United Arab Emirates'},{countrycode:'GB',countryname:'United Kingdom'},
-      {countrycode:'UY',countryname:'Uruguay'},
-    ];
-  }
+  // Countries in our system — sorted alphabetically
+  countryList = [
+    {countrycode:'AO',countryname:'Angola'},{countrycode:'AR',countryname:'Argentina'},
+    {countrycode:'AU',countryname:'Australia'},{countrycode:'BR',countryname:'Brazil'},
+    {countrycode:'CL',countryname:'Chile'},{countrycode:'CN',countryname:'China'},
+    {countrycode:'DO',countryname:'Dominican Republic'},{countrycode:'IN',countryname:'India'},
+    {countrycode:'MU',countryname:'Mauritius'},{countrycode:'MX',countryname:'Mexico'},
+    {countrycode:'NA',countryname:'Namibia'},{countrycode:'OM',countryname:'Oman'},
+    {countrycode:'PH',countryname:'Philippines'},{countrycode:'SA',countryname:'Saudi Arabia'},
+    {countrycode:'ZA',countryname:'South Africa'},{countrycode:'TH',countryname:'Thailand'},
+    {countrycode:'AE',countryname:'United Arab Emirates'},{countrycode:'GB',countryname:'United Kingdom'},
+    {countrycode:'UY',countryname:'Uruguay'},
+  ];
 
   // Filter out non-country entries
   countryList = countryList.filter(c => c.countrycode !== 'XX');
@@ -2617,22 +2609,25 @@ function setCmpMode(mode) {
   document.getElementById('cmp-mode-exporter').classList.toggle('active', mode === 'exporter');
   document.getElementById('cmp-importer-form').style.display = mode === 'importer' ? '' : 'none';
   document.getElementById('cmp-exporter-form').style.display = mode === 'exporter' ? '' : 'none';
+  // Re-populate chips if empty (may have been skipped during init)
+  if (countryList.length > 0) initCompareChips();
 }
 
 function initCompareChips() {
-  // Build clickable country chips for origin/destination selection
-  const originsDiv = document.getElementById('cmp-origins');
-  const destsDiv = document.getElementById('cmp-destinations');
-  if (!originsDiv || countryList.length === 0) return;
-
+  if (countryList.length === 0) return;
   const chipHTML = countryList.map(c =>
     `<div class="filter-chip cmp-chip" data-code="${c.countrycode}" onclick="toggleCmpChip(this)">${c.countryname} (${c.countrycode})</div>`
   ).join('');
 
-  originsDiv.innerHTML = chipHTML;
-  destsDiv.innerHTML = chipHTML;
+  // Populate both containers (even if hidden)
+  ['cmp-origins', 'cmp-destinations'].forEach(id => {
+    const div = document.getElementById(id);
+    if (div && div.children.length === 0) {
+      div.innerHTML = chipHTML;
+    }
+  });
 
-  // Pre-select countries that have data
+  // Pre-select countries that have tariff data
   const dataCountries = ['ZA','GB','IN','NA'];
   document.querySelectorAll('.cmp-chip').forEach(chip => {
     if (dataCountries.includes(chip.dataset.code)) {
