@@ -544,6 +544,11 @@
     /* Lookup form */
     .lookup-form, div.lookup-form { max-width: 100% !important; width: 100% !important; }
 
+    /* Swipe card — fill available height on mobile */
+    #swipe-container { min-height: calc(100vh - 200px); }
+    #swipe-card { min-height: 50vh; }
+    #opp-swipe-view { padding-bottom: 20px; }
+
     /* Compare form grids */
     #cmp-importer-form > div[style*="grid-template"],
     #cmp-exporter-form > div[style*="grid-template"] { display: flex !important; flex-direction: column !important; }
@@ -1179,31 +1184,51 @@
       </div>
     </div>
 
-    <!-- Swipe Card View (hidden by default) -->
+    <!-- Swipe Card View -->
     <div id="opp-swipe-view" style="display:none;">
-      <div id="swipe-progress" style="font-family:var(--mono);font-size:11px;color:var(--text-3);text-align:center;margin-bottom:12px;"></div>
-      <div id="swipe-container" style="position:relative;width:100%;max-width:400px;margin:0 auto;min-height:320px;">
-        <div id="swipe-card" style="position:relative;background:var(--surface);border:2px solid var(--border);border-radius:16px;padding:28px 24px;touch-action:pan-y;user-select:none;transition:transform 0.1s,opacity 0.1s;">
-          <div id="swipe-badge" style="text-align:center;margin-bottom:16px;"></div>
-          <div id="swipe-headline" style="font-size:16px;font-weight:600;line-height:1.5;text-align:center;margin-bottom:12px;"></div>
+      <div id="swipe-container" style="position:relative;width:100%;max-width:420px;margin:0 auto;display:flex;flex-direction:column;justify-content:center;">
+        <!-- Progress bar -->
+        <div id="swipe-progress" style="font-family:var(--mono);font-size:11px;color:var(--text-3);text-align:center;margin-bottom:8px;"></div>
+        <div id="swipe-progress-bar" style="height:3px;background:var(--border);border-radius:2px;margin-bottom:16px;overflow:hidden;">
+          <div id="swipe-progress-fill" style="height:100%;background:var(--teal);border-radius:2px;transition:width 0.3s;width:0%;"></div>
+        </div>
+
+        <!-- Swipe hints -->
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px;padding:0 4px;">
+          <span style="font-size:10px;color:var(--red);font-weight:500;opacity:0.5;">SKIP</span>
+          <span style="font-size:10px;color:var(--green);font-weight:500;opacity:0.5;">INTERESTED</span>
+        </div>
+
+        <!-- The card -->
+        <div id="swipe-card" style="position:relative;background:var(--surface);border:2px solid var(--border);border-radius:20px;padding:32px 24px;touch-action:none;user-select:none;min-height:340px;display:flex;flex-direction:column;justify-content:center;box-shadow:0 4px 20px rgba(0,0,0,0.06);">
+          <div id="swipe-badge" style="text-align:center;margin-bottom:20px;"></div>
+          <div id="swipe-headline" style="font-size:17px;font-weight:600;line-height:1.5;text-align:center;margin-bottom:14px;padding:0 8px;"></div>
           <div id="swipe-meta" style="font-family:var(--mono);font-size:12px;color:var(--text-2);text-align:center;margin-bottom:16px;"></div>
-          <div id="swipe-insight" style="font-size:13px;color:var(--text-2);line-height:1.6;text-align:center;"></div>
-          <div id="swipe-overlay-left" style="display:none;position:absolute;inset:0;background:rgba(160,31,31,0.1);border-radius:16px;pointer-events:none;display:flex;align-items:center;justify-content:center;">
-            <span style="font-size:32px;font-weight:700;color:var(--red);transform:rotate(-15deg);border:3px solid var(--red);padding:8px 20px;border-radius:12px;">SKIP</span>
+          <div id="swipe-insight" style="font-size:13px;color:var(--text-2);line-height:1.7;text-align:center;padding:0 4px;"></div>
+
+          <!-- Overlays -->
+          <div id="swipe-overlay-left" style="display:none;position:absolute;inset:0;background:rgba(160,31,31,0.08);border-radius:20px;pointer-events:none;align-items:center;justify-content:center;">
+            <span style="font-size:36px;font-weight:700;color:var(--red);transform:rotate(-15deg);border:4px solid var(--red);padding:10px 24px;border-radius:14px;opacity:0.9;">SKIP</span>
           </div>
-          <div id="swipe-overlay-right" style="display:none;position:absolute;inset:0;background:rgba(22,98,58,0.1);border-radius:16px;pointer-events:none;display:flex;align-items:center;justify-content:center;">
-            <span style="font-size:32px;font-weight:700;color:var(--green);transform:rotate(15deg);border:3px solid var(--green);padding:8px 20px;border-radius:12px;">INTERESTED</span>
+          <div id="swipe-overlay-right" style="display:none;position:absolute;inset:0;background:rgba(22,98,58,0.08);border-radius:20px;pointer-events:none;align-items:center;justify-content:center;">
+            <span style="font-size:36px;font-weight:700;color:var(--green);transform:rotate(15deg);border:4px solid var(--green);padding:10px 24px;border-radius:14px;opacity:0.9;">INTERESTED</span>
           </div>
         </div>
+
+        <!-- Action buttons -->
+        <div style="display:flex;justify-content:center;align-items:center;gap:24px;margin-top:24px;">
+          <button onclick="swipeAction('left')" style="width:64px;height:64px;border-radius:50%;border:2px solid var(--red);background:var(--red-bg);color:var(--red);font-size:26px;cursor:pointer;font-weight:700;box-shadow:0 2px 8px rgba(160,31,31,0.15);">&#10005;</button>
+          <button onclick="swipeAction('undo')" id="swipe-undo-btn" style="width:44px;height:44px;border-radius:50%;border:2px solid var(--border);background:var(--surface);color:var(--text-3);font-size:18px;cursor:pointer;" disabled>&#8630;</button>
+          <button onclick="swipeAction('right')" style="width:64px;height:64px;border-radius:50%;border:2px solid var(--green);background:var(--green-bg);color:var(--green);font-size:26px;cursor:pointer;font-weight:700;box-shadow:0 2px 8px rgba(22,98,58,0.15);">&#10003;</button>
+        </div>
       </div>
-      <div style="display:flex;justify-content:center;gap:20px;margin-top:20px;">
-        <button onclick="swipeAction('left')" style="width:60px;height:60px;border-radius:50%;border:2px solid var(--red);background:var(--red-bg);color:var(--red);font-size:24px;cursor:pointer;font-weight:700;">&#10005;</button>
-        <button onclick="swipeAction('undo')" id="swipe-undo-btn" style="width:48px;height:48px;border-radius:50%;border:2px solid var(--border);background:var(--surface);color:var(--text-3);font-size:18px;cursor:pointer;margin-top:6px;" disabled>&#8630;</button>
-        <button onclick="swipeAction('right')" style="width:60px;height:60px;border-radius:50%;border:2px solid var(--green);background:var(--green-bg);color:var(--green);font-size:24px;cursor:pointer;font-weight:700;">&#10003;</button>
-      </div>
-      <div id="swipe-summary" style="display:none;text-align:center;padding:40px 20px;">
-        <div style="font-size:18px;font-weight:600;margin-bottom:8px;">All caught up!</div>
-        <div id="swipe-summary-text" style="font-size:13px;color:var(--text-2);line-height:1.6;"></div>
+
+      <!-- Session summary (shown when done) -->
+      <div id="swipe-summary" style="display:none;text-align:center;padding:60px 20px;">
+        <div style="font-size:40px;margin-bottom:12px;">&#127881;</div>
+        <div style="font-size:20px;font-weight:600;margin-bottom:8px;">All caught up!</div>
+        <div id="swipe-summary-text" style="font-size:14px;color:var(--text-2);line-height:1.6;margin-bottom:20px;"></div>
+        <button onclick="setOppView('list')" class="lookup-btn" style="font-size:13px;padding:10px 20px;">View as List</button>
       </div>
     </div>
 
@@ -2437,6 +2462,11 @@ async function loadOpportunities() {
     }
 
     renderOpps(allOpps);
+
+    // Auto-switch to swipe view on mobile if there are opportunities
+    if (window.innerWidth <= 768 && allOpps.length > 0) {
+      setOppView('swipe');
+    }
   } catch(e) {
     document.getElementById('opp-list').innerHTML =
       `<div class="empty"><div class="empty-title">Could not load opportunities</div>${e.message}</div>`;
@@ -2809,6 +2839,12 @@ function setOppView(view) {
     swipeStats = { actioned: 0, dismissed: 0 };
     renderSwipeCard();
     initSwipeTouch();
+    // Hide stat cards on mobile in swipe mode to give more room
+    const statBar = document.querySelector('#screen-opportunities .summary-bar');
+    if (statBar && window.innerWidth <= 768) statBar.style.display = 'none';
+  } else {
+    const statBar = document.querySelector('#screen-opportunities .summary-bar');
+    if (statBar) statBar.style.display = '';
   }
 }
 
@@ -2859,7 +2895,9 @@ function renderSwipeCard() {
 
   document.getElementById('swipe-insight').textContent = o.aiinsight || '';
 
-  progress.textContent = `${swipeIndex + 1} / ${swipeOpps.length}`;
+  progress.textContent = `${swipeIndex + 1} of ${swipeOpps.length}`;
+  const pctDone = ((swipeIndex) / swipeOpps.length * 100);
+  document.getElementById('swipe-progress-fill').style.width = pctDone + '%';
   document.getElementById('swipe-undo-btn').disabled = swipeHistory.length === 0;
 }
 
@@ -2942,25 +2980,31 @@ function initSwipeTouch() {
 
   card.addEventListener('touchmove', function(e) {
     if (!isSwiping) return;
+    e.preventDefault(); // Prevent page scrolling while swiping card
     touchCurrentX = e.touches[0].clientX;
     const diff = touchCurrentX - touchStartX;
-    const rotate = diff * 0.1;
+    const rotate = diff * 0.08;
+    const opacity = Math.max(0.3, 1 - Math.abs(diff) / 400);
     card.style.transform = `translateX(${diff}px) rotate(${rotate}deg)`;
+    card.style.opacity = opacity;
 
-    // Show overlays
+    // Show overlays with progressive opacity
     const leftOverlay = document.getElementById('swipe-overlay-left');
     const rightOverlay = document.getElementById('swipe-overlay-right');
-    if (diff < -50) {
+    const overlayOpacity = Math.min(1, Math.abs(diff) / 120);
+    if (diff < -30) {
       leftOverlay.style.display = 'flex';
+      leftOverlay.style.opacity = overlayOpacity;
       rightOverlay.style.display = 'none';
-    } else if (diff > 50) {
+    } else if (diff > 30) {
       rightOverlay.style.display = 'flex';
+      rightOverlay.style.opacity = overlayOpacity;
       leftOverlay.style.display = 'none';
     } else {
       leftOverlay.style.display = 'none';
       rightOverlay.style.display = 'none';
     }
-  }, { passive: true });
+  }, { passive: false });
 
   card.addEventListener('touchend', function(e) {
     if (!isSwiping) return;
