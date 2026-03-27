@@ -34,6 +34,10 @@ DECLARE
     v_pref_staging      VARCHAR(30);
     v_effective_rate    NUMERIC;
 
+    v_exemption_rate    NUMERIC;
+    v_exemption_ref     VARCHAR(100);
+    v_exemption_sno     INTEGER;
+
     v_duty_amount       NUMERIC := 0;
     v_vat_rows          JSONB := '[]'::JSONB;
     v_vat_total         NUMERIC := 0;
@@ -131,6 +135,45 @@ BEGIN
             v_duty_amount := v_mfn_specific_amt;
         ELSIF v_mfn_rate IS NOT NULL THEN
             v_duty_amount := ROUND(p_customs_value * v_mfn_rate / 100, 2);
+        END IF;
+    END IF;
+
+    -- Step 2a: Check exemption notifications (e.g. Notification 50/2017)
+    -- Exemption rate overrides MFN rate if lower
+    SELECT en.ConcessionalRate, en.NotificationRef, en.Sno
+    INTO v_exemption_rate, v_exemption_ref, v_exemption_sno
+    FROM exemption_notification en
+    WHERE en.CountryCode = p_import_country
+      AND en.IsActive = TRUE
+      AND (en.EffectiveTo IS NULL OR en.EffectiveTo > CURRENT_DATE)
+      AND (
+          -- Exact match on full code
+          en.HSCode = p_commodity_code
+          -- Or match on subheading (6-digit)
+          OR en.HSCode = v_subheading_code
+          -- Or match on heading (4-digit)
+          OR en.HSCode = LEFT(p_commodity_code, 4)
+          -- Or match on chapter (2-digit)
+          OR en.HSCode = LEFT(p_commodity_code, 2)
+      )
+      AND en.ConcessionalRate IS NOT NULL
+    ORDER BY
+        -- Prefer most specific match: full code > subheading > heading > chapter
+        CASE WHEN en.HSCode = p_commodity_code THEN 1
+             WHEN en.HSCode = v_subheading_code THEN 2
+             WHEN en.HSCode = LEFT(p_commodity_code, 4) THEN 3
+             WHEN en.HSCode = LEFT(p_commodity_code, 2) THEN 4
+             ELSE 5 END,
+        -- If multiple matches at same specificity, prefer lowest rate
+        en.ConcessionalRate ASC
+    LIMIT 1;
+
+    -- Apply exemption if it gives a lower rate than MFN
+    IF v_exemption_rate IS NOT NULL AND v_exemption_rate < COALESCE(v_mfn_rate, 999) THEN
+        v_mfn_rate := v_exemption_rate;
+        v_mfn_expression := 'Exemption: ' || COALESCE(v_exemption_ref, '') || ' S.No.' || v_exemption_sno;
+        IF NOT v_rates_only THEN
+            v_duty_amount := ROUND(p_customs_value * v_exemption_rate / 100, 2);
         END IF;
     END IF;
 
@@ -384,6 +427,9 @@ BEGIN
             'pref_staging',       v_pref_staging,
             'effective_rate_pct', v_effective_rate,
             'duty_amount',        CASE WHEN v_rates_only THEN NULL ELSE v_duty_amount END,
+            'exemption_rate_pct', v_exemption_rate,
+            'exemption_ref',      v_exemption_ref,
+            'exemption_sno',      v_exemption_sno,
             'sws_rate_pct',       CASE WHEN v_sws_rate > 0 THEN v_sws_rate ELSE NULL END,
             'sws_amount',         CASE WHEN v_rates_only OR v_sws_amount = 0 THEN NULL ELSE v_sws_amount END,
             'sws_note',           CASE WHEN v_sws_rate > 0 THEN 'Social Welfare Surcharge = 10% of BCD (India)' ELSE NULL END
@@ -439,6 +485,10 @@ BEGIN
                 'total_border_cost',  v_total_border_cost,
                 'total_landed_cost',  p_customs_value + v_total_border_cost,
                 'border_cost_pct',    ROUND(v_total_border_cost / NULLIF(p_customs_value,0) * 100, 2),
+                'effective_duty_rate_pct', v_effective_rate,
+                'sws_rate_pct',       v_sws_rate,
+                'vat_rate_pct',       v_vat_rate_pct,
+                'total_border_rate_pct', v_effective_rate + v_sws_rate + v_vat_rate_pct,
                 'currency',           p_currency,
                 'note',               CASE WHEN p_export_country IS NULL
                     THEN 'MFN rates only — provide export_country for preferential rates and trade remedies'
