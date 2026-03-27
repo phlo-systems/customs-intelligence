@@ -473,6 +473,11 @@
     /* Lookup form */
     .lookup-form, div.lookup-form { max-width: 100% !important; width: 100% !important; }
 
+    /* Compare form grids */
+    #cmp-importer-form > div[style*="grid-template"],
+    #cmp-exporter-form > div[style*="grid-template"] { display: flex !important; flex-direction: column !important; }
+    .cmp-chip { font-size: 11px !important; padding: 4px 8px !important; }
+
     /* Profile grids */
     div[style*="grid-template-columns: 1fr 1fr"],
     div[style*="grid-template-columns:1fr 1fr"] { display: flex !important; flex-direction: column !important; }
@@ -1063,6 +1068,7 @@
     Opportunities <span class="nav-badge" id="opp-count">—</span>
   </div>
   <div class="nav-tab" onclick="showScreen('lookup', this)">Tariff Lookup</div>
+  <div class="nav-tab" onclick="showScreen('compare', this)">Compare</div>
   <div class="nav-tab" onclick="showScreen('classify', this)">Classify</div>
   <div class="nav-tab" onclick="showScreen('profile', this)">Profile</div>
   <div class="nav-tab" onclick="showScreen('alerts', this)">Alerts</div>
@@ -1165,6 +1171,80 @@
       </div>
       <div class="result-panel" id="result-panel">
         <div class="result-empty">Enter a commodity code and click Run Lookup</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Compare Routes ── -->
+  <div class="screen" id="screen-compare">
+    <div style="max-width:1100px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px;">
+        <div style="font-weight:600;font-size:16px;">Route Comparison</div>
+        <div style="display:flex;gap:8px;">
+          <div class="filter-chip active" id="cmp-mode-importer" onclick="setCmpMode('importer')">Importer view</div>
+          <div class="filter-chip" id="cmp-mode-exporter" onclick="setCmpMode('exporter')">Exporter view</div>
+        </div>
+      </div>
+
+      <div class="lookup-form" style="margin-bottom:20px;">
+        <!-- Importer view: fixed destination, compare origins -->
+        <div id="cmp-importer-form">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;align-items:end;">
+            <div class="form-group" style="margin:0;">
+              <label>Import Into</label>
+              <select id="cmp-import" class="country-select"><option value="">Select...</option></select>
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label>Commodity Code</label>
+              <input type="text" id="cmp-code" placeholder="e.g. 74081110" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label>CIF Value (optional)</label>
+              <input type="number" id="cmp-value" placeholder="e.g. 10000" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+            </div>
+          </div>
+          <div class="form-group" style="margin-top:12px;">
+            <label>Compare Origins (select multiple)</label>
+            <div id="cmp-origins" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;"></div>
+          </div>
+        </div>
+
+        <!-- Exporter view: fixed origin, compare destinations -->
+        <div id="cmp-exporter-form" style="display:none;">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;align-items:end;">
+            <div class="form-group" style="margin:0;">
+              <label>Export From</label>
+              <select id="cmp-export" class="country-select"><option value="">Select...</option></select>
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label>Commodity Code</label>
+              <input type="text" id="cmp-code-ex" placeholder="e.g. 74081110" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+            </div>
+            <div class="form-group" style="margin:0;">
+              <label>CIF Value (optional)</label>
+              <input type="number" id="cmp-value-ex" placeholder="e.g. 10000" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+            </div>
+          </div>
+          <div class="form-group" style="margin-top:12px;">
+            <label>Compare Destinations (select multiple)</label>
+            <div id="cmp-destinations" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;"></div>
+          </div>
+        </div>
+
+        <button class="lookup-btn" onclick="runCompare()" id="cmp-btn" style="margin-top:16px;">Compare Routes</button>
+      </div>
+
+      <!-- Results table -->
+      <div id="cmp-results" style="display:none;">
+        <div style="overflow-x:auto;">
+          <table id="cmp-table" style="width:100%;border-collapse:collapse;font-size:13px;background:var(--surface);border:1px solid var(--border);border-radius:8px;">
+            <thead id="cmp-thead"></thead>
+            <tbody id="cmp-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div id="cmp-empty" style="text-align:center;padding:40px;color:var(--text-3);font-size:13px;">
+        Select a commodity and countries to compare landed costs across routes.
       </div>
     </div>
   </div>
@@ -2130,6 +2210,9 @@ async function loadCountryDropdowns() {
     else if (currentVal) select.value = currentVal;
   });
 
+  // Initialize compare screen chips
+  initCompareChips();
+
   // Auto-update currency when import country changes
   const importSelect = document.getElementById('l-import');
   if (importSelect) {
@@ -2458,6 +2541,198 @@ function renderResult(d) {
     ${prefBanner}
     ${ratesSection}
     ${amountsSection}`;
+}
+
+// ── Compare Routes ───────────────────────────────────────────────────────────
+
+let cmpMode = 'importer';
+
+function setCmpMode(mode) {
+  cmpMode = mode;
+  document.getElementById('cmp-mode-importer').classList.toggle('active', mode === 'importer');
+  document.getElementById('cmp-mode-exporter').classList.toggle('active', mode === 'exporter');
+  document.getElementById('cmp-importer-form').style.display = mode === 'importer' ? '' : 'none';
+  document.getElementById('cmp-exporter-form').style.display = mode === 'exporter' ? '' : 'none';
+}
+
+function initCompareChips() {
+  // Build clickable country chips for origin/destination selection
+  const originsDiv = document.getElementById('cmp-origins');
+  const destsDiv = document.getElementById('cmp-destinations');
+  if (!originsDiv || countryList.length === 0) return;
+
+  const chipHTML = countryList.map(c =>
+    `<div class="filter-chip cmp-chip" data-code="${c.countrycode}" onclick="toggleCmpChip(this)">${c.countryname} (${c.countrycode})</div>`
+  ).join('');
+
+  originsDiv.innerHTML = chipHTML;
+  destsDiv.innerHTML = chipHTML;
+
+  // Pre-select countries that have data
+  const dataCountries = ['ZA','GB','IN','NA'];
+  document.querySelectorAll('.cmp-chip').forEach(chip => {
+    if (dataCountries.includes(chip.dataset.code)) {
+      chip.classList.add('active');
+    }
+  });
+}
+
+function toggleCmpChip(el) {
+  el.classList.toggle('active');
+}
+
+function getSelectedChips(containerId) {
+  return Array.from(document.querySelectorAll('#' + containerId + ' .cmp-chip.active'))
+    .map(el => el.dataset.code);
+}
+
+async function runCompare() {
+  const btn = document.getElementById('cmp-btn');
+  btn.disabled = true;
+  btn.textContent = 'Comparing...';
+
+  const results = [];
+  let fixedCountry, code, value, compareCountries;
+
+  if (cmpMode === 'importer') {
+    fixedCountry = document.getElementById('cmp-import').value;
+    code = document.getElementById('cmp-code').value.trim();
+    value = document.getElementById('cmp-value').value.trim();
+    compareCountries = getSelectedChips('cmp-origins');
+
+    if (!fixedCountry || !code) {
+      btn.disabled = false; btn.textContent = 'Compare Routes';
+      return alert('Please select an import country and enter a commodity code.');
+    }
+
+    // Run lookups in parallel
+    const promises = compareCountries.map(origin =>
+      fetch(API_BASE + '/tariff-lookup', {
+        method: 'POST', headers: getHeaders(),
+        body: JSON.stringify({
+          import_country: fixedCountry, export_country: origin,
+          commodity_code: code,
+          ...(value ? { customs_value: parseFloat(value), currency: 'USD' } : {}),
+        }),
+      }).then(r => r.json()).then(d => ({ origin, dest: fixedCountry, data: d }))
+        .catch(e => ({ origin, dest: fixedCountry, data: { status: 'error', error: e.message } }))
+    );
+    const all = await Promise.all(promises);
+    results.push(...all);
+
+  } else {
+    fixedCountry = document.getElementById('cmp-export').value;
+    code = document.getElementById('cmp-code-ex').value.trim();
+    value = document.getElementById('cmp-value-ex').value.trim();
+    compareCountries = getSelectedChips('cmp-destinations');
+
+    if (!fixedCountry || !code) {
+      btn.disabled = false; btn.textContent = 'Compare Routes';
+      return alert('Please select an export country and enter a commodity code.');
+    }
+
+    const promises = compareCountries.map(dest =>
+      fetch(API_BASE + '/tariff-lookup', {
+        method: 'POST', headers: getHeaders(),
+        body: JSON.stringify({
+          import_country: dest, export_country: fixedCountry,
+          commodity_code: code,
+          ...(value ? { customs_value: parseFloat(value), currency: 'USD' } : {}),
+        }),
+      }).then(r => r.json()).then(d => ({ origin: fixedCountry, dest, data: d }))
+        .catch(e => ({ origin: fixedCountry, dest, data: { status: 'error', error: e.message } }))
+    );
+    const all = await Promise.all(promises);
+    results.push(...all);
+  }
+
+  renderCompareResults(results, cmpMode, code);
+  btn.disabled = false;
+  btn.textContent = 'Compare Routes';
+}
+
+function renderCompareResults(results, mode, code) {
+  const thead = document.getElementById('cmp-thead');
+  const tbody = document.getElementById('cmp-tbody');
+  const panel = document.getElementById('cmp-results');
+  const empty = document.getElementById('cmp-empty');
+
+  if (results.length === 0) { panel.style.display = 'none'; empty.style.display = ''; return; }
+  panel.style.display = ''; empty.style.display = 'none';
+
+  const pct = n => n != null ? Number(n).toFixed(1) + '%' : '—';
+  const fmt = n => n != null ? 'USD ' + Number(n).toLocaleString(undefined, {minimumFractionDigits:0, maximumFractionDigits:0}) : '—';
+  const countryName = cc => (countryList.find(c => c.countrycode === cc) || {}).countryname || cc;
+
+  // Column headers
+  const routeLabel = mode === 'importer' ? 'Origin' : 'Destination';
+  const cols = results.map(r => mode === 'importer' ? r.origin : r.dest);
+
+  thead.innerHTML = `<tr style="border-bottom:2px solid var(--border);text-align:left;">
+    <th style="padding:10px 14px;font-weight:600;min-width:160px;">HS ${code}</th>
+    ${cols.map(c => `<th style="padding:10px 14px;font-weight:600;text-align:right;min-width:120px;">${countryName(c)}<br><span style="font-size:10px;color:var(--text-3);font-weight:400;">${c}</span></th>`).join('')}
+  </tr>`;
+
+  // Rows
+  const rows = [
+    { label: 'Product', key: d => d?.input?.commodity_description?.substring(0, 30) || '—' },
+    { label: 'BCD / MFN', key: d => pct(d?.duty?.mfn_rate_pct), cls: '' },
+    { label: 'Exemption', key: d => d?.duty?.exemption_ref ? pct(d?.duty?.exemption_rate_pct) + ' *' : '—', cls: 'teal' },
+    { label: 'Effective duty', key: d => pct(d?.duty?.effective_rate_pct), cls: 'teal' },
+    { label: 'SWS', key: d => d?.duty?.sws_rate_pct ? pct(d?.duty?.sws_rate_pct) : '—' },
+    { label: 'AD / Safeguard', key: d => {
+      const m = d?.trade_remedies?.measures || [];
+      if (m.length === 0) return '<span style="color:var(--green);">None</span>';
+      return m.map(x => `<span style="color:var(--red);font-weight:500;">${pct(x.rate_pct) || x.ad_amount}</span>`).join(', ');
+    }},
+    { label: 'VAT / IGST', key: d => pct(d?.indirect_tax?.vat_rate_pct) },
+    { label: 'Total border rate', key: d => pct(d?.summary?.total_border_rate_pct), cls: 'green', bold: true },
+  ];
+
+  // Add amount rows if customs value was provided
+  const hasAmounts = results.some(r => r.data?.summary?.mode === 'full_calculation');
+  if (hasAmounts) {
+    rows.push(
+      { label: '', key: () => '', separator: true },
+      { label: 'CIF value', key: d => fmt(d?.summary?.customs_value) },
+      { label: 'Total border cost', key: d => fmt(d?.summary?.total_border_cost) },
+      { label: 'Total landed cost', key: d => fmt(d?.summary?.total_landed_cost), bold: true, cls: '' },
+      { label: 'Border cost %', key: d => d?.summary?.border_cost_pct ? d.summary.border_cost_pct + '%' : '—' },
+    );
+  }
+
+  // Drawback row
+  rows.push({
+    label: 'Drawback', key: d => d?.drawback
+      ? d.drawback.drawback_rate_pct + '% FOB' : '—'
+  });
+
+  tbody.innerHTML = rows.map(row => {
+    if (row.separator) return `<tr><td colspan="${cols.length + 1}" style="padding:4px;border-bottom:2px solid var(--border);"></td></tr>`;
+    const style = row.bold ? 'font-weight:600;' : '';
+    return `<tr style="border-bottom:1px solid var(--border);">
+      <td style="padding:8px 14px;color:var(--text-2);font-size:12px;${style}">${row.label}</td>
+      ${results.map(r => {
+        const d = r.data;
+        const val = d?.status === 'error' ? `<span style="color:var(--red);font-size:11px;">${d.error?.substring(0,25) || 'Error'}</span>` : row.key(d);
+        const cls = row.cls ? `color:var(--${row.cls});` : '';
+        return `<td style="padding:8px 14px;text-align:right;font-family:var(--mono);font-size:12px;${style}${cls}">${val}</td>`;
+      }).join('')}
+    </tr>`;
+  }).join('');
+
+  // Highlight the best (lowest) total border rate
+  const borderRates = results.map((r, i) => ({
+    i, rate: r.data?.summary?.total_border_rate_pct
+  })).filter(x => x.rate != null).sort((a, b) => a.rate - b.rate);
+
+  if (borderRates.length > 1) {
+    const bestIdx = borderRates[0].i;
+    const headerCells = thead.querySelectorAll('th');
+    if (headerCells[bestIdx + 1]) {
+      headerCells[bestIdx + 1].style.background = 'var(--green-bg)';
+    }
+  }
 }
 
 // ── Classify ──────────────────────────────────────────────────────────────────
