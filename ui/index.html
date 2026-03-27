@@ -275,6 +275,10 @@
     align-items: start;
   }
 
+  @media (max-width: 768px) {
+    .lookup-grid { grid-template-columns: 1fr !important; }
+  }
+
   .lookup-form {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -427,6 +431,94 @@
 
   .screen { display: none; }
   .screen.active { display: block; }
+
+  /* ── Mobile Responsive ── */
+  @media (max-width: 768px) {
+    header { padding: 0 16px; height: 48px; }
+    .logo { font-size: 11px; }
+    .header-meta { display: none; }
+
+    nav { padding: 0 8px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+    nav::-webkit-scrollbar { display: none; }
+    .nav-tab { padding: 12px 14px 10px; font-size: 12px; white-space: nowrap; flex-shrink: 0; }
+
+    main { padding: 16px; }
+
+    .summary-bar { grid-template-columns: repeat(2, 1fr) !important; gap: 8px; }
+    .stat-card { padding: 12px 14px; }
+    .stat-value { font-size: 18px; }
+    .stat-label { font-size: 10px; }
+
+    .opp-card-main { grid-template-columns: 1fr !important; gap: 10px; }
+    .saving-badge { display: flex; align-items: center; gap: 8px; min-width: unset; }
+    .saving-pct { font-size: 15px; }
+    .opp-headline { font-size: 13px; }
+
+    .classify-card-main { grid-template-columns: 1fr !important; gap: 8px; }
+
+    /* Lookup form */
+    .lookup-form, div.lookup-form { max-width: 100% !important; width: 100% !important; }
+
+    /* Profile grids */
+    div[style*="grid-template-columns: 1fr 1fr"],
+    div[style*="grid-template-columns:1fr 1fr"] { display: flex !important; flex-direction: column !important; }
+
+    /* Admin sub-tabs scroll */
+    #screen-admin > div:first-child { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; flex-wrap: nowrap !important; }
+    #screen-admin > div:first-child::-webkit-scrollbar { display: none; }
+    #screen-admin .nav-tab { white-space: nowrap; flex-shrink: 0; }
+
+    /* Tables scroll horizontally */
+    table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    thead { display: table; width: 100%; }
+    tbody { display: table; width: 100%; }
+
+    /* Admin stat grids */
+    .admin-panel .summary-bar { grid-template-columns: repeat(2, 1fr) !important; }
+
+    /* Filter chips wrap */
+    .filters { flex-wrap: wrap !important; }
+
+    /* Result panel */
+    .result-row { font-size: 12px; }
+    .result-total-val { font-size: 18px; }
+    .result-code { font-size: 16px; }
+
+    /* Auth screen */
+    .auth-screen > div { padding: 24px 20px !important; width: 95% !important; max-width: 380px !important; }
+
+    /* Modals */
+    #referral-modal > div,
+    #suggest-modal > div { width: 95% !important; padding: 24px !important; }
+
+    /* Referral prompt */
+    #referral-prompt { left: 12px; right: 12px; bottom: 12px; max-width: unset; }
+
+    /* Pref banner */
+    .pref-banner { font-size: 12px; padding: 8px 12px; }
+
+    /* Upload form grids */
+    #doc-upload-form div[style*="grid-template-columns"] { display: flex !important; flex-direction: column !important; }
+  }
+
+  @media (max-width: 480px) {
+    header { padding: 0 12px; }
+    main { padding: 12px; }
+    .nav-tab { padding: 10px 10px 8px; font-size: 11px; }
+    .summary-bar { grid-template-columns: 1fr !important; }
+    .stat-value { font-size: 16px; }
+    .opp-card-main { padding: 12px 14px; }
+    .result-panel { padding: 16px; }
+    /* Prevent iOS zoom on input focus */
+    input, select, textarea { font-size: 16px !important; }
+  }
+
+  /* Tablet */
+  @media (min-width: 769px) and (max-width: 1024px) {
+    main { padding: 20px 24px; }
+    .summary-bar { grid-template-columns: repeat(2, 1fr) !important; }
+    nav .nav-tab { padding: 12px 16px; }
+  }
 
   .empty { text-align: center; padding: 60px 20px; color: var(--text-3); }
   .empty-title { font-size: 15px; font-weight: 500; color: var(--text-2); margin-bottom: 8px; }
