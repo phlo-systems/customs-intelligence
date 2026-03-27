@@ -2446,7 +2446,11 @@ async function loadOpportunities() {
 function renderOpps(opps) {
   const list = document.getElementById('opp-list');
   if (!opps.length) {
-    list.innerHTML = '<div class="empty"><div class="empty-title">No opportunities match this filter</div></div>';
+    list.innerHTML = `<div class="empty">
+      <div class="empty-title">No opportunities yet</div>
+      <div style="color:var(--text-3);font-size:13px;margin:8px 0 16px;">Set up your trade profile and we'll find duty savings, FTA advantages, and new market opportunities.</div>
+      <button onclick="generateOppsNow()" id="gen-opps-btn" class="lookup-btn" style="font-size:13px;padding:10px 20px;">Generate Opportunities</button>
+    </div>`;
     return;
   }
   list.innerHTML = opps.map((o, i) => oppCard(o, i)).join('');
@@ -2734,6 +2738,34 @@ function renderResult(d) {
     ${prefBanner}
     ${ratesSection}
     ${amountsSection}`;
+}
+
+// ── Generate Opportunities On Demand ─────────────────────────────────────────
+
+async function generateOppsNow() {
+  const btn = document.getElementById('gen-opps-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Generating...'; }
+
+  try {
+    // Generate alerts first (includes AI-powered)
+    await fetch(API_BASE + '/alerts', {
+      method: 'POST', headers: getHeaders(),
+      body: JSON.stringify({ action: 'generate' }),
+    });
+
+    // Enrich opportunities
+    await fetch(API_BASE + '/enrich-opportunities', {
+      method: 'POST', headers: getHeaders(),
+      body: JSON.stringify({ batch_size: 30 }),
+    });
+
+    // Reload
+    await loadOpportunities();
+    loadAlerts();
+  } catch (e) {
+    console.error('Generate failed:', e);
+  }
+  if (btn) { btn.disabled = false; btn.textContent = 'Generate Opportunities'; }
 }
 
 // ── Swipe Card View ──────────────────────────────────────────────────────────
@@ -3834,9 +3866,27 @@ async function saveProfile() {
     await fetch(`${API_BASE}/tenant-profile`, {
       method: 'POST', headers: getHeaders(), body: JSON.stringify(body),
     });
-    status.textContent = 'Profile saved';
+    status.innerHTML = 'Profile saved. <span style="color:var(--teal);">Generating opportunities...</span>';
     status.style.color = 'var(--green)';
     loadProfile(); // Refresh
+
+    // Generate personalised opportunities + alerts in background
+    try {
+      const [oppRes, alertRes] = await Promise.all([
+        fetch(API_BASE + '/enrich-opportunities', { method: 'POST', headers: getHeaders(), body: JSON.stringify({ batch_size: 20 }) }),
+        fetch(API_BASE + '/alerts', { method: 'POST', headers: getHeaders(), body: JSON.stringify({ action: 'generate' }) }),
+      ]);
+      const oppData = await oppRes.json();
+      const alertData = await alertRes.json();
+      const oppCount = oppData.enriched || 0;
+      const alertCount = alertData.generated || alertData.count || 0;
+      status.innerHTML = `Profile saved. Generated <strong>${oppCount}</strong> opportunities and <strong>${alertCount}</strong> alerts.`;
+      // Reload opportunities in background
+      loadOpportunities();
+      loadAlerts();
+    } catch (e2) {
+      status.textContent = 'Profile saved. Opportunities will appear shortly.';
+    }
   } catch (e) {
     status.textContent = 'Save failed: ' + e.message;
     status.style.color = 'var(--red)';
@@ -3844,7 +3894,7 @@ async function saveProfile() {
 
   btn.disabled = false;
   btn.textContent = 'Save Profile';
-  setTimeout(() => { status.textContent = ''; }, 3000);
+  setTimeout(() => { status.textContent = ''; }, 8000);
 }
 
 async function uploadContext() {
