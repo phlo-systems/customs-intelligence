@@ -429,6 +429,41 @@
 
   .page-loader { display: flex; align-items: center; gap: 10px; padding: 40px 0; color: var(--text-3); font-size: 13px; }
 
+  /* ── Onboarding Wizard ── */
+  .ob-step { animation: obFadeIn 0.3s ease; }
+  @keyframes obFadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  .ob-option {
+    padding: 16px 18px;
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    cursor: pointer;
+    background: var(--surface);
+    transition: all 0.15s;
+  }
+  .ob-option:active, .ob-option.selected {
+    border-color: var(--text);
+    background: var(--text);
+    color: #fff;
+  }
+  .ob-option.selected div { color: #fff !important; }
+  .ob-chip {
+    padding: 10px 16px;
+    border: 2px solid var(--border);
+    border-radius: 24px;
+    cursor: pointer;
+    background: var(--surface);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-2);
+    transition: all 0.15s;
+    user-select: none;
+  }
+  .ob-chip:active, .ob-chip.selected {
+    border-color: var(--teal);
+    background: var(--teal);
+    color: #fff;
+  }
+
   /* ── Commodity Code Autocomplete ── */
   .hs-autocomplete {
     position: relative;
@@ -1123,7 +1158,74 @@
 </div>
 
 <!-- ── App (hidden until authenticated) ── -->
-<div class="app-wrap" id="app-wrap">
+<!-- ── Onboarding Wizard ── -->
+<div id="onboarding-screen" style="display:none;position:fixed;inset:0;background:var(--bg);z-index:300;overflow-y:auto;-webkit-overflow-scrolling:touch;">
+  <div style="max-width:420px;margin:0 auto;padding:24px 20px;min-height:100vh;display:flex;flex-direction:column;justify-content:center;">
+
+    <!-- Step 1: Welcome -->
+    <div class="ob-step" id="ob-step-1">
+      <div style="text-align:center;margin-bottom:32px;">
+        <div style="font-size:40px;margin-bottom:12px;">&#127757;</div>
+        <div style="font-size:22px;font-weight:600;margin-bottom:8px;">Welcome to Customs Intelligence</div>
+        <div style="font-size:14px;color:var(--text-2);line-height:1.6;">Answer 3 quick questions and we'll find duty savings for your business.</div>
+      </div>
+      <button onclick="obNext(2)" style="width:100%;padding:16px;background:var(--text);color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:600;cursor:pointer;">Let's go</button>
+    </div>
+
+    <!-- Step 2: What do you do? -->
+    <div class="ob-step" id="ob-step-2" style="display:none;">
+      <div style="font-size:11px;color:var(--text-3);font-family:var(--mono);margin-bottom:12px;">STEP 1 OF 3</div>
+      <div style="font-size:20px;font-weight:600;margin-bottom:6px;">What does your company do?</div>
+      <div style="font-size:13px;color:var(--text-2);margin-bottom:24px;">Pick the closest match.</div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <div class="ob-option" onclick="obSelectOne(this,'ob-business','TRADER')">
+          <div style="font-weight:600;">Trader</div>
+          <div style="font-size:12px;color:var(--text-3);">Buy and sell goods internationally</div>
+        </div>
+        <div class="ob-option" onclick="obSelectOne(this,'ob-business','IMPORTER')">
+          <div style="font-weight:600;">Importer</div>
+          <div style="font-size:12px;color:var(--text-3);">Buy from overseas, sell domestically</div>
+        </div>
+        <div class="ob-option" onclick="obSelectOne(this,'ob-business','EXPORTER')">
+          <div style="font-weight:600;">Exporter</div>
+          <div style="font-size:12px;color:var(--text-3);">Sell to overseas markets</div>
+        </div>
+        <div class="ob-option" onclick="obSelectOne(this,'ob-business','MANUFACTURER')">
+          <div style="font-weight:600;">Manufacturer</div>
+          <div style="font-size:12px;color:var(--text-3);">Make products and trade internationally</div>
+        </div>
+      </div>
+      <input type="hidden" id="ob-business" value="">
+    </div>
+
+    <!-- Step 3: What do you trade? -->
+    <div class="ob-step" id="ob-step-3" style="display:none;">
+      <div style="font-size:11px;color:var(--text-3);font-family:var(--mono);margin-bottom:12px;">STEP 2 OF 3</div>
+      <div style="font-size:20px;font-weight:600;margin-bottom:6px;">What do you trade?</div>
+      <div style="font-size:13px;color:var(--text-2);margin-bottom:20px;">Tap all that apply.</div>
+      <div id="ob-products" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+      <button onclick="obNext(4)" style="width:100%;padding:14px;background:var(--text);color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer;margin-top:24px;">Next</button>
+    </div>
+
+    <!-- Step 4: Where do you trade? -->
+    <div class="ob-step" id="ob-step-4" style="display:none;">
+      <div style="font-size:11px;color:var(--text-3);font-family:var(--mono);margin-bottom:12px;">STEP 3 OF 3</div>
+      <div style="font-size:20px;font-weight:600;margin-bottom:6px;">Where do you trade?</div>
+      <div style="font-size:13px;color:var(--text-2);margin-bottom:20px;">Tap the countries you buy from or sell to.</div>
+      <div id="ob-countries" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+      <button onclick="obFinish()" id="ob-finish-btn" style="width:100%;padding:14px;background:var(--teal);color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer;margin-top:24px;">Find my opportunities</button>
+    </div>
+
+    <!-- Step 5: Loading -->
+    <div class="ob-step" id="ob-step-5" style="display:none;text-align:center;">
+      <div class="spinner" style="margin:0 auto 20px;"></div>
+      <div id="ob-loading-text" style="font-size:16px;font-weight:500;color:var(--text);margin-bottom:8px;">Analysing your trade routes...</div>
+      <div style="font-size:13px;color:var(--text-3);">This takes about 10 seconds</div>
+    </div>
+  </div>
+</div>
+
+<div class="app-wrap" id="app-wrap"
 
 <header>
   <div class="logo"><span>◆</span>Customs Intelligence</div>
@@ -2151,11 +2253,10 @@ async function doSignup() {
       localStorage.setItem('ci_user', JSON.stringify(data.user));
       if (data.api_key) localStorage.setItem('ci_api_key', data.api_key);
 
-      // Show API key to user
-      successEl.innerHTML = 'Account created! Your API key:<br><code style="font-size:10px;word-break:break-all;">' + (data.api_key || '') + '</code><br>Save it now — it won\'t be shown again.';
-      successEl.style.display = 'block';
+      if (data.api_key) localStorage.setItem('ci_onboarding_key', data.api_key);
 
-      setTimeout(function() { enterApp(); }, 3000);
+      // Start onboarding wizard instead of going straight to app
+      startOnboarding();
     }
   } catch (e) {
     errEl.textContent = 'Signup failed: ' + e.message;
@@ -2768,6 +2869,124 @@ function renderResult(d) {
     ${prefBanner}
     ${ratesSection}
     ${amountsSection}`;
+}
+
+// ── Onboarding Wizard ────────────────────────────────────────────────────────
+
+const OB_PRODUCTS = [
+  { label: 'Food & Agriculture', chapters: '01,02,03,04,05,06,07,08,09,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24' },
+  { label: 'Minerals & Energy', chapters: '25,26,27' },
+  { label: 'Chemicals & Pharma', chapters: '28,29,30,31,32,33,34,35,36,37,38' },
+  { label: 'Plastics & Rubber', chapters: '39,40' },
+  { label: 'Textiles & Clothing', chapters: '41,42,43,50,51,52,53,54,55,56,57,58,59,60,61,62,63' },
+  { label: 'Wood & Paper', chapters: '44,45,46,47,48,49' },
+  { label: 'Metals & Steel', chapters: '72,73,74,75,76,78,79,80,81,82,83' },
+  { label: 'Machinery', chapters: '84' },
+  { label: 'Electronics', chapters: '85' },
+  { label: 'Vehicles', chapters: '86,87,88,89' },
+  { label: 'Jewelry & Gems', chapters: '71' },
+  { label: 'Medical & Instruments', chapters: '90,91,92' },
+];
+
+const OB_COUNTRIES = [
+  { code: 'IN', name: 'India', flag: '&#127470;&#127475;' },
+  { code: 'ZA', name: 'South Africa', flag: '&#127487;&#127462;' },
+  { code: 'GB', name: 'United Kingdom', flag: '&#127468;&#127463;' },
+  { code: 'CN', name: 'China', flag: '&#127464;&#127475;' },
+  { code: 'AE', name: 'UAE', flag: '&#127462;&#127466;' },
+  { code: 'US', name: 'United States', flag: '&#127482;&#127480;' },
+  { code: 'DE', name: 'Germany', flag: '&#127465;&#127466;' },
+  { code: 'NA', name: 'Namibia', flag: '&#127475;&#127462;' },
+  { code: 'BR', name: 'Brazil', flag: '&#127463;&#127479;' },
+  { code: 'AU', name: 'Australia', flag: '&#127462;&#127482;' },
+  { code: 'SA', name: 'Saudi Arabia', flag: '&#127480;&#127462;' },
+  { code: 'TH', name: 'Thailand', flag: '&#127481;&#127469;' },
+  { code: 'MX', name: 'Mexico', flag: '&#127474;&#127485;' },
+  { code: 'OM', name: 'Oman', flag: '&#127476;&#127474;' },
+  { code: 'MU', name: 'Mauritius', flag: '&#127474;&#127482;' },
+];
+
+function startOnboarding() {
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('onboarding-screen').style.display = '';
+
+  // Build product chips
+  document.getElementById('ob-products').innerHTML = OB_PRODUCTS.map(p =>
+    `<div class="ob-chip" data-chapters="${p.chapters}" onclick="this.classList.toggle('selected')">${p.label}</div>`
+  ).join('');
+
+  // Build country chips with flags
+  document.getElementById('ob-countries').innerHTML = OB_COUNTRIES.map(c =>
+    `<div class="ob-chip" data-code="${c.code}" onclick="this.classList.toggle('selected')">${c.flag} ${c.name}</div>`
+  ).join('');
+}
+
+function obNext(step) {
+  document.querySelectorAll('.ob-step').forEach(s => s.style.display = 'none');
+  document.getElementById('ob-step-' + step).style.display = '';
+}
+
+function obSelectOne(el, hiddenId, value) {
+  el.parentElement.querySelectorAll('.ob-option').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  document.getElementById(hiddenId).value = value;
+  // Auto-advance after short delay
+  setTimeout(() => obNext(3), 300);
+}
+
+async function obFinish() {
+  const btn = document.getElementById('ob-finish-btn');
+  btn.disabled = true;
+
+  // Collect selections
+  const businessType = document.getElementById('ob-business').value || 'TRADER';
+  const selectedProducts = Array.from(document.querySelectorAll('#ob-products .ob-chip.selected'));
+  const hsChapters = [...new Set(selectedProducts.flatMap(c => c.dataset.chapters.split(',')))];
+  const selectedCountries = Array.from(document.querySelectorAll('#ob-countries .ob-chip.selected')).map(c => c.dataset.code);
+
+  // Show loading
+  obNext(5);
+
+  // Save profile
+  try {
+    document.getElementById('ob-loading-text').textContent = 'Saving your profile...';
+    await fetch(API_BASE + '/tenant-profile', {
+      method: 'POST', headers: getHeaders(),
+      body: JSON.stringify({
+        action: 'update',
+        business_type: businessType,
+        primary_hs_chapters: hsChapters,
+        active_origins: selectedCountries,
+        active_destinations: selectedCountries,
+        target_markets: selectedCountries,
+      }),
+    });
+
+    // Generate opportunities + alerts
+    document.getElementById('ob-loading-text').textContent = 'Finding trade opportunities...';
+    await Promise.all([
+      fetch(API_BASE + '/opportunities', {
+        method: 'POST', headers: getHeaders(),
+        body: JSON.stringify({ action: 'generate' }),
+      }),
+      fetch(API_BASE + '/alerts', {
+        method: 'POST', headers: getHeaders(),
+        body: JSON.stringify({ action: 'generate' }),
+      }),
+    ]);
+
+    document.getElementById('ob-loading-text').textContent = 'Almost ready...';
+    // Small delay for AI to complete
+    await new Promise(r => setTimeout(r, 1000));
+
+  } catch (e) {
+    console.error('Onboarding error:', e);
+  }
+
+  // Hide onboarding, enter app
+  document.getElementById('onboarding-screen').style.display = 'none';
+  localStorage.setItem('ci_onboarded', 'true');
+  enterApp();
 }
 
 // ── Generate Opportunities On Demand ─────────────────────────────────────────
