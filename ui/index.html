@@ -735,6 +735,82 @@
 
   .sample-table td:first-child { font-weight: 500; color: var(--text); }
 
+  /* ── Auth ── */
+  .auth-screen {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background: var(--bg);
+  }
+
+  .auth-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 40px;
+    width: 100%;
+    max-width: 380px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+  }
+
+  .auth-logo {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-align: center;
+    margin-bottom: 28px;
+    color: var(--text);
+  }
+
+  .auth-logo span { color: var(--teal-mid); margin-right: 6px; }
+
+  .auth-title {
+    font-size: 18px;
+    font-weight: 600;
+    text-align: center;
+    margin-bottom: 20px;
+    color: var(--text);
+  }
+
+  .auth-toggle {
+    text-align: center;
+    font-size: 12px;
+    color: var(--text-3);
+    margin-top: 16px;
+  }
+
+  .auth-toggle a {
+    color: var(--teal);
+    cursor: pointer;
+    font-weight: 500;
+    text-decoration: none;
+  }
+
+  .auth-error {
+    background: var(--red-bg);
+    color: var(--red);
+    font-size: 12px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    margin-bottom: 12px;
+    display: none;
+  }
+
+  .auth-success {
+    background: var(--green-bg);
+    color: var(--green);
+    font-size: 12px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    margin-bottom: 12px;
+    display: none;
+  }
+
+  .app-wrap { display: none; }
+
   .source-badge {
     display: inline-flex;
     align-items: center;
@@ -763,9 +839,59 @@
 </head>
 <body>
 
+<!-- ── Auth Screen ── -->
+<div class="auth-screen" id="auth-screen">
+  <div class="auth-card">
+    <div class="auth-logo"><span>&#9670;</span>Customs Intelligence</div>
+
+    <!-- Login Form -->
+    <div id="login-form">
+      <div class="auth-title">Sign In</div>
+      <div class="auth-error" id="login-error"></div>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="auth-email" placeholder="you@company.com">
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="auth-password" placeholder="Enter password">
+      </div>
+      <button class="lookup-btn" onclick="doLogin()" id="login-btn">Sign In</button>
+      <div class="auth-toggle">Don't have an account? <a onclick="showSignup()">Sign up</a></div>
+    </div>
+
+    <!-- Signup Form -->
+    <div id="signup-form" style="display:none;">
+      <div class="auth-title">Create Account</div>
+      <div class="auth-error" id="signup-error"></div>
+      <div class="auth-success" id="signup-success"></div>
+      <div class="form-group">
+        <label>Company Name</label>
+        <input type="text" id="auth-company" placeholder="e.g. Acme Trading Ltd">
+      </div>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="email" id="auth-signup-email" placeholder="you@company.com">
+      </div>
+      <div class="form-group">
+        <label>Password</label>
+        <input type="password" id="auth-signup-password" placeholder="Min 8 characters">
+      </div>
+      <button class="lookup-btn" onclick="doSignup()" id="signup-btn" style="background:var(--teal);">Create Account</button>
+      <div class="auth-toggle">Already have an account? <a onclick="showLogin()">Sign in</a></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── App (hidden until authenticated) ── -->
+<div class="app-wrap" id="app-wrap">
+
 <header>
   <div class="logo"><span>◆</span>Customs Intelligence</div>
-  <div class="header-meta" id="header-tenant">Loading tenant...</div>
+  <div style="display:flex;align-items:center;gap:16px;">
+    <div class="header-meta" id="header-tenant">Loading tenant...</div>
+    <span style="font-size:11px;color:rgba(255,255,255,0.5);cursor:pointer;" onclick="logout()">Logout</span>
+  </div>
 </header>
 
 <nav>
@@ -1113,14 +1239,180 @@
 
 </main>
 
+</div><!-- end app-wrap -->
+
 <script>
 const API_BASE = 'https://epytgmksddhvwziwxhuq.supabase.co/functions/v1';
-const API_KEY  = 'ci_live_a7f3e2b1c9d4f8a2e6b0c3d7f1a4e8b2';
 
-const HEADERS = {
-  'Content-Type': 'application/json',
-  'X-API-Key': API_KEY,
-};
+// Session management
+let currentSession = JSON.parse(localStorage.getItem('ci_session') || 'null');
+let currentUser = JSON.parse(localStorage.getItem('ci_user') || 'null');
+
+function getHeaders() {
+  const h = { 'Content-Type': 'application/json' };
+  if (currentSession?.access_token) {
+    h['Authorization'] = 'Bearer ' + currentSession.access_token;
+  }
+  // Also send API key if stored (for backward compat with edge functions)
+  const apiKey = localStorage.getItem('ci_api_key');
+  if (apiKey) h['X-API-Key'] = apiKey;
+  return h;
+}
+
+// All fetch calls use getHeaders() to get fresh auth headers each time.
+
+// ── Auth functions ───────────────────────────────────────────────────────────
+function showLogin() {
+  document.getElementById('login-form').style.display = '';
+  document.getElementById('signup-form').style.display = 'none';
+}
+
+function showSignup() {
+  document.getElementById('login-form').style.display = 'none';
+  document.getElementById('signup-form').style.display = '';
+}
+
+async function doLogin() {
+  const btn = document.getElementById('login-btn');
+  const errEl = document.getElementById('login-error');
+  errEl.style.display = 'none';
+  btn.disabled = true;
+  btn.textContent = 'Signing in...';
+
+  const email = document.getElementById('auth-email').value.trim();
+  const password = document.getElementById('auth-password').value;
+
+  try {
+    const r = await fetch(API_BASE + '/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'login', email, password }),
+    });
+    const data = await r.json();
+
+    if (data.error) {
+      errEl.textContent = data.error;
+      errEl.style.display = 'block';
+    } else {
+      currentSession = data.session;
+      currentUser = data.user;
+      localStorage.setItem('ci_session', JSON.stringify(data.session));
+      localStorage.setItem('ci_user', JSON.stringify(data.user));
+      enterApp();
+    }
+  } catch (e) {
+    errEl.textContent = 'Login failed: ' + e.message;
+    errEl.style.display = 'block';
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Sign In';
+}
+
+async function doSignup() {
+  const btn = document.getElementById('signup-btn');
+  const errEl = document.getElementById('signup-error');
+  const successEl = document.getElementById('signup-success');
+  errEl.style.display = 'none';
+  successEl.style.display = 'none';
+  btn.disabled = true;
+  btn.textContent = 'Creating account...';
+
+  const company = document.getElementById('auth-company').value.trim();
+  const email = document.getElementById('auth-signup-email').value.trim();
+  const password = document.getElementById('auth-signup-password').value;
+
+  try {
+    const r = await fetch(API_BASE + '/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'signup', email, password, company_name: company }),
+    });
+    const data = await r.json();
+
+    if (data.error) {
+      errEl.textContent = data.error;
+      errEl.style.display = 'block';
+    } else {
+      currentSession = data.session;
+      currentUser = data.user;
+      localStorage.setItem('ci_session', JSON.stringify(data.session));
+      localStorage.setItem('ci_user', JSON.stringify(data.user));
+      if (data.api_key) localStorage.setItem('ci_api_key', data.api_key);
+
+      // Show API key to user
+      successEl.innerHTML = 'Account created! Your API key:<br><code style="font-size:10px;word-break:break-all;">' + (data.api_key || '') + '</code><br>Save it now — it won\'t be shown again.';
+      successEl.style.display = 'block';
+
+      setTimeout(function() { enterApp(); }, 3000);
+    }
+  } catch (e) {
+    errEl.textContent = 'Signup failed: ' + e.message;
+    errEl.style.display = 'block';
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Create Account';
+}
+
+function enterApp() {
+  document.getElementById('auth-screen').style.display = 'none';
+  document.getElementById('app-wrap').style.display = '';
+  // Update header
+  if (currentUser) {
+    document.getElementById('header-tenant').textContent =
+      (currentUser.company_name || currentUser.email || '') + ' · Customs Intelligence';
+  }
+  init();
+}
+
+function logout() {
+  localStorage.removeItem('ci_session');
+  localStorage.removeItem('ci_user');
+  localStorage.removeItem('ci_api_key');
+  currentSession = null;
+  currentUser = null;
+  document.getElementById('auth-screen').style.display = '';
+  document.getElementById('app-wrap').style.display = 'none';
+}
+
+// Check for existing session on page load
+if (currentSession?.access_token) {
+  // Verify token is still valid
+  fetch(API_BASE + '/auth', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + currentSession.access_token },
+    body: JSON.stringify({ action: 'me' }),
+  }).then(r => r.json()).then(data => {
+    if (data.user) {
+      currentUser = data.user;
+      localStorage.setItem('ci_user', JSON.stringify(data.user));
+      enterApp();
+    } else {
+      // Token expired — try refresh
+      if (currentSession.refresh_token) {
+        fetch(API_BASE + '/auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'refresh', refresh_token: currentSession.refresh_token }),
+        }).then(r => r.json()).then(rd => {
+          if (rd.session) {
+            currentSession = rd.session;
+            localStorage.setItem('ci_session', JSON.stringify(rd.session));
+            enterApp();
+          } else {
+            logout();
+          }
+        }).catch(() => logout());
+      } else {
+        logout();
+      }
+    }
+  }).catch(() => logout());
+} else {
+  // No session — show login
+  document.getElementById('auth-screen').style.display = '';
+}
 
 const TYPE_LABELS = {
   DUTY_REDUCTION:          'Duty Reduction',
@@ -1135,7 +1427,7 @@ let allOpps = [];
 // ── Init ──────────────────────────────────────────────────────────────────────
 async function init() {
   try {
-    const r   = await fetch(`${API_BASE}/onboard`, { headers: HEADERS });
+    const r   = await fetch(`${API_BASE}/onboard`, { headers: getHeaders() });
     const ctx = await r.json();
     if (ctx.tenantid) {
       document.getElementById('header-tenant').textContent =
@@ -1148,7 +1440,7 @@ async function init() {
 // ── Opportunities ─────────────────────────────────────────────────────────────
 async function loadOpportunities() {
   try {
-    const r    = await fetch(`${API_BASE}/opportunities?limit=200`, { headers: HEADERS });
+    const r    = await fetch(`${API_BASE}/opportunities?limit=200`, { headers: getHeaders() });
     const data = await r.json();
     allOpps    = data.opportunities ?? [];
 
@@ -1264,7 +1556,7 @@ async function runLookup() {
     const body = { export_country: exportC, import_country: importC, commodity_code: code, currency: curr };
     if (val) body.customs_value = Number(val);
 
-    const r    = await fetch(`${API_BASE}/tariff-lookup`, { method: 'POST', headers: HEADERS, body: JSON.stringify(body) });
+    const r    = await fetch(`${API_BASE}/tariff-lookup`, { method: 'POST', headers: getHeaders(), body: JSON.stringify(body) });
     const data = await r.json();
     panel.innerHTML = renderResult(data);
   } catch(e) {
@@ -1355,7 +1647,7 @@ async function runClassify() {
   try {
     const r    = await fetch(`${API_BASE}/classify`, {
       method:  'POST',
-      headers: HEADERS,
+      headers: getHeaders(),
       body:    JSON.stringify({ description, import_country: country }),
     });
     const data = await r.json();
@@ -1483,7 +1775,7 @@ async function confirmCode(i, commodityCode, description, country) {
     // Edge Function checks: if (confirmCode) { upsert cache and return }
     await fetch(`${API_BASE}/classify`, {
       method:  'POST',
-      headers: HEADERS,
+      headers: getHeaders(),
       body:    JSON.stringify({
         description,
         confirm_code:   commodityCode,   // 8-digit commodity code
@@ -1582,7 +1874,7 @@ async function runUpload() {
 
     const r = await fetch(`${API_BASE}/upload-tariff`, {
       method: 'POST',
-      headers: { 'X-API-Key': API_KEY },
+      headers: { 'X-API-Key': localStorage.getItem('ci_api_key') || '' },
       body: form,
     });
 
@@ -1654,7 +1946,7 @@ function renderUploadResult(data) {
 // ── Company Profile ──────────────────────────────────────────────────────────
 async function loadProfile() {
   try {
-    const r = await fetch(`${API_BASE}/tenant-profile`, { headers: HEADERS });
+    const r = await fetch(`${API_BASE}/tenant-profile`, { headers: getHeaders() });
     if (!r.ok) return;
     const data = await r.json();
 
@@ -1801,7 +2093,7 @@ async function saveProfile() {
 
   try {
     await fetch(`${API_BASE}/tenant-profile`, {
-      method: 'POST', headers: HEADERS, body: JSON.stringify(body),
+      method: 'POST', headers: getHeaders(), body: JSON.stringify(body),
     });
     status.textContent = 'Profile saved';
     status.style.color = 'var(--green)';
@@ -1835,7 +2127,7 @@ async function uploadContext() {
 
   try {
     const r = await fetch(`${API_BASE}/tenant-profile`, {
-      method: 'POST', headers: HEADERS,
+      method: 'POST', headers: getHeaders(),
       body: JSON.stringify({ action: 'upload_context', document_name: docName || 'Document', document_text: docText }),
     });
     const data = await r.json();
@@ -1872,7 +2164,7 @@ async function checkXeroStatus() {
   try {
     const r = await fetch(`${API_BASE}/xero-connect`, {
       method: 'POST',
-      headers: HEADERS,
+      headers: getHeaders(),
       body: JSON.stringify({ action: 'status' }),
     });
     const data = await r.json();
@@ -1921,7 +2213,7 @@ async function checkXeroStatus() {
 }
 
 function connectXero() {
-  const popup = window.open(`${API_BASE}/xero-connect?action=auth&api_key=${API_KEY}`, 'xero_auth', 'width=600,height=700');
+  const popup = window.open(`${API_BASE}/xero-connect?action=auth&api_key=${localStorage.getItem('ci_api_key') || ''}`, 'xero_auth', 'width=600,height=700');
 
   // Poll for connection after Xero redirects back
   const poll = setInterval(async () => {
@@ -1938,7 +2230,7 @@ function connectXero() {
 
       // Check connection status
       const r = await fetch(`${API_BASE}/xero-connect`, {
-        method: 'POST', headers: HEADERS, body: JSON.stringify({ action: 'status' }),
+        method: 'POST', headers: getHeaders(), body: JSON.stringify({ action: 'status' }),
       });
       const data = await r.json();
       if (data.connected) {
@@ -1956,7 +2248,7 @@ function connectXero() {
 async function disconnectXero() {
   if (!confirm('Disconnect Xero? This will stop syncing invoice data.')) return;
   await fetch(`${API_BASE}/xero-connect`, {
-    method: 'POST', headers: HEADERS, body: JSON.stringify({ action: 'disconnect' }),
+    method: 'POST', headers: getHeaders(), body: JSON.stringify({ action: 'disconnect' }),
   });
   checkXeroStatus();
 }
@@ -1978,7 +2270,7 @@ async function runXeroSync(full = false) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 180000); // 3 min timeout
     const r = await fetch(`${API_BASE}/xero-sync`, {
-      method: 'POST', headers: HEADERS, body: JSON.stringify(full ? { full: true } : {}),
+      method: 'POST', headers: getHeaders(), body: JSON.stringify(full ? { full: true } : {}),
       signal: controller.signal,
     });
     clearTimeout(timeout);
@@ -2058,7 +2350,7 @@ function renderXeroSyncResult(data) {
 async function refreshXeroLastSync() {
   try {
     const r = await fetch(`${API_BASE}/xero-connect`, {
-      method: 'POST', headers: HEADERS, body: JSON.stringify({ action: 'status' }),
+      method: 'POST', headers: getHeaders(), body: JSON.stringify({ action: 'status' }),
     });
     const data = await r.json();
     if (data.connected && data.last_sync_at) {
@@ -2082,7 +2374,7 @@ setTimeout(checkXeroStatus, 1000);
 async function checkAcumaticaStatus() {
   try {
     const r = await fetch(`${API_BASE}/acumatica-connect`, {
-      method: 'POST', headers: HEADERS, body: JSON.stringify({ action: 'status' }),
+      method: 'POST', headers: getHeaders(), body: JSON.stringify({ action: 'status' }),
     });
     const data = await r.json();
     const statusDiv = document.getElementById('acumatica-status');
@@ -2180,7 +2472,7 @@ async function connectAcumatica() {
 
   try {
     const r = await fetch(`${API_BASE}/acumatica-connect`, {
-      method: 'POST', headers: HEADERS,
+      method: 'POST', headers: getHeaders(),
       body: JSON.stringify({
         action: 'connect_credentials',
         instance_url: url,
@@ -2212,7 +2504,7 @@ async function connectAcumatica() {
 async function disconnectAcumatica() {
   if (!confirm('Disconnect Acumatica?')) return;
   await fetch(`${API_BASE}/acumatica-connect`, {
-    method: 'POST', headers: HEADERS, body: JSON.stringify({ action: 'disconnect' }),
+    method: 'POST', headers: getHeaders(), body: JSON.stringify({ action: 'disconnect' }),
   });
   checkAcumaticaStatus();
 }
@@ -2233,7 +2525,7 @@ async function runAcumaticaSync(full = false) {
     const controller = new AbortController();
     setTimeout(() => controller.abort(), 180000);
     const r = await fetch(`${API_BASE}/acumatica-sync`, {
-      method: 'POST', headers: HEADERS, body: JSON.stringify(full ? { full: true } : {}),
+      method: 'POST', headers: getHeaders(), body: JSON.stringify(full ? { full: true } : {}),
       signal: controller.signal,
     });
     const data = await r.json();
@@ -2258,7 +2550,7 @@ setTimeout(checkAcumaticaStatus, 1500);
 async function checkEmailStatus() {
   try {
     const r = await fetch(`${API_BASE}/email-connect`, {
-      method: 'POST', headers: HEADERS, body: JSON.stringify({ action: 'status' }),
+      method: 'POST', headers: getHeaders(), body: JSON.stringify({ action: 'status' }),
     });
     const data = await r.json();
     const statusDiv = document.getElementById('email-status');
@@ -2323,7 +2615,7 @@ async function checkEmailStatus() {
 async function connectEmail(platform) {
   try {
     const r = await fetch(`${API_BASE}/email-connect`, {
-      method: 'POST', headers: HEADERS,
+      method: 'POST', headers: getHeaders(),
       body: JSON.stringify({ action: 'auth_' + platform }),
     });
     const data = await r.json();
@@ -2334,7 +2626,7 @@ async function connectEmail(platform) {
       const poll = setInterval(async () => {
         try {
           const sr = await fetch(`${API_BASE}/email-connect`, {
-            method: 'POST', headers: HEADERS, body: JSON.stringify({ action: 'status' }),
+            method: 'POST', headers: getHeaders(), body: JSON.stringify({ action: 'status' }),
           });
           const sd = await sr.json();
           if (sd.gmail?.connected || sd.outlook?.connected) {
@@ -2376,7 +2668,7 @@ async function runEmailSync(platform, days) {
     const controller = new AbortController();
     setTimeout(() => controller.abort(), 120000);
     const r = await fetch(`${API_BASE}/email-sync`, {
-      method: 'POST', headers: HEADERS,
+      method: 'POST', headers: getHeaders(),
       body: JSON.stringify({ platform, days }),
       signal: controller.signal,
     });
@@ -2440,7 +2732,7 @@ let allAlerts = [];
 
 async function loadAlerts() {
   try {
-    const r = await fetch(`${API_BASE}/alerts?limit=200`, { headers: HEADERS });
+    const r = await fetch(`${API_BASE}/alerts?limit=200`, { headers: getHeaders() });
     const data = await r.json();
     allAlerts = data.alerts || [];
     const counts = data.counts || {};
@@ -2549,7 +2841,7 @@ function filterAlerts(el, severity) {
 
 async function actionAlert(alertId, action) {
   await fetch(`${API_BASE}/alerts`, {
-    method: 'POST', headers: HEADERS,
+    method: 'POST', headers: getHeaders(),
     body: JSON.stringify({ action, alert_id: alertId }),
   });
   // Remove from UI
@@ -2566,7 +2858,7 @@ async function generateAlerts() {
 
   try {
     const r = await fetch(`${API_BASE}/alerts`, {
-      method: 'POST', headers: HEADERS,
+      method: 'POST', headers: getHeaders(),
       body: JSON.stringify({ action: 'generate' }),
     });
     const data = await r.json();
@@ -2579,7 +2871,7 @@ async function generateAlerts() {
 
 setTimeout(loadAlerts, 800);
 
-init();
+// init() is called from enterApp() after successful authentication
 </script>
 </body>
 </html>
