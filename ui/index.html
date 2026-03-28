@@ -1504,7 +1504,22 @@
         <div class="form-group">
           <label>Product Description</label>
           <textarea id="c-description" rows="4" placeholder="e.g. Frozen potato chips, pre-cooked, in 25kg bags"></textarea>
-          <div class="hint">More detail improves accuracy</div>
+          <div class="hint">More detail improves accuracy — include materials, dimensions, intended use</div>
+        </div>
+
+        <div class="form-group">
+          <label>Upload Product Document <span style="font-weight:400;color:var(--text-3);">(optional)</span></label>
+          <div style="border:2px dashed var(--border);border-radius:8px;padding:16px;text-align:center;cursor:pointer;background:var(--bg);transition:border-color 0.15s;" id="c-drop-zone" onclick="document.getElementById('c-file-input').click()">
+            <div id="c-file-label" style="font-size:13px;color:var(--text-2);">
+              Drop a file here or <span style="color:var(--teal);font-weight:500;">browse</span><br>
+              <span style="font-size:11px;color:var(--text-3);">PDF, images, or text — spec sheets, marketing brochures, product labels</span>
+            </div>
+            <input type="file" id="c-file-input" accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.txt,.doc,.docx,.csv" style="display:none;" onchange="handleClassifyFile(this)">
+          </div>
+          <div id="c-file-preview" style="display:none;margin-top:8px;font-size:12px;padding:8px 12px;background:var(--teal-bg);border-radius:6px;display:flex;justify-content:space-between;align-items:center;">
+            <span id="c-file-name" style="color:var(--teal);font-weight:500;"></span>
+            <span onclick="clearClassifyFile()" style="color:var(--red);cursor:pointer;font-size:11px;">Remove</span>
+          </div>
         </div>
 
         <div class="form-group">
@@ -3678,6 +3693,71 @@ function renderImportDocs(d) {
 }
 
 // ── Classify ──────────────────────────────────────────────────────────────────
+// ── Classify File Upload ──────────────────────────────────────────────────────
+let classifyFileContent = null;
+let classifyFileName = null;
+
+function handleClassifyFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  classifyFileName = file.name;
+  const maxSize = 5 * 1024 * 1024; // 5MB
+  if (file.size > maxSize) {
+    alert('File too large. Maximum 5MB.'); input.value = ''; return;
+  }
+
+  // Show preview
+  document.getElementById('c-file-preview').style.display = 'flex';
+  document.getElementById('c-file-name').textContent = file.name + ' (' + (file.size / 1024).toFixed(0) + ' KB)';
+
+  // Read file content
+  if (file.type === 'application/pdf') {
+    // For PDFs: read as base64
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      classifyFileContent = { type: 'pdf', name: file.name, data: e.target.result.split(',')[1] };
+    };
+    reader.readAsDataURL(file);
+  } else if (file.type.startsWith('image/')) {
+    // For images: read as base64 (Claude can analyze images)
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      classifyFileContent = { type: 'image', name: file.name, media_type: file.type, data: e.target.result.split(',')[1] };
+    };
+    reader.readAsDataURL(file);
+  } else {
+    // For text/csv/doc: read as text
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      classifyFileContent = { type: 'text', name: file.name, data: e.target.result };
+    };
+    reader.readAsText(file);
+  }
+}
+
+function clearClassifyFile() {
+  classifyFileContent = null;
+  classifyFileName = null;
+  document.getElementById('c-file-input').value = '';
+  document.getElementById('c-file-preview').style.display = 'none';
+}
+
+// Drag and drop support
+document.addEventListener('DOMContentLoaded', function() {
+  const zone = document.getElementById('c-drop-zone');
+  if (!zone) return;
+  zone.addEventListener('dragover', function(e) { e.preventDefault(); zone.style.borderColor = 'var(--teal)'; });
+  zone.addEventListener('dragleave', function() { zone.style.borderColor = 'var(--border)'; });
+  zone.addEventListener('drop', function(e) {
+    e.preventDefault(); zone.style.borderColor = 'var(--border)';
+    if (e.dataTransfer.files.length) {
+      document.getElementById('c-file-input').files = e.dataTransfer.files;
+      handleClassifyFile(document.getElementById('c-file-input'));
+    }
+  });
+});
+
 function setExample(text) {
   document.getElementById('c-description').value = text;
   document.getElementById('c-description').focus();
@@ -3689,20 +3769,26 @@ async function runClassify() {
   const description = document.getElementById('c-description').value.trim();
   const country     = document.getElementById('c-country').value.trim().toUpperCase() || 'ZA';
 
-  if (!description) {
-    panel.innerHTML = `<div class="classify-empty"><div class="classify-empty-title">Please enter a product description</div></div>`;
+  if (!description && !classifyFileContent) {
+    panel.innerHTML = `<div class="classify-empty"><div class="classify-empty-title">Please enter a product description or upload a document</div></div>`;
     return;
   }
 
   btn.disabled = true;
-  btn.textContent = 'Classifying...';
-  panel.innerHTML = `<div class="classify-empty"><div class="spinner" style="margin:0 0 12px;"></div><div>Analysing product description...</div></div>`;
+  btn.textContent = classifyFileContent ? 'Analysing document...' : 'Classifying...';
+  panel.innerHTML = `<div class="classify-empty"><div class="spinner" style="margin:0 0 12px;"></div><div>${classifyFileContent ? 'Analysing document with AI...' : 'Analysing product description...'}</div></div>`;
+
+  // Build request body
+  const reqBody = { description, import_country: country };
+  if (classifyFileContent) {
+    reqBody.document = classifyFileContent;
+  }
 
   try {
     const r    = await fetch(`${API_BASE}/classify`, {
       method:  'POST',
       headers: getHeaders(),
-      body:    JSON.stringify({ description, import_country: country }),
+      body:    JSON.stringify(reqBody),
     });
     const data = await r.json();
     panel.innerHTML = renderClassifyResults(data, description, country);

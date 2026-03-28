@@ -71,8 +71,30 @@ Deno.serve(async (req: Request) => {
   const description  = str(body.description);
   const confirmCode  = str(body.confirm_code);
   const importCountry = str(body.import_country) ?? "ZA";
+  const document     = body.document as Record<string, unknown> | null;
 
-  if (!description) return json({ error: "description is required" }, 400);
+  // Extract text from uploaded document if present
+  let documentText = "";
+  let documentImage: { type: string; media_type: string; data: string } | null = null;
+
+  if (document) {
+    if (document.type === "text") {
+      documentText = String(document.data || "").substring(0, 10000);
+    } else if (document.type === "image") {
+      // Store for multimodal Claude call
+      documentImage = {
+        type: "image",
+        media_type: String(document.media_type || "image/jpeg"),
+        data: String(document.data || ""),
+      };
+    } else if (document.type === "pdf") {
+      // For PDF: we can't easily extract text in edge function,
+      // so we'll tell Claude about it and pass what we have
+      documentText = `[PDF document uploaded: ${document.name || "unknown.pdf"}. Content analysis requested.]`;
+    }
+  }
+
+  if (!description && !documentText && !documentImage) return json({ error: "description or document is required" }, 400);
 
   // Normalise: lowercase, strip punctuation
   const normalised = description.toLowerCase().replace(/[^\w\s]/g, " ").replace(/\s+/g, " ").trim();
@@ -277,9 +299,13 @@ Deno.serve(async (req: Request) => {
       : "No pre-filtered codes available — use your HS classification knowledge.";
   }
 
+  const docContext = documentText
+    ? `\n\nAdditional context from uploaded document:\n${documentText.substring(0, 5000)}`
+    : "";
+
   const prompt = `You are an expert customs classifier. The import country is ${importCountry}.
 
-Product description to classify: "${description}"
+Product description to classify: "${description || 'See uploaded document'}"${docContext}
 
 Relevant commodity codes from the tariff schedule:
 ${codeListText}
@@ -304,10 +330,22 @@ Rules:
 - Return exactly 3 suggestions, even if confidence is low for ranks 2 and 3
 - Return ONLY the JSON array, no markdown, no explanation`;
 
+  // Build message content — multimodal if image uploaded
+  const messageContent: any[] = [];
+  if (documentImage) {
+    messageContent.push({
+      type: "image",
+      source: { type: "base64", media_type: documentImage.media_type, data: documentImage.data },
+    });
+    messageContent.push({ type: "text", text: "The above image is a product photo, spec sheet, or label. Use it to help classify this product.\n\n" + prompt });
+  } else {
+    messageContent.push({ type: "text", text: prompt });
+  }
+
   const message = await anthropic.messages.create({
     model:      "claude-sonnet-4-20250514",
     max_tokens: 500,
-    messages:   [{ role: "user", content: prompt }],
+    messages:   [{ role: "user", content: messageContent }],
   });
 
   let raw = message.content[0].type === "text" ? message.content[0].text.trim() : "[]";
