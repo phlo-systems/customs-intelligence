@@ -7,6 +7,7 @@
 <meta name="description" content="AI-powered tariff lookup, HS classification, landed cost calculator, and trade compliance for India, South Africa, UK, Brazil. Real-time duty rates, anti-dumping alerts, and document requirements.">
 <meta name="theme-color" content="#0d6e5a">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌐</text></svg>">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.3.1/dist/driver.css">
@@ -1494,6 +1495,11 @@
             <tbody id="cmp-tbody"></tbody>
           </table>
         </div>
+        <div id="cmp-share-bar" style="display:none;margin-top:12px;display:flex;gap:8px;justify-content:center;">
+          <button onclick="shareCompareResult()" style="font-size:12px;padding:8px 16px;border:1px solid var(--border);border-radius:8px;background:var(--surface);cursor:pointer;">📄 Download PDF</button>
+          <button onclick="shareVia('email', document.getElementById('cmp-table').innerText.substring(0,400))" style="font-size:12px;padding:8px 16px;border:1px solid var(--border);border-radius:8px;background:var(--surface);cursor:pointer;">✉️ Email</button>
+          <button onclick="shareVia('whatsapp', document.getElementById('cmp-table').innerText.substring(0,400))" style="font-size:12px;padding:8px 16px;border:1px solid var(--border);border-radius:8px;background:var(--surface);cursor:pointer;">💬 WhatsApp</button>
+        </div>
       </div>
       <div id="cmp-empty" style="text-align:center;padding:40px;color:var(--text-3);font-size:13px;">
         Select a commodity and countries to compare landed costs across routes.
@@ -2958,10 +2964,20 @@ function renderResult(d) {
       <div class="result-total-val">${curr} ${fmt(sum.total_landed_cost)}</div>
     </div>
     ${drawbackSection}
-    ${renderImportDocs(d)}`
+    ${renderImportDocs(d)}
+    <div style="margin-top:16px;display:flex;gap:8px;justify-content:center;">
+      <button onclick="shareTariffResult()" style="font-size:12px;padding:8px 16px;border:1px solid var(--border);border-radius:8px;background:var(--surface);cursor:pointer;">📄 Download PDF</button>
+      <button onclick="shareVia('email', document.getElementById('result-panel').innerText.substring(0,400))" style="font-size:12px;padding:8px 16px;border:1px solid var(--border);border-radius:8px;background:var(--surface);cursor:pointer;">✉️ Email</button>
+      <button onclick="shareVia('whatsapp', document.getElementById('result-panel').innerText.substring(0,400))" style="font-size:12px;padding:8px 16px;border:1px solid var(--border);border-radius:8px;background:var(--surface);cursor:pointer;">💬 WhatsApp</button>
+    </div>`
     : `<div style="font-size:12px;color:var(--text-3);margin-top:12px;padding:10px 12px;background:var(--bg);border-radius:6px;">Add a customs value to calculate currency amounts.</div>
     ${drawbackSection}
-    ${renderImportDocs(d)}`;
+    ${renderImportDocs(d)}
+    <div style="margin-top:16px;display:flex;gap:8px;justify-content:center;">
+      <button onclick="shareTariffResult()" style="font-size:12px;padding:8px 16px;border:1px solid var(--border);border-radius:8px;background:var(--surface);cursor:pointer;">📄 Download PDF</button>
+      <button onclick="shareVia('email', document.getElementById('result-panel').innerText.substring(0,400))" style="font-size:12px;padding:8px 16px;border:1px solid var(--border);border-radius:8px;background:var(--surface);cursor:pointer;">✉️ Email</button>
+      <button onclick="shareVia('whatsapp', document.getElementById('result-panel').innerText.substring(0,400))" style="font-size:12px;padding:8px 16px;border:1px solid var(--border);border-radius:8px;background:var(--surface);cursor:pointer;">💬 WhatsApp</button>
+    </div>`;
 
   const desc = inp.commodity_description
     ? `<div class="result-desc">${inp.commodity_description.substring(0, 120)}${inp.commodity_description.length > 120 ? '…' : ''}</div>`
@@ -3363,6 +3379,102 @@ function initSwipeTouch() {
   }, { passive: true });
 }
 
+// ── PDF Generation & Sharing ─────────────────────────────────────────────────
+
+function generatePDF(contentHTML, filename, title) {
+  const wrapper = document.createElement('div');
+  wrapper.innerHTML = `
+    <div style="font-family:Helvetica,Arial,sans-serif;color:#1a1d23;padding:20px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid #0891b2;padding-bottom:12px;margin-bottom:20px;">
+        <div>
+          <div style="font-size:20px;font-weight:700;">🌐 customs<span style="color:#0891b2;">compliance</span><span style="color:#0891b2;font-weight:700;">.ai</span></div>
+          <div style="font-size:10px;color:#8b93a0;margin-top:2px;">AI-powered tariff intelligence for global trade</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:11px;color:#5a6070;">${title}</div>
+          <div style="font-size:10px;color:#8b93a0;">${new Date().toLocaleDateString('en-GB', {day:'2-digit',month:'short',year:'numeric'})}</div>
+        </div>
+      </div>
+      ${contentHTML}
+      <div style="border-top:1px solid #e1e5eb;margin-top:24px;padding-top:12px;font-size:9px;color:#8b93a0;text-align:center;">
+        Generated by customs-compliance.ai · Data for informational purposes only · Verify with customs authority before acting
+      </div>
+    </div>`;
+
+  const opt = {
+    margin: [8, 8, 8, 8],
+    filename: filename,
+    image: { type: 'jpeg', quality: 0.95 },
+    html2canvas: { scale: 2, useCORS: true },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+  };
+
+  return html2pdf().set(opt).from(wrapper).save();
+}
+
+function sharePDF(contentHTML, filename, title, shareText) {
+  // Show share options
+  const modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:300;display:flex;align-items:center;justify-content:center;';
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:16px;padding:24px;max-width:340px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.2);">
+      <div style="font-size:16px;font-weight:600;margin-bottom:16px;">Share Result</div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <button onclick="generatePDF(\`${btoa(contentHTML)}\`, '${filename}', '${title}'); this.closest('div[style]').parentElement.remove();"
+          style="padding:12px;border:1px solid #e1e5eb;border-radius:8px;background:#fff;font-size:14px;cursor:pointer;text-align:left;">
+          📄 Download PDF
+        </button>
+        <button onclick="shareVia('email', \`${encodeURIComponent(shareText)}\`); this.closest('div[style]').parentElement.remove();"
+          style="padding:12px;border:1px solid #e1e5eb;border-radius:8px;background:#fff;font-size:14px;cursor:pointer;text-align:left;">
+          ✉️ Email
+        </button>
+        <button onclick="shareVia('whatsapp', \`${encodeURIComponent(shareText)}\`); this.closest('div[style]').parentElement.remove();"
+          style="padding:12px;border:1px solid #e1e5eb;border-radius:8px;background:#fff;font-size:14px;cursor:pointer;text-align:left;">
+          💬 WhatsApp
+        </button>
+        <button onclick="shareVia('teams', \`${encodeURIComponent(shareText)}\`); this.closest('div[style]').parentElement.remove();"
+          style="padding:12px;border:1px solid #e1e5eb;border-radius:8px;background:#fff;font-size:14px;cursor:pointer;text-align:left;">
+          👥 Microsoft Teams
+        </button>
+      </div>
+      <button onclick="this.closest('div[style]').parentElement.remove();"
+        style="width:100%;margin-top:12px;padding:10px;border:none;background:#f4f6f8;border-radius:8px;font-size:13px;cursor:pointer;color:#5a6070;">Cancel</button>
+    </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', function(e) { if (e.target === modal) modal.remove(); });
+}
+
+function downloadPdfFromBase64(b64content, filename, title) {
+  const html = atob(b64content);
+  generatePDF(html, filename, title);
+}
+
+function shareTariffResult() {
+  const panel = document.getElementById('result-panel');
+  if (!panel || panel.querySelector('.result-empty')) return alert('Run a tariff lookup first');
+  const html = panel.innerHTML;
+  const code = document.getElementById('l-code').value;
+  const imp = document.getElementById('l-import').value;
+  const text = `Tariff Lookup: HS ${code} into ${imp}\n\n` + panel.innerText.substring(0, 500) + '\n\nGenerated by customs-compliance.ai';
+  generatePDF(html, `tariff-${code}-${imp}.pdf`, `Tariff Lookup — HS ${code}`);
+}
+
+function shareCompareResult() {
+  const table = document.getElementById('cmp-table');
+  if (!table || !table.innerHTML.trim()) return alert('Run a comparison first');
+  const html = table.outerHTML;
+  const text = 'Route Comparison\n\n' + table.innerText.substring(0, 500) + '\n\nGenerated by customs-compliance.ai';
+  generatePDF(html, 'route-comparison.pdf', 'Route Comparison');
+}
+
+function shareClassifyResult() {
+  const panel = document.getElementById('classify-results-panel');
+  if (!panel || panel.querySelector('.classify-empty')) return alert('Classify a product first');
+  const html = panel.innerHTML;
+  const text = 'HS Classification\n\n' + panel.innerText.substring(0, 500) + '\n\nGenerated by customs-compliance.ai';
+  generatePDF(html, 'classification-result.pdf', 'HS Classification');
+}
+
 // ── Alert Swipe View ─────────────────────────────────────────────────────────
 
 let alertSwipeItems = [];
@@ -3736,8 +3848,10 @@ function renderCompareResults(results, mode, code) {
   const panel = document.getElementById('cmp-results');
   const empty = document.getElementById('cmp-empty');
 
-  if (results.length === 0) { panel.style.display = 'none'; empty.style.display = ''; return; }
+  const shareBar = document.getElementById('cmp-share-bar');
+  if (results.length === 0) { panel.style.display = 'none'; empty.style.display = ''; if(shareBar) shareBar.style.display='none'; return; }
   panel.style.display = ''; empty.style.display = 'none';
+  if(shareBar) shareBar.style.display='flex';
 
   const pct = n => n != null ? Number(n).toFixed(1) + '%' : '—';
   const fmt = n => n != null ? 'USD ' + Number(n).toLocaleString(undefined, {minimumFractionDigits:0, maximumFractionDigits:0}) : '—';
@@ -3994,7 +4108,12 @@ function renderClassifyResults(data, description, country) {
   const responseTime = data.response_time_ms ? ` · ${data.response_time_ms}ms` : '';
 
   const cards = suggestions.map((s, i) => classifyCard(s, i, description, country)).join('');
-  return `${cacheBanner}${sourceBadge}<div class="classify-results">${cards}</div>`;
+  return `${cacheBanner}${sourceBadge}<div class="classify-results">${cards}</div>
+    <div style="margin-top:16px;display:flex;gap:8px;justify-content:center;">
+      <button onclick="shareClassifyResult()" style="font-size:12px;padding:8px 16px;border:1px solid var(--border);border-radius:8px;background:var(--surface);cursor:pointer;">📄 Download PDF</button>
+      <button onclick="shareVia('email', document.getElementById('classify-results-panel').innerText.substring(0,400))" style="font-size:12px;padding:8px 16px;border:1px solid var(--border);border-radius:8px;background:var(--surface);cursor:pointer;">✉️ Email</button>
+      <button onclick="shareVia('whatsapp', document.getElementById('classify-results-panel').innerText.substring(0,400))" style="font-size:12px;padding:8px 16px;border:1px solid var(--border);border-radius:8px;background:var(--surface);cursor:pointer;">💬 WhatsApp</button>
+    </div>`;
 }
 
 function classifyCard(s, i, description, country) {
