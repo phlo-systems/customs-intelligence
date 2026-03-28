@@ -117,11 +117,22 @@ class IndiaMonitor:
                 if not ch_num:
                     continue
 
-                # Compare with stored
+                # Compare with stored (normalize timezones before comparing)
                 stored_ch = stored.get(ch_num, {})
                 stored_updated = stored_ch.get("cbicupdateddt")
 
-                is_new = cbic_updated and (not stored_updated or cbic_updated != stored_updated)
+                is_new = False
+                if cbic_updated and not stored_updated:
+                    is_new = True
+                elif cbic_updated and stored_updated:
+                    from datetime import datetime as dt
+                    try:
+                        cbic_dt = dt.fromisoformat(cbic_updated)
+                        stored_dt = dt.fromisoformat(stored_updated.replace("Z", "+00:00"))
+                        # Compare as UTC — both converted to offset-aware
+                        is_new = cbic_dt != stored_dt
+                    except (ValueError, TypeError):
+                        is_new = cbic_updated != stored_updated
                 if is_new:
                     stale_chapters.append({
                         "chapternum": ch_num,
