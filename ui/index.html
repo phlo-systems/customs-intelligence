@@ -1225,7 +1225,7 @@
   </div>
 </div>
 
-<div class="app-wrap" id="app-wrap"
+<div class="app-wrap" id="app-wrap" style="display:none;">
 
 <header>
   <div class="logo"><span>◆</span>Customs Intelligence</div>
@@ -2908,20 +2908,20 @@ const OB_PRODUCTS = [
 ];
 
 const OB_COUNTRIES = [
-  { code: 'IN', name: 'India', flag: '&#127470;&#127475;' },
-  { code: 'ZA', name: 'South Africa', flag: '&#127487;&#127462;' },
-  { code: 'GB', name: 'United Kingdom', flag: '&#127468;&#127463;' },
+  // Countries with full tariff data — shown first
+  { code: 'IN', name: 'India', flag: '&#127470;&#127475;', hasData: true },
+  { code: 'ZA', name: 'South Africa', flag: '&#127487;&#127462;', hasData: true },
+  { code: 'GB', name: 'United Kingdom', flag: '&#127468;&#127463;', hasData: true },
+  { code: 'NA', name: 'Namibia', flag: '&#127475;&#127462;', hasData: true },
+  // Countries in scope — data coming soon
   { code: 'CN', name: 'China', flag: '&#127464;&#127475;' },
   { code: 'AE', name: 'UAE', flag: '&#127462;&#127466;' },
-  { code: 'US', name: 'United States', flag: '&#127482;&#127480;' },
-  { code: 'DE', name: 'Germany', flag: '&#127465;&#127466;' },
-  { code: 'NA', name: 'Namibia', flag: '&#127475;&#127462;' },
   { code: 'BR', name: 'Brazil', flag: '&#127463;&#127479;' },
   { code: 'AU', name: 'Australia', flag: '&#127462;&#127482;' },
   { code: 'SA', name: 'Saudi Arabia', flag: '&#127480;&#127462;' },
   { code: 'TH', name: 'Thailand', flag: '&#127481;&#127469;' },
   { code: 'MX', name: 'Mexico', flag: '&#127474;&#127485;' },
-  { code: 'OM', name: 'Oman', flag: '&#127476;&#127474;' },
+  { code: 'AO', name: 'Angola', flag: '&#127462;&#127476;' },
   { code: 'MU', name: 'Mauritius', flag: '&#127474;&#127482;' },
 ];
 
@@ -2934,10 +2934,13 @@ function startOnboarding() {
     `<div class="ob-chip" data-chapters="${p.chapters}" onclick="this.classList.toggle('selected')">${p.label}</div>`
   ).join('');
 
-  // Build country chips with flags
-  document.getElementById('ob-countries').innerHTML = OB_COUNTRIES.map(c =>
-    `<div class="ob-chip" data-code="${c.code}" onclick="this.classList.toggle('selected')">${c.flag} ${c.name}</div>`
-  ).join('');
+  // Build country chips — data-ready countries shown with green dot
+  document.getElementById('ob-countries').innerHTML =
+    '<div style="font-size:11px;color:var(--text-3);margin-bottom:6px;width:100%;">&#9679; = full tariff data available</div>' +
+    OB_COUNTRIES.map(c => {
+      const dot = c.hasData ? '<span style="color:var(--green);font-size:8px;margin-left:4px;">&#9679;</span>' : '';
+      return `<div class="ob-chip" data-code="${c.code}" onclick="this.classList.toggle('selected')">${c.flag} ${c.name}${dot}</div>`;
+    }).join('');
 }
 
 function obNext(step) {
