@@ -52,12 +52,17 @@ echo "" >> "$LOG_FILE"
 echo "── UNITED KINGDOM ─────────────────────────────────────" >> "$LOG_FILE"
 $PYTHON -m scripts.gb_tariff_monitor >> "$LOG_FILE" 2>&1 || true
 
-# ── 5. Exchange Rates ────────────────────────────────────────
+# ── 5. All other country monitors ─────────────────────────────
+echo "" >> "$LOG_FILE"
+echo "── OTHER COUNTRIES (UY,CL,AE,AR,AU,MX,TH,PH,AO,DO,MU) ─" >> "$LOG_FILE"
+$PYTHON -m scripts.country_monitors >> "$LOG_FILE" 2>&1 || true
+
+# ── 6. Exchange Rates ────────────────────────────────────────
 echo "" >> "$LOG_FILE"
 echo "── EXCHANGE RATES ─────────────────────────────────────" >> "$LOG_FILE"
 $PYTHON -m scripts.exchange_rate_updater >> "$LOG_FILE" 2>&1 || true
 
-# ── 6. Rules Engine ──────────────────────────────────────────
+# ── 7. Rules Engine ──────────────────────────────────────────
 echo "" >> "$LOG_FILE"
 echo "── RULES ENGINE + OPPORTUNITIES ──────────────────────" >> "$LOG_FILE"
 $PYTHON -c "
