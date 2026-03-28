@@ -2283,17 +2283,36 @@ function enterApp() {
   }
   // Initialize all app modules
   init();
-  setTimeout(loadProfile, 500);
-  setTimeout(checkXeroStatus, 1000);
-  setTimeout(checkAcumaticaStatus, 1500);
-  setTimeout(checkEmailStatus, 2000);
-  setTimeout(loadAlerts, 800);
+
+  // Check if user needs onboarding (new user with no profile)
+  setTimeout(async function() {
+    try {
+      const r = await fetch(API_BASE + '/tenant-profile', { headers: getHeaders() });
+      if (r.ok) {
+        const data = await r.json();
+        const p = data.profile || {};
+        const hasProfile = p.primary_hs_chapters?.length > 0 || p.active_origins?.length > 0 || p.business_type;
+        if (!hasProfile) {
+          // No profile — show onboarding wizard
+          document.getElementById('app-wrap').style.display = 'none';
+          startOnboarding();
+          return;
+        }
+      }
+    } catch(e) {}
+
+    // Has profile — continue normal load
+    loadProfile();
+    setTimeout(checkXeroStatus, 500);
+    setTimeout(checkAcumaticaStatus, 1000);
+    setTimeout(checkEmailStatus, 1500);
+    setTimeout(loadAlerts, 300);
+    setTimeout(checkTourState, 2000);
+    setTimeout(checkReferralPrompt, 3000);
+  }, 300);
+
   // Auto-refresh JWT before expiry
   scheduleTokenRefresh();
-  // Guided tour check
-  setTimeout(checkTourState, 2000);
-  // Referral prompt check (after 3+ sessions)
-  setTimeout(checkReferralPrompt, 3000);
 }
 
 function scheduleTokenRefresh() {
