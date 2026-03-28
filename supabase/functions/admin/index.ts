@@ -303,6 +303,123 @@ Deno.serve(async (req: Request) => {
     return json({ rewards: configs || [] });
   }
 
+  // ── Delete User ────────────────────────────────────────────────────────
+  if (action === "delete_user") {
+    const userId = String(body.user_id || "");
+    if (!userId) return json({ error: "user_id required" }, 400);
+    if (userId === user.id) return json({ error: "Cannot delete yourself" }, 400);
+
+    // Delete related data first
+    await supabase.from("opportunities").delete().eq("tenantid", userId);
+    await supabase.from("alerts").delete().eq("tenantid", userId);
+    await supabase.from("tenant_behaviour_log").delete().eq("tenantid", userId);
+    await supabase.from("tenant_context").delete().eq("tenantid", userId);
+    await supabase.from("api_key").delete().eq("tenantuid", userId);
+    await supabase.from("api_usage_log").delete().eq("tenantid", userId);
+
+    // Delete the auth user
+    const { error: delErr } = await supabase.auth.admin.deleteUser(userId);
+    if (delErr) return json({ error: delErr.message }, 500);
+
+    return json({ status: "ok", deleted: userId });
+  }
+
+  // ── Invite User ───────────────────────────────────────────────────────
+  if (action === "invite_user") {
+    const email = String(body.email || "").trim().toLowerCase();
+    const companyName = String(body.company_name || "").trim();
+    const isAdmin = body.is_admin === true;
+    const generateApiKey = body.generate_api_key !== false;
+
+    if (!email) return json({ error: "email required" }, 400);
+
+    // Create user with a temporary password (they'll reset on first login)
+    const tempPassword = crypto.randomUUID().replace(/-/g, "").substring(0, 16) + "!Aa1";
+    const { data: newUser, error: createErr } = await supabase.auth.admin.createUser({
+      email,
+      password: tempPassword,
+      email_confirm: true,  // Skip email verification
+      user_metadata: { company_name: companyName, is_admin: isAdmin },
+    });
+
+    if (createErr) return json({ error: createErr.message }, 500);
+    const newUserId = newUser.user.id;
+
+    // Create tenant context
+    await supabase.from("tenant_context").insert({
+      tenantid: newUserId,
+      businesstype: null,
+    }).then(() => {});
+
+    // Generate API key if requested
+    let apiKey = null;
+    if (generateApiKey) {
+      const rawKey = `ci_live_${crypto.randomUUID().replace(/-/g, "")}`;
+      const keyBuf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(rawKey));
+      const keyHash = Array.from(new Uint8Array(keyBuf)).map(b => b.toString(16).padStart(2, "0")).join("");
+
+      await supabase.from("api_key").insert({
+        tenantuid: newUserId,
+        keyhash: keyHash,
+        keyprefix: rawKey.substring(0, 12),
+        isactive: true,
+      });
+      apiKey = rawKey;
+    }
+
+    return json({
+      status: "ok",
+      user_id: newUserId,
+      email,
+      temp_password: tempPassword,
+      api_key: apiKey,
+      message: `User created. Share credentials: email=${email}, password=${tempPassword}` +
+        (apiKey ? `, API key=${apiKey}` : "") +
+        ". User should change password on first login.",
+    });
+  }
+
+  // ── Manage API Keys ───────────────────────────────────────────────────
+  if (action === "manage_api_key") {
+    const userId = String(body.user_id || "");
+    const operation = String(body.operation || ""); // "generate", "revoke", "list"
+
+    if (!userId) return json({ error: "user_id required" }, 400);
+
+    if (operation === "list") {
+      const { data: keys } = await supabase
+        .from("api_key")
+        .select("keyprefix, isactive, createdat, lastuseda")
+        .eq("tenantuid", userId);
+      return json({ keys: keys || [] });
+    }
+
+    if (operation === "revoke") {
+      await supabase.from("api_key").update({ isactive: false }).eq("tenantuid", userId);
+      return json({ status: "ok", message: "All API keys revoked for user" });
+    }
+
+    if (operation === "generate") {
+      // Revoke existing keys first
+      await supabase.from("api_key").update({ isactive: false }).eq("tenantuid", userId);
+
+      const rawKey = `ci_live_${crypto.randomUUID().replace(/-/g, "")}`;
+      const keyBuf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(rawKey));
+      const keyHash = Array.from(new Uint8Array(keyBuf)).map(b => b.toString(16).padStart(2, "0")).join("");
+
+      await supabase.from("api_key").insert({
+        tenantuid: userId,
+        keyhash: keyHash,
+        keyprefix: rawKey.substring(0, 12),
+        isactive: true,
+      });
+
+      return json({ status: "ok", api_key: rawKey, message: "New API key generated. Share with user — won't be shown again." });
+    }
+
+    return json({ error: "operation must be: generate, revoke, or list" }, 400);
+  }
+
   // ── Data Freshness Report ──────────────────────────────────────────────
   if (action === "data_freshness") {
     const country = String(body.country || "IN");

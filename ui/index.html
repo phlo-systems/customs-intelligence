@@ -1745,8 +1745,32 @@
     <!-- ── Tenants ── -->
     <div class="admin-panel" id="admin-tenants" style="display:none;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-        <div style="font-weight:600;font-size:15px;">Registered Tenants</div>
-        <div style="font-family:var(--mono);font-size:11px;color:var(--text-3);" id="tenant-count-label">—</div>
+        <div style="font-weight:600;font-size:15px;">User Management</div>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <div style="font-family:var(--mono);font-size:11px;color:var(--text-3);" id="tenant-count-label">—</div>
+          <button onclick="toggleInviteForm()" style="font-size:12px;padding:6px 14px;background:var(--teal);color:#fff;border:none;border-radius:6px;cursor:pointer;">+ Invite User</button>
+        </div>
+      </div>
+
+      <!-- Invite User Form (hidden by default) -->
+      <div id="invite-form" style="display:none;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:20px;margin-bottom:16px;">
+        <div style="font-weight:600;font-size:13px;margin-bottom:12px;">Invite New User</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;align-items:end;">
+          <div class="form-group" style="margin:0;">
+            <label style="font-size:12px;">Email</label>
+            <input type="email" id="invite-email" placeholder="user@company.com" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label style="font-size:12px;">Company Name</label>
+            <input type="text" id="invite-company" placeholder="e.g. Acme Trading" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="invite-admin"> Admin</label>
+            <label style="font-size:12px;display:flex;align-items:center;gap:4px;"><input type="checkbox" id="invite-api-key" checked> API Key</label>
+            <button onclick="doInviteUser()" id="invite-btn" style="font-size:12px;padding:8px 16px;background:var(--text);color:#fff;border:none;border-radius:6px;cursor:pointer;">Create</button>
+          </div>
+        </div>
+        <div id="invite-result" style="margin-top:10px;font-size:12px;display:none;"></div>
       </div>
       <div style="overflow-x:auto;">
         <table style="width:100%;border-collapse:collapse;font-size:13px;" id="tenants-table">
@@ -5259,9 +5283,17 @@ async function loadAdminTenants() {
       var roleBadge = t.is_admin
         ? '<span style="background:var(--amber-bg);color:var(--amber);padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">Admin</span>'
         : '<span style="background:var(--bg);color:var(--text-3);padding:2px 8px;border-radius:4px;font-size:11px;">User</span>';
-      var actionBtn = t.is_admin
-        ? '<button onclick="toggleAdmin(\'' + t.id + '\', false)" style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface);cursor:pointer;">Revoke</button>'
-        : '<button onclick="toggleAdmin(\'' + t.id + '\', true)" style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:4px;background:var(--surface);cursor:pointer;">Make Admin</button>';
+      var apiBadge = t.api_key_active
+        ? '<span style="background:var(--green-bg);color:var(--green);padding:2px 6px;border-radius:3px;font-size:10px;">Active</span>'
+        : '<span style="color:var(--text-3);font-size:10px;">None</span>';
+
+      var actions = '<div style="display:flex;gap:4px;flex-wrap:wrap;">'
+        + (t.is_admin
+          ? '<button onclick="toggleAdmin(\'' + t.id + '\', false)" style="font-size:10px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--surface);cursor:pointer;">Revoke Admin</button>'
+          : '<button onclick="toggleAdmin(\'' + t.id + '\', true)" style="font-size:10px;padding:3px 6px;border:1px solid var(--border);border-radius:4px;background:var(--surface);cursor:pointer;">Make Admin</button>')
+        + '<button onclick="generateApiKey(\'' + t.id + '\')" style="font-size:10px;padding:3px 6px;border:1px solid var(--teal);border-radius:4px;background:var(--teal-bg);color:var(--teal);cursor:pointer;">New API Key</button>'
+        + '<button onclick="deleteUser(\'' + t.id + '\', \'' + (t.email||'').replace(/'/g,'') + '\')" style="font-size:10px;padding:3px 6px;border:1px solid var(--red);border-radius:4px;background:var(--red-bg);color:var(--red);cursor:pointer;">Delete</button>'
+        + '</div>';
 
       return '<tr style="border-bottom:1px solid var(--border);">'
         + '<td style="padding:10px 12px;font-weight:500;">' + (t.company_name || '—') + '</td>'
@@ -5271,8 +5303,8 @@ async function loadAdminTenants() {
         + '<td style="padding:10px 12px;font-size:12px;">' + lastLogin + '</td>'
         + '<td style="padding:10px 12px;font-family:var(--mono);text-align:center;">' + t.api_calls_30d + '</td>'
         + '<td style="padding:10px 12px;font-size:12px;">' + conns + '</td>'
-        + '<td style="padding:10px 12px;">' + roleBadge + '</td>'
-        + '<td style="padding:10px 12px;">' + actionBtn + '</td>'
+        + '<td style="padding:10px 12px;">' + roleBadge + ' ' + apiBadge + '</td>'
+        + '<td style="padding:10px 12px;">' + actions + '</td>'
         + '</tr>';
     }).join('');
   } catch (e) {
@@ -5290,6 +5322,77 @@ async function toggleAdmin(userId, makeAdmin) {
     });
     loadAdminTenants();
   } catch (e) { alert('Failed: ' + e.message); }
+}
+
+async function deleteUser(userId, email) {
+  if (!confirm('Delete user ' + email + '? This removes all their data (opportunities, alerts, profile, API keys). This cannot be undone.')) return;
+  try {
+    const r = await fetch(API_BASE + '/admin', {
+      method: 'POST', headers: getHeaders(),
+      body: JSON.stringify({ action: 'delete_user', user_id: userId }),
+    });
+    const data = await r.json();
+    if (data.error) { alert('Error: ' + data.error); return; }
+    loadAdminTenants();
+  } catch (e) { alert('Failed: ' + e.message); }
+}
+
+async function generateApiKey(userId) {
+  if (!confirm('Generate a new API key for this user? Their existing key will be revoked.')) return;
+  try {
+    const r = await fetch(API_BASE + '/admin', {
+      method: 'POST', headers: getHeaders(),
+      body: JSON.stringify({ action: 'manage_api_key', user_id: userId, operation: 'generate' }),
+    });
+    const data = await r.json();
+    if (data.error) { alert('Error: ' + data.error); return; }
+    alert('New API key generated:\n\n' + data.api_key + '\n\nCopy this now — it won\'t be shown again.');
+    loadAdminTenants();
+  } catch (e) { alert('Failed: ' + e.message); }
+}
+
+function toggleInviteForm() {
+  const form = document.getElementById('invite-form');
+  form.style.display = form.style.display === 'none' ? '' : 'none';
+}
+
+async function doInviteUser() {
+  const btn = document.getElementById('invite-btn');
+  const result = document.getElementById('invite-result');
+  btn.disabled = true; btn.textContent = 'Creating...';
+
+  const email = document.getElementById('invite-email').value.trim();
+  const company = document.getElementById('invite-company').value.trim();
+  const isAdmin = document.getElementById('invite-admin').checked;
+  const genKey = document.getElementById('invite-api-key').checked;
+
+  if (!email) { result.style.display = 'block'; result.style.color = 'var(--red)'; result.textContent = 'Email required'; btn.disabled = false; btn.textContent = 'Create'; return; }
+
+  try {
+    const r = await fetch(API_BASE + '/admin', {
+      method: 'POST', headers: getHeaders(),
+      body: JSON.stringify({ action: 'invite_user', email, company_name: company, is_admin: isAdmin, generate_api_key: genKey }),
+    });
+    const data = await r.json();
+    if (data.error) {
+      result.style.display = 'block'; result.style.color = 'var(--red)'; result.textContent = data.error;
+    } else {
+      result.style.display = 'block'; result.style.color = 'var(--green)';
+      result.innerHTML = '<strong>User created!</strong><br>' +
+        '<span style="font-family:var(--mono);font-size:11px;">Email: ' + data.email + '<br>' +
+        'Temp password: <strong>' + data.temp_password + '</strong>' +
+        (data.api_key ? '<br>API key: <strong>' + data.api_key + '</strong>' : '') + '</span>' +
+        '<br><span style="font-size:11px;color:var(--text-3);">Copy these credentials now. Password should be changed on first login.</span>';
+
+      // Clear form
+      document.getElementById('invite-email').value = '';
+      document.getElementById('invite-company').value = '';
+      loadAdminTenants();
+    }
+  } catch (e) {
+    result.style.display = 'block'; result.style.color = 'var(--red)'; result.textContent = 'Failed: ' + e.message;
+  }
+  btn.disabled = false; btn.textContent = 'Create';
 }
 
 async function loadAdminUsage() {
