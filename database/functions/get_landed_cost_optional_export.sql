@@ -329,21 +329,31 @@ BEGIN
         );
     END IF;
 
-    -- Step 8: Import conditions (origin filter only when export country provided)
+    -- Step 8: Import conditions
+    -- Match on: exact commodity, chapter (2-digit), or category (FOOD/PLANT/ANIMAL/CHEM), or universal (00)
     FOR r IN
-        SELECT NTMCode, NTMCategory, ConditionDescription, CertifyingAuthority,
-               TimingRequirement, DocumentCode, IsMandatory
+        SELECT DISTINCT ON (DocumentCode) NTMCode, NTMCategory, ConditionDescription,
+               CertifyingAuthority, TimingRequirement, DocumentCode, IsMandatory, Notes
         FROM IMPORT_CONDITION
-        WHERE CommodityCode = p_commodity_code
-          AND CountryCode   = p_import_country
-          AND (p_export_country IS NULL OR OriginCountryCode = p_export_country OR OriginCountryCode IS NULL)
+        WHERE CountryCode = p_import_country
           AND (EffectiveTo IS NULL OR EffectiveTo > CURRENT_DATE)
-          AND IsMandatory = TRUE
+          AND (
+              CommodityCode = p_commodity_code                          -- exact match
+              OR CommodityCode = LEFT(p_commodity_code, 2)             -- chapter match (e.g. "85")
+              OR CommodityCode = '00'                                  -- universal
+              OR (CommodityCode = 'FOOD' AND LEFT(p_commodity_code,2) BETWEEN '01' AND '24')
+              OR (CommodityCode = 'PLANT' AND LEFT(p_commodity_code,2) BETWEEN '06' AND '14')
+              OR (CommodityCode = 'ANIMAL' AND LEFT(p_commodity_code,2) BETWEEN '01' AND '05')
+              OR (CommodityCode = 'CHEM' AND LEFT(p_commodity_code,2) BETWEEN '28' AND '38')
+          )
+          AND (p_export_country IS NULL OR OriginCountryCode = p_export_country OR OriginCountryCode IS NULL)
+        ORDER BY DocumentCode, IsMandatory DESC
     LOOP
         v_import_conditions := v_import_conditions || jsonb_build_object(
             'ntm_code',r.NTMCode,'category',r.NTMCategory,
             'description',r.ConditionDescription,'timing',r.TimingRequirement,
-            'document_code',r.DocumentCode
+            'document_code',r.DocumentCode,'mandatory',r.IsMandatory,
+            'authority',r.CertifyingAuthority,'notes',r.Notes
         );
     END LOOP;
 

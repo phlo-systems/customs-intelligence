@@ -2871,9 +2871,11 @@ function renderResult(d) {
       <div class="result-total-label">Total Landed Cost</div>
       <div class="result-total-val">${curr} ${fmt(sum.total_landed_cost)}</div>
     </div>
-    ${drawbackSection}`
+    ${drawbackSection}
+    ${renderImportDocs(d)}`
     : `<div style="font-size:12px;color:var(--text-3);margin-top:12px;padding:10px 12px;background:var(--bg);border-radius:6px;">Add a customs value to calculate currency amounts.</div>
-    ${drawbackSection}`;
+    ${drawbackSection}
+    ${renderImportDocs(d)}`;
 
   const desc = inp.commodity_description
     ? `<div class="result-desc">${inp.commodity_description.substring(0, 120)}${inp.commodity_description.length > 120 ? '…' : ''}</div>`
@@ -3612,6 +3614,42 @@ function renderCompareResults(results, mode, code) {
       headerCells[bestIdx + 1].style.background = 'var(--green-bg)';
     }
   }
+}
+
+function renderImportDocs(d) {
+  const conds = d.import_conditions || [];
+  if (!conds.length) return '';
+
+  const preShip = conds.filter(c => c.timing === 'PRE_SHIPMENT');
+  const atBorder = conds.filter(c => c.timing === 'AT_BORDER');
+  const postArr = conds.filter(c => c.timing === 'POST_ARRIVAL');
+
+  const renderGroup = (title, items) => {
+    if (!items.length) return '';
+    return `<div style="margin-bottom:10px;">
+      <div style="font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">${title}</div>
+      ${items.map(c => {
+        const badge = c.mandatory !== false
+          ? '<span style="background:var(--red-bg);color:var(--red);font-size:9px;font-weight:600;padding:2px 6px;border-radius:3px;margin-right:6px;">REQUIRED</span>'
+          : '<span style="background:var(--bg);color:var(--text-3);font-size:9px;font-weight:600;padding:2px 6px;border-radius:3px;margin-right:6px;">IF APPLICABLE</span>';
+        const auth = c.authority ? `<div style="font-size:10px;color:var(--text-3);margin-top:2px;">Issued by: ${c.authority}</div>` : '';
+        const notes = c.notes ? `<div style="font-size:10px;color:var(--teal);margin-top:2px;">${c.notes}</div>` : '';
+        return `<div style="padding:8px 0;border-bottom:1px solid var(--bg);">
+          ${badge}<span style="font-weight:500;font-size:12px;">${c.description}</span>
+          <span style="font-family:var(--mono);font-size:10px;color:var(--text-3);margin-left:6px;">${c.document_code || ''}</span>
+          ${auth}${notes}
+        </div>`;
+      }).join('')}
+    </div>`;
+  };
+
+  return `<div style="margin-top:16px;padding:14px 16px;background:var(--surface);border:1px solid var(--border);border-radius:10px;">
+    <div style="font-weight:600;font-size:13px;margin-bottom:12px;">Documents & Regulatory Requirements</div>
+    ${renderGroup('Before Shipment', preShip)}
+    ${renderGroup('At Border / Customs Clearance', atBorder)}
+    ${renderGroup('Post Arrival', postArr)}
+    <div style="font-size:10px;color:var(--text-3);margin-top:8px;">Requirements may vary by product. Consult your customs broker for specific compliance needs.</div>
+  </div>`;
 }
 
 // ── Classify ──────────────────────────────────────────────────────────────────
