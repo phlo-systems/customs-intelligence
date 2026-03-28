@@ -3144,13 +3144,13 @@ const OB_COUNTRIES = [
   { code: 'AE', name: 'UAE', flag: '&#127462;&#127466;', hasData: true },
   { code: 'SA', name: 'Saudi Arabia', flag: '&#127480;&#127462;', hasData: true },
   { code: 'OM', name: 'Oman', flag: '&#127476;&#127474;', hasData: true },
-  // Countries in scope — data coming soon
-  { code: 'CN', name: 'China', flag: '&#127464;&#127475;' },
-  { code: 'AU', name: 'Australia', flag: '&#127462;&#127482;' },
-  { code: 'TH', name: 'Thailand', flag: '&#127481;&#127469;' },
-  { code: 'MX', name: 'Mexico', flag: '&#127474;&#127485;' },
-  { code: 'AO', name: 'Angola', flag: '&#127462;&#127476;' },
-  { code: 'MU', name: 'Mauritius', flag: '&#127474;&#127482;' },
+  { code: 'AU', name: 'Australia', flag: '&#127462;&#127482;', hasData: true },
+  { code: 'MX', name: 'Mexico', flag: '&#127474;&#127485;', hasData: true },
+  { code: 'TH', name: 'Thailand', flag: '&#127481;&#127469;', hasData: true },
+  { code: 'PH', name: 'Philippines', flag: '&#127477;&#127469;', hasData: true },
+  { code: 'AO', name: 'Angola', flag: '&#127462;&#127476;', hasData: true },
+  { code: 'DO', name: 'Dominican Republic', flag: '&#127465;&#127476;', hasData: true },
+  { code: 'MU', name: 'Mauritius', flag: '&#127474;&#127482;', hasData: true },
 ];
 
 function startOnboarding() {
@@ -4020,7 +4020,7 @@ function setCmpMode(mode) {
   if (countryList.length > 0) initCompareChips();
 }
 
-const DATA_COUNTRIES = ['ZA','GB','IN','NA','BR','UY','CL','AE','SA','OM','AR'];
+const DATA_COUNTRIES = ['ZA','GB','IN','NA','BR','UY','CL','AE','SA','OM','AR','AU','MX','TH','PH','AO','DO','MU'];
 
 function initCompareChips() {
   if (countryList.length === 0) return;
