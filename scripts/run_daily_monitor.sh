@@ -42,17 +42,22 @@ echo "" >> "$LOG_FILE"
 echo "── SOUTH AFRICA ───────────────────────────────────────" >> "$LOG_FILE"
 $PYTHON -m scripts.za_tariff_monitor >> "$LOG_FILE" 2>&1 || true
 
-# ── 3. UK Monitor ────────────────────────────────────────────
+# ── 3. Brazil Monitor ─────────────────────────────────────────
+echo "" >> "$LOG_FILE"
+echo "── BRAZIL ─────────────────────────────────────────────" >> "$LOG_FILE"
+$PYTHON -m scripts.br_tariff_monitor >> "$LOG_FILE" 2>&1 || true
+
+# ── 4. UK Monitor ────────────────────────────────────────────
 echo "" >> "$LOG_FILE"
 echo "── UNITED KINGDOM ─────────────────────────────────────" >> "$LOG_FILE"
 $PYTHON -m scripts.gb_tariff_monitor >> "$LOG_FILE" 2>&1 || true
 
-# ── 4. Exchange Rates ────────────────────────────────────────
+# ── 5. Exchange Rates ────────────────────────────────────────
 echo "" >> "$LOG_FILE"
 echo "── EXCHANGE RATES ─────────────────────────────────────" >> "$LOG_FILE"
 $PYTHON -m scripts.exchange_rate_updater >> "$LOG_FILE" 2>&1 || true
 
-# ── 5. Rules Engine ──────────────────────────────────────────
+# ── 6. Rules Engine ──────────────────────────────────────────
 echo "" >> "$LOG_FILE"
 echo "── RULES ENGINE + OPPORTUNITIES ──────────────────────" >> "$LOG_FILE"
 $PYTHON -c "

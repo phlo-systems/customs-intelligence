@@ -21,6 +21,7 @@ import requests
 from tariff_parser.parsers.za_parser import TariffRow, RateValue
 from tariff_parser.parsers.gb_parser import GBCommodity
 from tariff_parser.parsers.in_parser import INCommodity
+from tariff_parser.parsers.br_parser import BRCommodity
 
 logger = logging.getLogger(__name__)
 
@@ -266,6 +267,118 @@ class SupabaseWriter:
             "IN: wrote %d rows — commodity=%d mfn=%d tariff=%d",
             len(commodities),
             len(commodity_batch), len(mfn_batch), len(tariff_batch),
+        )
+        return stats
+
+    # ── BR (Brazil) writer ─────────────────────────────────────────────────
+
+    def write_br_rows(
+        self,
+        commodities: list[BRCommodity],
+        hs_version: str = "HS 2022",
+        batch_size: int = 200,
+    ) -> dict:
+        """
+        Write Brazil NCM commodity codes + tax rates to Supabase.
+        Brazil has 5 taxes stacking sequentially: II + IPI + PIS + COFINS + ICMS.
+        """
+        stats = {"inserted": 0}
+
+        # Deduplicate
+        seen = {}
+        for c in commodities:
+            seen[c.ncm_code] = c
+        commodities = list(seen.values())
+
+        commodity_batch = []
+        mfn_batch = []
+        vat_batch = []
+
+        for c in commodities:
+            commodity_batch.append({
+                "commoditycode": c.ncm_code,
+                "countrycode": "BR",
+                "subheadingcode": c.subheading_code,
+                "hsversion": hs_version,
+                "nationaldescription": c.description[:500],
+                "codelength": "8-digit",
+                "isactive": True,
+            })
+
+            # II (Import Tax) — MFN rate
+            if c.ii_rate is not None:
+                mfn_batch.append({
+                    "commoditycode": c.ncm_code,
+                    "countrycode": "BR",
+                    "ratecategory": "APPLIED",
+                    "dutybasistype": "AD_VALOREM",
+                    "appliedmfnrate": c.ii_rate,
+                    "dutyexpression": f"{c.ii_rate}%",
+                    "valuationbasis": "CIF",
+                    "effectivefrom": self.effective_date,
+                    "effectiveto": None,
+                })
+
+            # Brazil's 4 indirect taxes (sequential stacking)
+            # 1. IPI — on (CIF + II)
+            if c.ipi_rate is not None:
+                vat_batch.append({
+                    "commoditycode": c.ncm_code, "countrycode": "BR",
+                    "taxtype": "IPI", "taxcategory": "STANDARD",
+                    "rate": c.ipi_rate,
+                    "vatbasis": "CUSTOMS_VALUE_PLUS_DUTY",
+                    "postponedaccounting": False, "reliefavailable": False,
+                    "effectivefrom": self.effective_date, "effectiveto": None,
+                    "notes": None,
+                })
+
+            # 2. PIS — fixed 2.1% on CIF (for imports)
+            vat_batch.append({
+                "commoditycode": c.ncm_code, "countrycode": "BR",
+                "taxtype": "PIS", "taxcategory": "STANDARD",
+                "rate": 2.1,
+                "vatbasis": "CUSTOMS_VALUE_ONLY",
+                "postponedaccounting": False, "reliefavailable": False,
+                "effectivefrom": self.effective_date, "effectiveto": None,
+                "notes": None,
+            })
+
+            # 3. COFINS — fixed 9.65% on CIF (for imports)
+            vat_batch.append({
+                "commoditycode": c.ncm_code, "countrycode": "BR",
+                "taxtype": "COFINS", "taxcategory": "STANDARD",
+                "rate": 9.65,
+                "vatbasis": "CUSTOMS_VALUE_ONLY",
+                "postponedaccounting": False, "reliefavailable": False,
+                "effectivefrom": self.effective_date, "effectiveto": None,
+                "notes": None,
+            })
+
+            # 4. ICMS — 18% default (São Paulo) on TOTAL_IMPORT_VALUE (calculated "por dentro")
+            vat_batch.append({
+                "commoditycode": c.ncm_code, "countrycode": "BR",
+                "taxtype": "ICMS", "taxcategory": "STANDARD",
+                "rate": 18.0,
+                "vatbasis": "TOTAL_IMPORT_VALUE",
+                "postponedaccounting": False, "reliefavailable": False,
+                "effectivefrom": self.effective_date, "effectiveto": None,
+                "notes": "São Paulo default. Rate varies by state (17-25%).",
+            })
+
+        # Write in batches
+        for i in range(0, len(commodity_batch), batch_size):
+            result = self._upsert("commodity_code", commodity_batch[i:i + batch_size])
+            stats["inserted"] += result.get("count", 0)
+
+        for i in range(0, len(mfn_batch), batch_size):
+            self._upsert("mfn_rate", mfn_batch[i:i + batch_size])
+
+        for i in range(0, len(vat_batch), batch_size):
+            self._upsert("vat_rate", vat_batch[i:i + batch_size])
+
+        logger.info(
+            "BR: wrote %d rows — commodity=%d mfn=%d vat=%d",
+            len(commodities), len(commodity_batch), len(mfn_batch), len(vat_batch),
         )
         return stats
 
