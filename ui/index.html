@@ -1496,7 +1496,8 @@
           </table>
         </div>
         <div id="cmp-share-bar" style="display:none;margin-top:12px;display:flex;gap:8px;justify-content:center;">
-          <button onclick="shareCompareResult()" style="font-size:13px;padding:10px 20px;border:1px solid var(--teal);border-radius:8px;background:var(--teal-bg);color:var(--teal);cursor:pointer;font-weight:500;">📤 Share / Download PDF</button>
+          <button onclick="downloadCompareResult()" style="font-size:13px;padding:10px 16px;border:1px solid var(--border);border-radius:8px;background:var(--surface);cursor:pointer;">📄 Download PDF</button>
+          <button onclick="shareCompareResult()" style="font-size:13px;padding:10px 16px;border:1px solid var(--teal);border-radius:8px;background:var(--teal-bg);color:var(--teal);cursor:pointer;font-weight:500;">📤 Share</button>
         </div>
       </div>
       <div id="cmp-empty" style="text-align:center;padding:40px;color:var(--text-3);font-size:13px;">
@@ -2964,14 +2965,16 @@ function renderResult(d) {
     ${drawbackSection}
     ${renderImportDocs(d)}
     <div style="margin-top:16px;display:flex;gap:8px;justify-content:center;">
-      <button onclick="shareTariffResult()" style="font-size:13px;padding:10px 20px;border:1px solid var(--teal);border-radius:8px;background:var(--teal-bg);color:var(--teal);cursor:pointer;font-weight:500;">📤 Share / Download PDF</button>
+      <button onclick="downloadTariffResult()" style="font-size:13px;padding:10px 16px;border:1px solid var(--border);border-radius:8px;background:var(--surface);cursor:pointer;">📄 Download</button>
+      <button onclick="shareTariffResult()" style="font-size:13px;padding:10px 16px;border:1px solid var(--teal);border-radius:8px;background:var(--teal-bg);color:var(--teal);cursor:pointer;font-weight:500;">📤 Share</button>
       
     </div>`
     : `<div style="font-size:12px;color:var(--text-3);margin-top:12px;padding:10px 12px;background:var(--bg);border-radius:6px;">Add a customs value to calculate currency amounts.</div>
     ${drawbackSection}
     ${renderImportDocs(d)}
     <div style="margin-top:16px;display:flex;gap:8px;justify-content:center;">
-      <button onclick="shareTariffResult()" style="font-size:13px;padding:10px 20px;border:1px solid var(--teal);border-radius:8px;background:var(--teal-bg);color:var(--teal);cursor:pointer;font-weight:500;">📤 Share / Download PDF</button>
+      <button onclick="downloadTariffResult()" style="font-size:13px;padding:10px 16px;border:1px solid var(--border);border-radius:8px;background:var(--surface);cursor:pointer;">📄 Download</button>
+      <button onclick="shareTariffResult()" style="font-size:13px;padding:10px 16px;border:1px solid var(--teal);border-radius:8px;background:var(--teal-bg);color:var(--teal);cursor:pointer;font-weight:500;">📤 Share</button>
       
     </div>`;
 
@@ -2987,7 +2990,8 @@ function renderResult(d) {
           <div class="result-code">HS ${inp.commodity_code}</div>
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0;">
-          <button onclick="shareTariffResult()" style="font-size:11px;padding:6px 10px;border:1px solid var(--teal);border-radius:6px;background:var(--teal-bg);color:var(--teal);cursor:pointer;" title="Share / Download PDF">📤 Share</button>
+          <button onclick="downloadTariffResult()" style="font-size:11px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);cursor:pointer;" title="Download PDF">📄</button>
+          <button onclick="shareTariffResult()" style="font-size:11px;padding:6px 10px;border:1px solid var(--teal);border-radius:6px;background:var(--teal-bg);color:var(--teal);cursor:pointer;" title="Share">📤</button>
         </div>
       </div>
       ${desc}
@@ -3467,6 +3471,26 @@ async function shareWithPDF(contentHTML, filename, title, summaryText) {
   alert('PDF downloaded. You can attach it to an email or message.');
 }
 
+function downloadTariffResult() {
+  const panel = document.getElementById('result-panel');
+  if (!panel || panel.querySelector('.result-empty')) return alert('Run a tariff lookup first');
+  const code = document.getElementById('l-code').value;
+  const imp = document.getElementById('l-import').value;
+  generatePDF(panel.innerHTML, 'tariff-' + code + '-' + imp + '.pdf', 'Tariff Lookup — HS ' + code);
+}
+
+function downloadCompareResult() {
+  const table = document.getElementById('cmp-table');
+  if (!table || !table.innerHTML.trim()) return alert('Run a comparison first');
+  generatePDF(table.outerHTML, 'route-comparison.pdf', 'Route Comparison');
+}
+
+function downloadClassifyResult() {
+  const panel = document.getElementById('classify-results-panel');
+  if (!panel || panel.querySelector('.classify-empty')) return alert('Classify a product first');
+  generatePDF(panel.innerHTML, 'classification-result.pdf', 'HS Classification');
+}
+
 function shareTariffResult() {
   const panel = document.getElementById('result-panel');
   if (!panel || panel.querySelector('.result-empty')) return alert('Run a tariff lookup first');
@@ -3877,11 +3901,18 @@ function renderCompareResults(results, mode, code) {
 
   // Show product name once as a header (from first successful result)
   const firstOk = results.find(r => r.data?.status === 'OK');
-  // Collect all product names from results and pick the longest (most descriptive)
+  // Collect all product descriptions and combine for fullest picture
   const allDescs = results
     .filter(r => r.data?.status === 'OK' && r.data?.input?.commodity_description)
-    .map(r => r.data.input.commodity_description.replace(/^[\s\-]+/,''));
-  const productName = allDescs.sort((a,b) => b.length - a.length)[0] || 'Product';
+    .map(r => r.data.input.commodity_description.replace(/^[\s\-]+/,'').replace(/<[^>]+>/g,''));
+  // Pick longest, and if it's very short (<20 chars), combine the top 2
+  allDescs.sort((a,b) => b.length - a.length);
+  let productName = allDescs[0] || 'Product';
+  if (productName.length < 20 && allDescs.length > 1) {
+    // Combine: e.g. "Boneless" + "Desossadas" → "Boneless / Desossadas"
+    const unique = [...new Set(allDescs.filter(d => d.length > 2))];
+    productName = unique.slice(0, 3).join(' / ');
+  }
 
   thead.innerHTML = `<tr><td colspan="${cols.length + 1}" style="padding:12px 14px;font-size:14px;font-weight:600;border-bottom:1px solid var(--border);">HS ${code} — ${productName}</td></tr>
   <tr style="border-bottom:2px solid var(--border);text-align:left;">
@@ -4128,7 +4159,8 @@ function renderClassifyResults(data, description, country) {
   const cards = suggestions.map((s, i) => classifyCard(s, i, description, country)).join('');
   return `${cacheBanner}${sourceBadge}<div class="classify-results">${cards}</div>
     <div style="margin-top:16px;display:flex;gap:8px;justify-content:center;">
-      <button onclick="shareClassifyResult()" style="font-size:13px;padding:10px 20px;border:1px solid var(--teal);border-radius:8px;background:var(--teal-bg);color:var(--teal);cursor:pointer;font-weight:500;">📤 Share / Download PDF</button>
+      <button onclick="downloadClassifyResult()" style="font-size:13px;padding:10px 16px;border:1px solid var(--border);border-radius:8px;background:var(--surface);cursor:pointer;">📄 Download</button>
+      <button onclick="shareClassifyResult()" style="font-size:13px;padding:10px 16px;border:1px solid var(--teal);border-radius:8px;background:var(--teal-bg);color:var(--teal);cursor:pointer;font-weight:500;">📤 Share</button>
     </div>`;
 }
 
