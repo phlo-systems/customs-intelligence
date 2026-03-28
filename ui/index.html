@@ -3425,11 +3425,20 @@ function setCmpMode(mode) {
   if (countryList.length > 0) initCompareChips();
 }
 
+const DATA_COUNTRIES = ['ZA','GB','IN','NA'];
+
 function initCompareChips() {
   if (countryList.length === 0) return;
-  const chipHTML = countryList.map(c =>
-    `<div class="filter-chip cmp-chip" data-code="${c.countrycode}" onclick="toggleCmpChip(this)">${c.countryname} (${c.countrycode})</div>`
-  ).join('');
+  // Sort: data-ready countries first
+  const sorted = [...countryList].sort((a,b) => {
+    const aHas = DATA_COUNTRIES.includes(a.countrycode) ? 0 : 1;
+    const bHas = DATA_COUNTRIES.includes(b.countrycode) ? 0 : 1;
+    return aHas - bHas || a.countryname.localeCompare(b.countryname);
+  });
+  const chipHTML = sorted.map(c => {
+    const dot = DATA_COUNTRIES.includes(c.countrycode) ? ' <span style="color:var(--green);font-size:8px;">&#9679;</span>' : '';
+    return `<div class="filter-chip cmp-chip" data-code="${c.countrycode}" onclick="toggleCmpChip(this)">${c.countryname}${dot}</div>`;
+  }).join('');
 
   // Populate both containers (even if hidden)
   ['cmp-origins', 'cmp-destinations'].forEach(id => {
@@ -3440,9 +3449,8 @@ function initCompareChips() {
   });
 
   // Pre-select countries that have tariff data
-  const dataCountries = ['ZA','GB','IN','NA'];
   document.querySelectorAll('.cmp-chip').forEach(chip => {
-    if (dataCountries.includes(chip.dataset.code)) {
+    if (DATA_COUNTRIES.includes(chip.dataset.code)) {
       chip.classList.add('active');
     }
   });
@@ -3585,7 +3593,7 @@ function renderCompareResults(results, mode, code) {
       <td style="padding:8px 14px;color:var(--text-2);font-size:12px;${style}">${row.label}</td>
       ${results.map(r => {
         const d = r.data;
-        const val = d?.status === 'error' ? `<span style="color:var(--red);font-size:11px;">${d.error?.substring(0,25) || 'Error'}</span>` : row.key(d);
+        const val = d?.status === 'error' ? `<span style="color:var(--text-3);font-size:11px;">No data</span>` : row.key(d);
         const cls = row.cls ? `color:var(--${row.cls});` : '';
         return `<td style="padding:8px 14px;text-align:right;font-family:var(--mono);font-size:12px;${style}${cls}">${val}</td>`;
       }).join('')}
