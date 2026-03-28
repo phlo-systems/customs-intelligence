@@ -127,7 +127,11 @@ TenantUID: a0000000-0000-0000-0000-000000000001
 | -- | Smart HS input — type product name → autocomplete suggestions | ✅ |
 | -- | Mobile responsive — 3 breakpoints, iOS tap targets | ✅ |
 | -- | Multi-tenant auth (signup, per-tenant API keys) | ✅ |
+| -- | ZA + GB monitors + runbooks (all 3 countries now monitored) | ✅ |
+| -- | Import document requirements (43 conditions: IN 24, ZA 11, GB 8) | ✅ |
+| -- | Unified daily cron — `run_daily_monitor.sh` (IN + ZA + GB + forex + rules) | ✅ |
 | 17 | BR, CL, AU, TH, MX parsers (admin upload covers these) | ⬜ |
+| -- | **Server deployment** — move daily cron from laptop to cloud (see below) | ⬜ |
 | -- | Production hardening (Key Vault, rate limiting, monitoring) | ⬜ |
 | -- | DGFT import/export policy (free/restricted/prohibited per HS) | ⬜ |
 | -- | India HS embeddings for classify endpoint | ⬜ |
@@ -284,14 +288,45 @@ CIF Value
 ```
 
 ## Daily monitoring (cron — 6AM IST)
-Pipeline: `run_india_monitor.sh` runs:
-1. `india_tariff_monitor.py` — check CBIC API updatedDt, detect notifications, scan DGTR
-2. `india_chapter_updater.py` — download + reparse stale chapters, compute diff, log changes
-3. `run_rules_engine()` — generate alerts from rate changes, AD measures, notifications
-4. `generate_personalised_opportunities()` — profile-driven opportunities per tenant
-5. `exchange_rate_updater.py` — daily forex rates (20 currencies × 4 countries)
+Pipeline: `run_daily_monitor.sh` (unified for all countries):
+1. India: `india_tariff_monitor.py` → `india_chapter_updater.py` (if changes)
+2. South Africa: `za_tariff_monitor.py` (checks SARS PDF headers, re-parses if changed)
+3. UK: `gb_tariff_monitor.py` (checks API sections structure)
+4. Exchange rates: `exchange_rate_updater.py` (20 currencies × 4 countries)
+5. Rules engine: `run_rules_engine()` + `generate_personalised_opportunities()`
 
 ## Deployment
 - **Frontend:** Vercel — `vercel --prod` → https://customs-intelligence.vercel.app
 - **Edge Functions:** `supabase functions deploy <name> --no-verify-jwt`
+
+## Server deployment (TODO)
+Currently the daily cron runs from a laptop (macOS cron). This is unreliable —
+missed jobs when laptop sleeps. Needs to move to a server.
+
+**Options (in order of simplicity):**
+1. **GitHub Actions scheduled workflow** — free, runs `run_daily_monitor.sh` on schedule,
+   needs `.env` secrets as GitHub Secrets. ~5 min setup.
+2. **Supabase Edge Function + pg_cron** — call a "monitor" edge function from pg_cron.
+   No external server needed. Limited by edge function timeout (60s per country).
+3. **Small VPS (e.g. Hetzner €4/mo)** — full cron, all scripts, logs, reliability.
+   Set `CI_PROJECT_DIR` and `CI_PYTHON` env vars.
+4. **Docker container on Railway/Render** — Dockerfile + cron scheduler.
+
+**Requirements for server:**
+- Python 3.12+ with pdfplumber, requests
+- Access to Supabase (SUPABASE_URL, SUPABASE_SERVICE_KEY)
+- Access to ANTHROPIC_API_KEY (for AI enrichment)
+- Outbound HTTPS to: cbic.gov.in, sars.gov.za, trade-tariff.service.gov.uk,
+  taxinformation.cbic.gov.in, dgtr.gov.in, open.er-api.com
+- ~500MB disk for PDF downloads + logs
+- Cron: `30 0 * * *` (daily 00:30 UTC)
+
+**Env vars for server:**
+```bash
+export CI_PROJECT_DIR=/app/customs-intelligence
+export CI_PYTHON=/usr/bin/python3
+export SUPABASE_URL=https://epytgmksddhvwziwxhuq.supabase.co
+export SUPABASE_SERVICE_KEY=<from .env>
+export ANTHROPIC_API_KEY=<from .env>
+```
 - **Database:** Supabase (managed PostgreSQL) — DDL via `supabase db query --linked`
