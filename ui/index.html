@@ -3877,7 +3877,11 @@ function renderCompareResults(results, mode, code) {
 
   // Show product name once as a header (from first successful result)
   const firstOk = results.find(r => r.data?.status === 'OK');
-  const productName = firstOk?.data?.input?.commodity_description?.substring(0, 60) || 'Product';
+  // Collect all product names from results and pick the longest (most descriptive)
+  const allDescs = results
+    .filter(r => r.data?.status === 'OK' && r.data?.input?.commodity_description)
+    .map(r => r.data.input.commodity_description.replace(/^[\s\-]+/,''));
+  const productName = allDescs.sort((a,b) => b.length - a.length)[0] || 'Product';
 
   thead.innerHTML = `<tr><td colspan="${cols.length + 1}" style="padding:12px 14px;font-size:14px;font-weight:600;border-bottom:1px solid var(--border);">HS ${code} — ${productName}</td></tr>
   <tr style="border-bottom:2px solid var(--border);text-align:left;">
