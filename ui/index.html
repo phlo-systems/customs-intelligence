@@ -3714,14 +3714,14 @@ function initHSAutocomplete(inputId, suggestionsId) {
       return;
     }
 
-    // Need 4+ chars for text search (wait for user to type more)
-    if (val.length < 4) {
+    // Need 3+ chars for text search
+    if (val.length < 3) {
       suggestions.classList.remove('open');
       return;
     }
 
-    // Debounce 800ms — let user finish typing
-    hsSearchTimer = setTimeout(() => searchHS(val, inputId, suggestionsId), 800);
+    // Debounce 3 seconds — wait for user to stop typing
+    hsSearchTimer = setTimeout(() => searchHS(val, inputId, suggestionsId), 3000);
   });
 
   // Close on click outside
@@ -3787,25 +3787,15 @@ async function searchHS(query, inputId, suggestionsId) {
     // Better: search commodity_code descriptions via Supabase REST
   } catch(e) {}
 
-  // Search commodity descriptions via classify edge function
+  // Fast keyword search via auth endpoint (no AI, just DB text match)
   try {
-    const r = await fetch(API_BASE + '/classify', {
+    const r = await fetch(API_BASE + '/auth', {
       method: 'POST',
       headers: getHeaders(),
-      body: JSON.stringify({ description: query, country: country }),
+      body: JSON.stringify({ action: 'search_hs', query: query, country: country }),
     });
     const data = await r.json();
-    // Classify returns {suggestions:[{commodity_code, subheading_code, confidence, reasoning}]}
-    // or {commodity_code, description} for cache hits
-    let results = [];
-    if (data.suggestions) {
-      results = data.suggestions.map(s => ({
-        commoditycode: s.commodity_code,
-        nationaldescription: s.reasoning || s.description || query,
-      }));
-    } else if (data.commodity_code) {
-      results = [{ commoditycode: data.commodity_code, nationaldescription: data.description || query }];
-    }
+    let results = data.results || [];
 
     if (!results.length) {
       suggestions.innerHTML = '<div style="padding:12px 14px;color:var(--text-3);font-size:12px;">No matches found for "' + query + '" in ' + country + '</div>';

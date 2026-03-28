@@ -297,7 +297,39 @@ Deno.serve(async (req: Request) => {
     return json({ status: "ok", message: "Logged out. Discard client-side tokens." });
   }
 
-  return json({ error: "Unknown action. Use: signup, login, refresh, me, api_key, reset_password, update_password, logout" }, 400);
+  // ── Fast HS code search (keyword match on commodity descriptions) ──────
+  if (action === "search_hs") {
+    const query = String(body.query || "").trim();
+    const country = String(body.country || "IN").toUpperCase();
+    if (!query || query.length < 3) return json({ results: [] });
+
+    // Split query into keywords and search
+    const keywords = query.toLowerCase().split(/\s+/).filter((w: string) => w.length >= 3).slice(0, 3);
+    if (!keywords.length) return json({ results: [] });
+
+    // Search using ilike for each keyword
+    let queryBuilder = supabaseAdmin
+      .from("commodity_code")
+      .select("commoditycode, nationaldescription, subheadingcode")
+      .eq("countrycode", country)
+      .eq("isactive", true);
+
+    // Apply all keywords as AND filters
+    for (const kw of keywords) {
+      queryBuilder = queryBuilder.ilike("nationaldescription", `%${kw}%`);
+    }
+
+    const { data: matches } = await queryBuilder.order("commoditycode").limit(8);
+
+    const results = (matches || []).map((r: any) => ({
+      commoditycode: r.commoditycode,
+      nationaldescription: (r.nationaldescription || "").replace(/^[\s\-]+/, "").substring(0, 60),
+    }));
+
+    return json({ results });
+  }
+
+  return json({ error: "Unknown action. Use: signup, login, refresh, me, api_key, search_hs, reset_password, update_password, logout" }, 400);
 });
 
 
