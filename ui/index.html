@@ -3901,18 +3901,17 @@ function renderCompareResults(results, mode, code) {
 
   // Show product name once as a header (from first successful result)
   const firstOk = results.find(r => r.data?.status === 'OK');
-  // Collect all product descriptions and combine for fullest picture
+  // Build product description: chapter name + longest country description
+  const ch = code.substring(0, 2);
+  const chapterName = HS_CHAPTERS[ch] || '';
   const allDescs = results
     .filter(r => r.data?.status === 'OK' && r.data?.input?.commodity_description)
-    .map(r => r.data.input.commodity_description.replace(/^[\s\-]+/,'').replace(/<[^>]+>/g,''));
-  // Pick longest, and if it's very short (<20 chars), combine the top 2
+    .map(r => r.data.input.commodity_description.replace(/^[\s\-]+/,'').replace(/<[^>]+>/g,'').trim())
+    .filter(d => d.length > 2);
   allDescs.sort((a,b) => b.length - a.length);
-  let productName = allDescs[0] || 'Product';
-  if (productName.length < 20 && allDescs.length > 1) {
-    // Combine: e.g. "Boneless" + "Desossadas" → "Boneless / Desossadas"
-    const unique = [...new Set(allDescs.filter(d => d.length > 2))];
-    productName = unique.slice(0, 3).join(' / ');
-  }
+  const leafDesc = allDescs[0] || '';
+  // Combine: "Meat (Ch.02) — Boneless"
+  let productName = chapterName ? chapterName + ' — ' + (leafDesc || 'HS ' + code) : (leafDesc || 'Product');
 
   thead.innerHTML = `<tr><td colspan="${cols.length + 1}" style="padding:12px 14px;font-size:14px;font-weight:600;border-bottom:1px solid var(--border);">HS ${code} — ${productName}</td></tr>
   <tr style="border-bottom:2px solid var(--border);text-align:left;">
