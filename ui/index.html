@@ -2985,8 +2985,17 @@ function renderResult(d) {
 
   return `
     <div class="result-header">
-      <div class="result-route">${inp.export_country_name} → ${inp.import_country_name} · ${inp.valuation_basis} basis</div>
-      <div class="result-code">HS ${inp.commodity_code}</div>
+      <div style="display:flex;justify-content:space-between;align-items:start;">
+        <div>
+          <div class="result-route">${inp.export_country_name || '?'} → ${inp.import_country_name} · ${inp.valuation_basis} basis</div>
+          <div class="result-code">HS ${inp.commodity_code}</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0;">
+          <button onclick="shareTariffResult()" style="font-size:11px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);cursor:pointer;" title="Download PDF">📄</button>
+          <button onclick="shareVia('email', document.getElementById('result-panel').innerText.substring(0,400))" style="font-size:11px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);cursor:pointer;" title="Email">✉️</button>
+          <button onclick="shareVia('whatsapp', document.getElementById('result-panel').innerText.substring(0,400))" style="font-size:11px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);cursor:pointer;" title="WhatsApp">💬</button>
+        </div>
+      </div>
       ${desc}
     </div>
     ${prefBanner}
