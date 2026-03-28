@@ -168,35 +168,19 @@ async function resolveCode(
     if (trim) return trim.commoditycode;
   }
 
-  // 4. Prefix match — strip trailing zeros from input to find the core prefix,
-  //    then find the first matching national code
-  let prefix_input = clean;
-  // Try the raw input as prefix first
-  const { data: prefix } = await supabase
-    .from("commodity_code")
-    .select("commoditycode")
-    .eq("countrycode", country)
-    .eq("isactive", true)
-    .like("commoditycode", prefix_input + "%")
-    .order("commoditycode", { ascending: true })
-    .limit(1);
-  if (prefix?.length) return prefix[0].commoditycode;
-
-  // 5. Strip trailing zeros and retry prefix (e.g. "880600" → "8806" prefix)
-  let stripped = clean;
-  while (stripped.length > 4 && stripped.endsWith("0")) {
-    stripped = stripped.slice(0, -1);
-  }
-  if (stripped !== clean && stripped !== prefix_input) {
-    const { data: strippedPrefix } = await supabase
+  // 4. Prefix match — try progressively shorter prefixes
+  // e.g. "02013010" → try "0201301%" → "020130%" → "02013%" → "0201%"
+  for (let pLen = clean.length - 1; pLen >= 4; pLen--) {
+    const pfix = clean.substring(0, pLen);
+    const { data: prefixMatch } = await supabase
       .from("commodity_code")
       .select("commoditycode")
       .eq("countrycode", country)
       .eq("isactive", true)
-      .like("commoditycode", stripped + "%")
+      .like("commoditycode", pfix + "%")
       .order("commoditycode", { ascending: true })
       .limit(1);
-    if (strippedPrefix?.length) return strippedPrefix[0].commoditycode;
+    if (prefixMatch?.length) return prefixMatch[0].commoditycode;
   }
 
   return null;
