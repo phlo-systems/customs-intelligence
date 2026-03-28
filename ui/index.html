@@ -3138,11 +3138,15 @@ const OB_COUNTRIES = [
   { code: 'GB', name: 'United Kingdom', flag: '&#127468;&#127463;', hasData: true },
   { code: 'NA', name: 'Namibia', flag: '&#127475;&#127462;', hasData: true },
   { code: 'BR', name: 'Brazil', flag: '&#127463;&#127479;', hasData: true },
+  { code: 'AR', name: 'Argentina', flag: '&#127462;&#127479;', hasData: true },
+  { code: 'UY', name: 'Uruguay', flag: '&#127482;&#127486;', hasData: true },
+  { code: 'CL', name: 'Chile', flag: '&#127464;&#127473;', hasData: true },
+  { code: 'AE', name: 'UAE', flag: '&#127462;&#127466;', hasData: true },
+  { code: 'SA', name: 'Saudi Arabia', flag: '&#127480;&#127462;', hasData: true },
+  { code: 'OM', name: 'Oman', flag: '&#127476;&#127474;', hasData: true },
   // Countries in scope — data coming soon
   { code: 'CN', name: 'China', flag: '&#127464;&#127475;' },
-  { code: 'AE', name: 'UAE', flag: '&#127462;&#127466;' },
   { code: 'AU', name: 'Australia', flag: '&#127462;&#127482;' },
-  { code: 'SA', name: 'Saudi Arabia', flag: '&#127480;&#127462;' },
   { code: 'TH', name: 'Thailand', flag: '&#127481;&#127469;' },
   { code: 'MX', name: 'Mexico', flag: '&#127474;&#127485;' },
   { code: 'AO', name: 'Angola', flag: '&#127462;&#127476;' },
@@ -4016,7 +4020,7 @@ function setCmpMode(mode) {
   if (countryList.length > 0) initCompareChips();
 }
 
-const DATA_COUNTRIES = ['ZA','GB','IN','NA','BR'];
+const DATA_COUNTRIES = ['ZA','GB','IN','NA','BR','UY','CL','AE','SA','OM','AR'];
 
 function initCompareChips() {
   if (countryList.length === 0) return;
