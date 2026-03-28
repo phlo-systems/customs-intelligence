@@ -81,17 +81,16 @@ COUNTRY_CONFIGS: dict[str, CountryConfig] = {
     "IN": CountryConfig(
         country_code="IN",
         country_name="India",
-        source_type="HTML",
-        data_format="HTML",
-        source_url="https://www.icegate.gov.in/Webappl/",
+        source_type="API",
+        data_format="PDF",
+        source_url="https://www.cbic.gov.in/api/cbic-content-msts/MTcyNDY0",
         valuation_basis="CIF",
         currency_code="INR",
-        poll_frequency_hours=168,
+        poll_frequency_hours=24,
         notes=(
-            "CBIC/ICEGATE. No public REST API. "
-            "Scrape CTH lookup page chapter by chapter. "
-            "BCD + SWS (10% of BCD) + IGST (5/12/18/28%). "
-            "UK-India FTA (UIFTA) under negotiation — monitor."
+            "CBIC API for change detection (updatedDt per chapter). "
+            "PDFs served as base64-JSON. Auto-monitor + auto-update via cron. "
+            "BCD + exemptions (50/2017) + SWS (10% of BCD) + IGST + AD + drawback."
         ),
         parser_class="INParser",
     ),
