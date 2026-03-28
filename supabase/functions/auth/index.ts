@@ -327,17 +327,22 @@ Deno.serve(async (req: Request) => {
     }));
 
     // Fallback: if no results (e.g. Portuguese descriptions for BR),
-    // search English descriptions in other countries and map to target country codes
+    // search clean English descriptions from GB/IN and map to target country codes
     if (results.length === 0) {
       let fallbackQuery = supabaseAdmin
         .from("commodity_code")
         .select("commoditycode, nationaldescription, subheadingcode")
-        .neq("countrycode", country)
+        .in("countrycode", ["GB", "IN"])
         .eq("isactive", true);
       for (const kw of keywords) {
         fallbackQuery = fallbackQuery.ilike("nationaldescription", `%${kw}%`);
       }
-      const { data: fallbackMatches } = await fallbackQuery.limit(10);
+      const { data: rawMatches } = await fallbackQuery.order("commoditycode").limit(20);
+      // Filter out junk descriptions (containing rates, dates, units)
+      const fallbackMatches = (rawMatches || []).filter((m: any) => {
+        const d = m.nationaldescription || "";
+        return d.length > 5 && !/\d{4}-\d{2}-\d{2}|SCHEDU|\d+%|^\s*Other\s*$|^\s*-+\s*$/i.test(d);
+      });
 
       if (fallbackMatches?.length) {
         // Find matching codes in target country by subheading
