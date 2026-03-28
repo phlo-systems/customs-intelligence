@@ -326,44 +326,47 @@ Deno.serve(async (req: Request) => {
       nationaldescription: (r.nationaldescription || "").replace(/^[\s\-]+/, "").substring(0, 60),
     }));
 
-    // Fallback: if no results (e.g. Portuguese descriptions for BR),
-    // search clean English descriptions from GB/IN and map to target country codes
+    // If no results from national descriptions, search WCO universal descriptions
+    // (countrycode=XX in hs_description_embedding table — works for every country)
     if (results.length === 0) {
-      let fallbackQuery = supabaseAdmin
-        .from("commodity_code")
-        .select("commoditycode, nationaldescription, subheadingcode")
-        .in("countrycode", ["GB", "IN"])
-        .eq("isactive", true);
+      let wcoQuery = supabaseAdmin
+        .from("hs_description_embedding")
+        .select("subheadingcode, descriptiontext")
+        .eq("countrycode", "XX");
       for (const kw of keywords) {
-        fallbackQuery = fallbackQuery.ilike("nationaldescription", `%${kw}%`);
+        wcoQuery = wcoQuery.ilike("descriptiontext", `%${kw}%`);
       }
-      const { data: rawMatches } = await fallbackQuery.order("commoditycode").limit(20);
-      // Filter out junk descriptions (containing rates, dates, units)
-      const fallbackMatches = (rawMatches || []).filter((m: any) => {
-        const d = m.nationaldescription || "";
-        return d.length > 5 && !/\d{4}-\d{2}-\d{2}|SCHEDU|\d+%|^\s*Other\s*$|^\s*-+\s*$/i.test(d);
-      });
+      const { data: wcoMatches } = await wcoQuery.order("subheadingcode").limit(10);
 
-      if (fallbackMatches?.length) {
-        // Find matching codes in target country by subheading
-        const subheadings = [...new Set(fallbackMatches.map((m: any) => m.subheadingcode))];
-        for (const sh of subheadings.slice(0, 5)) {
+      if (wcoMatches?.length) {
+        // Map WCO subheadings to target country's commodity codes
+        const seen = new Set<string>();
+        for (const wco of wcoMatches) {
+          if (seen.has(wco.subheadingcode)) continue;
+          seen.add(wco.subheadingcode);
+
           const { data: targetCodes } = await supabaseAdmin
             .from("commodity_code")
             .select("commoditycode, nationaldescription")
             .eq("countrycode", country)
-            .eq("subheadingcode", sh)
+            .eq("subheadingcode", wco.subheadingcode)
             .eq("isactive", true)
-            .limit(2);
+            .order("commoditycode")
+            .limit(1);
+
           if (targetCodes?.length) {
-            const engDesc = fallbackMatches.find((m: any) => m.subheadingcode === sh)?.nationaldescription || "";
-            for (const tc of targetCodes) {
-              results.push({
-                commoditycode: tc.commoditycode,
-                nationaldescription: (engDesc.replace(/^[\s\-]+/, "") + " / " + tc.nationaldescription.replace(/^[\s\-]+/, "")).substring(0, 80),
-              });
-            }
+            // Extract clean heading description from WCO text
+            // Format: "Chapter 02: Meat and edible meat offal > Heading 0201: Meat of bovine..."
+            const wcoDesc = wco.descriptiontext || "";
+            const headingMatch = wcoDesc.match(/Heading \d+:\s*(.+?)(?:\s*>|$)/);
+            const cleanDesc = headingMatch ? headingMatch[1].trim() : wcoDesc.substring(0, 60);
+
+            results.push({
+              commoditycode: targetCodes[0].commoditycode,
+              nationaldescription: cleanDesc,
+            });
           }
+          if (results.length >= 8) break;
         }
       }
     }
