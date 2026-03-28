@@ -1234,9 +1234,9 @@
   <div class="logo"><span style="font-size:16px;margin-right:6px;display:inline-block;animation:spin 8s linear infinite;">🌐</span>customs<span style="color:var(--teal-mid);">compliance</span><span style="color:var(--teal-mid);font-weight:600;">.ai</span></div>
   <div style="display:flex;align-items:center;gap:16px;">
     <div class="header-meta" id="header-tenant">Loading tenant...</div>
-    <span style="font-size:11px;color:rgba(255,255,255,0.5);cursor:pointer;" onclick="openSuggestionModal()" title="Suggest an improvement">Suggest</span>
+    <span style="font-size:11px;color:rgba(255,255,255,0.5);cursor:pointer;" onclick="openSuggestionModal()" title="Suggest an improvement">Suggest <span style="color:var(--teal-mid);">💰</span></span>
     <span style="font-size:11px;color:rgba(255,255,255,0.3);">|</span>
-    <span style="font-size:11px;color:rgba(255,255,255,0.5);cursor:pointer;" onclick="openReferralModal()" title="Refer a colleague">Refer</span>
+    <span style="font-size:11px;color:rgba(255,255,255,0.5);cursor:pointer;" onclick="openReferralModal()" title="Refer a colleague">Refer <span style="color:var(--teal-mid);">💰</span></span>
     <span style="font-size:11px;color:rgba(255,255,255,0.3);">|</span>
     <span style="font-size:11px;color:rgba(255,255,255,0.5);cursor:pointer;" onclick="startTour()" id="tour-btn" title="Guided tour of features">Tour</span>
     <span style="font-size:11px;color:rgba(255,255,255,0.3);">|</span>
@@ -1678,8 +1678,13 @@
             <input type="text" id="ctx-doc-name" placeholder="e.g. Q1 supplier list, Product catalogue">
           </div>
           <div class="form-group">
-            <label>Document Content</label>
-            <textarea id="ctx-doc-text" rows="6" placeholder="Paste document text here..."></textarea>
+            <label>Upload File or Paste Text</label>
+            <div style="border:2px dashed var(--border);border-radius:8px;padding:12px;text-align:center;cursor:pointer;background:var(--bg);margin-bottom:8px;" onclick="document.getElementById('ctx-file-input').click()">
+              <span style="font-size:12px;color:var(--text-2);">Drop a file or <span style="color:var(--teal);font-weight:500;">browse</span></span>
+              <input type="file" id="ctx-file-input" accept=".pdf,.txt,.csv,.doc,.docx,.xlsx" style="display:none;" onchange="handleCtxFile(this)">
+            </div>
+            <div id="ctx-file-name" style="display:none;font-size:11px;color:var(--teal);margin-bottom:6px;"></div>
+            <textarea id="ctx-doc-text" rows="4" placeholder="Or paste text here..."></textarea>
           </div>
           <button class="lookup-btn" onclick="uploadContext()" id="ctx-upload-btn" style="background:var(--teal);">Extract Context</button>
           <div id="ctx-status" style="margin-top:8px;font-size:12px;"></div>
@@ -1703,6 +1708,41 @@
 
     <div id="alerts-summary" style="margin-bottom:16px;"></div>
 
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <div></div>
+      <div style="display:flex;gap:4px;">
+        <div class="filter-chip active" id="alert-view-list" onclick="setAlertView('list')" style="font-size:11px;padding:4px 10px;">List</div>
+        <div class="filter-chip" id="alert-view-swipe" onclick="setAlertView('swipe')" style="font-size:11px;padding:4px 10px;">Swipe</div>
+      </div>
+    </div>
+
+    <!-- Alert Swipe View -->
+    <div id="alert-swipe-view" style="display:none;">
+      <div style="position:relative;width:100%;max-width:420px;margin:0 auto;display:flex;flex-direction:column;justify-content:center;min-height:calc(100vh - 280px);">
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px;padding:0 4px;">
+          <span style="font-size:10px;color:var(--text-3);font-weight:500;">← DOESN'T AFFECT ME</span>
+          <span style="font-size:10px;color:var(--amber);font-weight:500;">REMIND ME →</span>
+        </div>
+        <div id="alert-swipe-progress" style="font-family:var(--mono);font-size:11px;color:var(--text-3);text-align:center;margin-bottom:8px;"></div>
+        <div id="alert-swipe-card" style="position:relative;background:var(--surface);border:2px solid var(--border);border-radius:20px;padding:32px 24px;touch-action:none;user-select:none;min-height:280px;display:flex;flex-direction:column;justify-content:center;box-shadow:0 4px 20px rgba(0,0,0,0.06);">
+          <div id="alert-swipe-severity" style="text-align:center;margin-bottom:16px;"></div>
+          <div id="alert-swipe-headline" style="font-size:16px;font-weight:600;line-height:1.5;text-align:center;margin-bottom:12px;"></div>
+          <div id="alert-swipe-detail" style="font-size:13px;color:var(--text-2);line-height:1.6;text-align:center;"></div>
+        </div>
+        <div style="display:flex;justify-content:center;align-items:center;gap:24px;margin-top:24px;">
+          <button onclick="alertSwipeAction('left')" style="width:64px;height:64px;border-radius:50%;border:2px solid var(--text-3);background:var(--bg);color:var(--text-3);font-size:26px;cursor:pointer;font-weight:700;">&#10005;</button>
+          <button onclick="alertSwipeAction('right')" style="width:64px;height:64px;border-radius:50%;border:2px solid var(--amber);background:var(--amber-bg);color:var(--amber);font-size:26px;cursor:pointer;font-weight:700;box-shadow:0 2px 8px rgba(180,83,9,0.15);">&#9888;</button>
+        </div>
+      </div>
+      <div id="alert-swipe-done" style="display:none;text-align:center;padding:20px;min-height:60vh;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+        <div style="font-size:40px;margin-bottom:12px;">&#9989;</div>
+        <div style="font-size:20px;font-weight:600;margin-bottom:8px;">All alerts reviewed!</div>
+        <div id="alert-swipe-summary" style="font-size:14px;color:var(--text-2);line-height:1.6;"></div>
+      </div>
+    </div>
+
+    <!-- Alert List View -->
+    <div id="alert-list-view">
     <div class="filters" id="alert-filters" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
       <div style="display:flex;align-items:center;gap:6px;">
         <span class="filter-label">Severity:</span>
@@ -1723,6 +1763,7 @@
     <div id="alerts-list" class="opp-list">
       <div class="page-loader"><div class="spinner" style="margin:0;"></div> Loading alerts...</div>
     </div>
+    </div><!-- end alert-list-view -->
   </div>
 
   <!-- ── Admin: Upload Tariff Docs ── -->
@@ -3322,6 +3363,110 @@ function initSwipeTouch() {
   }, { passive: true });
 }
 
+// ── Alert Swipe View ─────────────────────────────────────────────────────────
+
+let alertSwipeItems = [];
+let alertSwipeIdx = 0;
+let alertSwipeStats = { remind: 0, ignored: 0 };
+
+function setAlertView(view) {
+  document.getElementById('alert-view-list').classList.toggle('active', view === 'list');
+  document.getElementById('alert-view-swipe').classList.toggle('active', view === 'swipe');
+  document.getElementById('alert-list-view').style.display = view === 'list' ? '' : 'none';
+  document.getElementById('alert-swipe-view').style.display = view === 'swipe' ? '' : 'none';
+
+  if (view === 'swipe') {
+    alertSwipeItems = (allAlerts || []).filter(a => !a.isdismissed);
+    alertSwipeIdx = 0;
+    alertSwipeStats = { remind: 0, ignored: 0 };
+    renderAlertSwipeCard();
+    initAlertSwipeTouch();
+  }
+}
+
+function renderAlertSwipeCard() {
+  const card = document.getElementById('alert-swipe-card');
+  const done = document.getElementById('alert-swipe-done');
+  const prog = document.getElementById('alert-swipe-progress');
+
+  if (alertSwipeIdx >= alertSwipeItems.length) {
+    card.style.display = 'none';
+    done.style.display = 'flex';
+    document.getElementById('alert-swipe-summary').innerHTML =
+      `<strong>${alertSwipeStats.remind}</strong> to follow up · <strong>${alertSwipeStats.ignored}</strong> dismissed`;
+    prog.textContent = '';
+    return;
+  }
+
+  card.style.display = 'flex'; card.style.transform = ''; card.style.opacity = '1';
+  done.style.display = 'none';
+
+  const a = alertSwipeItems[alertSwipeIdx];
+  const sevColors = { CRITICAL: 'var(--red)', HIGH: 'var(--amber)', MEDIUM: 'var(--text-2)', LOW: 'var(--text-3)' };
+  const sevBg = { CRITICAL: 'var(--red-bg)', HIGH: 'var(--amber-bg)', MEDIUM: 'var(--bg)', LOW: 'var(--bg)' };
+
+  document.getElementById('alert-swipe-severity').innerHTML =
+    `<span style="background:${sevBg[a.severity]||'var(--bg)'};color:${sevColors[a.severity]||'var(--text-2)'};padding:6px 16px;border-radius:20px;font-size:11px;font-weight:600;letter-spacing:0.05em;">${a.severity}</span>`;
+  document.getElementById('alert-swipe-headline').textContent = a.headline || '';
+  document.getElementById('alert-swipe-detail').textContent = (a.detail || '').substring(0, 200);
+  prog.textContent = `${alertSwipeIdx + 1} of ${alertSwipeItems.length}`;
+}
+
+function alertSwipeAction(dir) {
+  if (alertSwipeIdx >= alertSwipeItems.length) return;
+  const a = alertSwipeItems[alertSwipeIdx];
+  const card = document.getElementById('alert-swipe-card');
+
+  card.style.transition = 'transform 0.3s ease, opacity 0.3s ease';
+  card.style.transform = `translateX(${dir === 'right' ? '120%' : '-120%'}) rotate(${dir === 'right' ? '15' : '-15'}deg)`;
+  card.style.opacity = '0';
+
+  if (dir === 'right') {
+    alertSwipeStats.remind++;
+    // Mark as actioned (remind me)
+    fetch(API_BASE + '/alerts', { method: 'POST', headers: getHeaders(),
+      body: JSON.stringify({ action: 'action', alert_id: a.alertid }) }).catch(() => {});
+  } else {
+    alertSwipeStats.ignored++;
+    // Dismiss
+    fetch(API_BASE + '/alerts', { method: 'POST', headers: getHeaders(),
+      body: JSON.stringify({ action: 'dismiss', alert_ids: [a.alertid] }) }).catch(() => {});
+  }
+
+  alertSwipeIdx++;
+  setTimeout(() => { card.style.transition = 'none'; renderAlertSwipeCard(); }, 300);
+}
+
+function initAlertSwipeTouch() {
+  const card = document.getElementById('alert-swipe-card');
+  if (!card || card._swipeInit) return;
+  card._swipeInit = true;
+  let sx = 0, cx = 0, swiping = false;
+
+  card.addEventListener('touchstart', function(e) { sx = e.touches[0].clientX; swiping = true; card.style.transition = 'none'; }, { passive: true });
+  card.addEventListener('touchmove', function(e) {
+    if (!swiping) return; e.preventDefault();
+    cx = e.touches[0].clientX; const d = cx - sx;
+    card.style.transform = `translateX(${d}px) rotate(${d*0.08}deg)`;
+    card.style.opacity = Math.max(0.3, 1 - Math.abs(d)/400);
+  }, { passive: false });
+  card.addEventListener('touchend', function() {
+    if (!swiping) return; swiping = false;
+    const d = cx - sx;
+    if (d > 80) alertSwipeAction('right');
+    else if (d < -80) alertSwipeAction('left');
+    else { card.style.transition = 'transform 0.3s ease'; card.style.transform = ''; card.style.opacity = '1'; }
+    sx = 0; cx = 0;
+  }, { passive: true });
+}
+
+// Auto-default to swipe on mobile for alerts too
+function checkAlertMobileSwipe() {
+  if (window.innerWidth <= 768 && allAlerts && allAlerts.length > 0) {
+    setAlertView('swipe');
+  }
+}
+
 // ── HS Code Autocomplete ─────────────────────────────────────────────────────
 
 let hsSearchTimer = null;
@@ -3532,7 +3677,7 @@ async function runCompare() {
     fixedCountry = document.getElementById('cmp-import').value;
     code = document.getElementById('cmp-code').value.trim();
     value = document.getElementById('cmp-value').value.trim();
-    compareCountries = getSelectedChips('cmp-origins');
+    compareCountries = getSelectedChips('cmp-origins').filter(c => c !== fixedCountry);
 
     if (!fixedCountry || !code) {
       btn.disabled = false; btn.textContent = 'Compare Routes';
@@ -3558,7 +3703,7 @@ async function runCompare() {
     fixedCountry = document.getElementById('cmp-export').value;
     code = document.getElementById('cmp-code-ex').value.trim();
     value = document.getElementById('cmp-value-ex').value.trim();
-    compareCountries = getSelectedChips('cmp-destinations');
+    compareCountries = getSelectedChips('cmp-destinations').filter(c => c !== fixedCountry);
 
     if (!fixedCountry || !code) {
       btn.disabled = false; btn.textContent = 'Compare Routes';
@@ -3602,14 +3747,18 @@ function renderCompareResults(results, mode, code) {
   const routeLabel = mode === 'importer' ? 'Origin' : 'Destination';
   const cols = results.map(r => mode === 'importer' ? r.origin : r.dest);
 
-  thead.innerHTML = `<tr style="border-bottom:2px solid var(--border);text-align:left;">
-    <th style="padding:10px 14px;font-weight:600;min-width:160px;">HS ${code}</th>
-    ${cols.map(c => `<th style="padding:10px 14px;font-weight:600;text-align:right;min-width:120px;">${countryName(c)}<br><span style="font-size:10px;color:var(--text-3);font-weight:400;">${c}</span></th>`).join('')}
+  // Show product name once as a header (from first successful result)
+  const firstOk = results.find(r => r.data?.status === 'OK');
+  const productName = firstOk?.data?.input?.commodity_description?.substring(0, 60) || 'Product';
+
+  thead.innerHTML = `<tr><td colspan="${cols.length + 1}" style="padding:12px 14px;font-size:14px;font-weight:600;border-bottom:1px solid var(--border);">HS ${code} — ${productName}</td></tr>
+  <tr style="border-bottom:2px solid var(--border);text-align:left;">
+    <th style="padding:10px 14px;font-weight:600;min-width:140px;font-size:12px;color:var(--text-2);"></th>
+    ${cols.map(c => `<th style="padding:10px 14px;font-weight:600;text-align:right;min-width:110px;font-size:13px;">${countryName(c)}<br><span style="font-size:10px;color:var(--text-3);font-weight:400;">${c}</span></th>`).join('')}
   </tr>`;
 
-  // Rows
+  // Rows (product removed — shown in header)
   const rows = [
-    { label: 'Product', key: d => d?.input?.commodity_description?.substring(0, 30) || '—' },
     { label: 'BCD / MFN', key: d => pct(d?.duty?.mfn_rate_pct), cls: '' },
     { label: 'Exemption', key: d => d?.duty?.exemption_ref ? pct(d?.duty?.exemption_rate_pct) + ' *' : '—', cls: 'teal' },
     { label: 'Effective duty', key: d => pct(d?.duty?.effective_rate_pct), cls: 'teal' },
@@ -4372,6 +4521,22 @@ async function saveProfile() {
   setTimeout(() => { status.textContent = ''; }, 8000);
 }
 
+function handleCtxFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const label = document.getElementById('ctx-file-name');
+  label.style.display = 'block';
+  label.textContent = file.name + ' (' + (file.size/1024).toFixed(0) + ' KB)';
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    document.getElementById('ctx-doc-text').value = e.target.result.substring(0, 20000);
+    if (!document.getElementById('ctx-doc-name').value) {
+      document.getElementById('ctx-doc-name').value = file.name.replace(/\.[^.]+$/, '');
+    }
+  };
+  reader.readAsText(file);
+}
+
 async function uploadContext() {
   const btn = document.getElementById('ctx-upload-btn');
   const status = document.getElementById('ctx-status');
@@ -5016,6 +5181,7 @@ async function loadAlerts() {
     }
 
     renderAlerts(allAlerts);
+    checkAlertMobileSwipe();
   } catch (e) {
     document.getElementById('alerts-list').innerHTML = `<div class="empty"><div class="empty-title">Could not load alerts</div>${e.message}</div>`;
   }
