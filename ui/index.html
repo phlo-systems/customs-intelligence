@@ -1291,6 +1291,7 @@
   <div class="nav-tab" onclick="showScreen('classify', this)">Classify</div>
   <div class="nav-tab" onclick="showScreen('profile', this)">Profile</div>
   <div class="nav-tab" onclick="showScreen('alerts', this)">Alerts</div>
+  <div class="nav-tab" onclick="showScreen('actions', this)">Actions <span class="nav-badge" id="action-count" style="background:var(--amber-bg);color:var(--amber);">0</span></div>
   <div class="nav-tab" onclick="showScreen('admin', this)" id="nav-admin" style="display:none;">Admin</div>
 </nav>
 
@@ -1806,6 +1807,43 @@
       <div class="page-loader"><div class="spinner" style="margin:0;"></div> Loading alerts...</div>
     </div>
     </div><!-- end alert-list-view -->
+  </div>
+
+  <!-- ── Action List ── -->
+  <div class="screen" id="screen-actions">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div>
+        <div style="font-size:18px;font-weight:600;">Action List</div>
+        <div style="font-size:12px;color:var(--text-3);">Items you've marked as interesting from opportunities and alerts</div>
+      </div>
+    </div>
+
+    <div class="summary-bar" style="grid-template-columns:repeat(3,1fr);margin-bottom:16px;">
+      <div class="stat-card"><div class="stat-label">To Do</div><div class="stat-value" id="action-todo" style="color:var(--amber);">0</div></div>
+      <div class="stat-card"><div class="stat-label">In Progress</div><div class="stat-value teal" id="action-inprog">0</div></div>
+      <div class="stat-card"><div class="stat-label">Done</div><div class="stat-value" id="action-done" style="color:var(--green);">0</div></div>
+    </div>
+
+    <div class="filters" style="display:flex;align-items:center;gap:6px;margin-bottom:12px;">
+      <span class="filter-label">Show:</span>
+      <div class="filter-chip active" onclick="filterActions(this, 'all')">All</div>
+      <div class="filter-chip" onclick="filterActions(this, 'todo')">To Do</div>
+      <div class="filter-chip" onclick="filterActions(this, 'inprog')">In Progress</div>
+      <div class="filter-chip" onclick="filterActions(this, 'done')">Done</div>
+    </div>
+
+    <div id="actions-list" style="display:flex;flex-direction:column;gap:10px;">
+      <div class="page-loader"><div class="spinner" style="margin:0;"></div> Loading actions...</div>
+    </div>
+
+    <div id="actions-empty" style="display:none;text-align:center;padding:40px 20px;">
+      <div style="font-size:36px;margin-bottom:12px;">&#9989;</div>
+      <div style="font-size:16px;font-weight:600;margin-bottom:8px;">No action items yet</div>
+      <div style="font-size:13px;color:var(--text-2);line-height:1.6;">
+        Swipe right on opportunities or alerts to add them here.<br>
+        Your action list helps you track follow-ups and next steps.
+      </div>
+    </div>
   </div>
 
   <!-- ── Admin: Upload Tariff Docs ── -->
@@ -2442,6 +2480,7 @@ function enterApp() {
     setTimeout(checkAcumaticaStatus, 1000);
     setTimeout(checkEmailStatus, 1500);
     setTimeout(loadAlerts, 300);
+    setTimeout(loadActions, 600);
     setTimeout(checkTourState, 2000);
     setTimeout(checkReferralPrompt, 3000);
   }, 300);
@@ -2929,6 +2968,7 @@ function showScreen(name, el) {
   if (el) el.classList.add('active');
   if (name === 'admin') onAdminScreenShow();
   if (name === 'profile') initProfileChips();
+  if (name === 'actions') loadActions();
 }
 
 // ── Tariff Lookup ─────────────────────────────────────────────────────────────
@@ -3589,6 +3629,140 @@ function shareClassifyResult() {
   const panel = document.getElementById('classify-results-panel');
   if (!panel || panel.querySelector('.classify-empty')) return alert('Classify a product first');
   shareWithPDF(panel.innerHTML, 'classification-result.pdf', 'HS Classification', panel.innerText.substring(0, 400));
+}
+
+// ── Action List ──────────────────────────────────────────────────────────────
+
+let allActions = [];
+
+async function loadActions() {
+  const list = document.getElementById('actions-list');
+  const empty = document.getElementById('actions-empty');
+
+  try {
+    // Fetch actioned opportunities
+    const oppR = await fetch(API_BASE + '/opportunities?limit=200', { headers: getHeaders() });
+    const oppData = await oppR.json();
+    const actionedOpps = (oppData.opportunities || [])
+      .filter(o => o.isactioned && !o.isdismissed)
+      .map(o => ({
+        id: 'opp-' + o.opportunityid,
+        type: 'opportunity',
+        typeBadge: o.opportunitytype?.replace(/_/g, ' ') || 'Opportunity',
+        headline: (o.headline || '').replace(/^[\s\-]+/, ''),
+        detail: o.aiinsight || '',
+        route: [o.exportcountrycode, o.importcountrycode].filter(Boolean).join(' → '),
+        hs: o.subheadingcode ? 'HS ' + o.subheadingcode : '',
+        saving: o.savingpct ? o.savingpct + 'pp' : '',
+        detectedAt: o.detectedat,
+        status: localStorage.getItem('action-status-opp-' + o.opportunityid) || 'todo',
+        notes: localStorage.getItem('action-notes-opp-' + o.opportunityid) || '',
+      }));
+
+    // Fetch actioned alerts
+    const alertR = await fetch(API_BASE + '/alerts?limit=200', { headers: getHeaders() });
+    const alertData = await alertR.json();
+    const actionedAlerts = (alertData.alerts || [])
+      .filter(a => a.isactioned && !a.isdismissed)
+      .map(a => ({
+        id: 'alert-' + a.alertid,
+        type: 'alert',
+        typeBadge: a.alerttype?.replace(/_/g, ' ') || 'Alert',
+        headline: a.headline || '',
+        detail: a.detail || '',
+        route: a.countrycode || '',
+        hs: a.subheadingcode ? 'HS ' + a.subheadingcode : '',
+        saving: '',
+        severity: a.severity,
+        detectedAt: a.detectedat,
+        status: localStorage.getItem('action-status-alert-' + a.alertid) || 'todo',
+        notes: localStorage.getItem('action-notes-alert-' + a.alertid) || '',
+      }));
+
+    allActions = [...actionedOpps, ...actionedAlerts].sort((a, b) => {
+      const order = { todo: 0, inprog: 1, done: 2 };
+      return (order[a.status] || 0) - (order[b.status] || 0);
+    });
+
+    // Update badge count
+    const todoCount = allActions.filter(a => a.status === 'todo').length;
+    document.getElementById('action-count').textContent = todoCount || '0';
+    document.getElementById('action-todo').textContent = todoCount;
+    document.getElementById('action-inprog').textContent = allActions.filter(a => a.status === 'inprog').length;
+    document.getElementById('action-done').textContent = allActions.filter(a => a.status === 'done').length;
+
+    renderActions(allActions);
+  } catch (e) {
+    list.innerHTML = '<div class="empty">Failed to load actions</div>';
+  }
+}
+
+function renderActions(items) {
+  const list = document.getElementById('actions-list');
+  const empty = document.getElementById('actions-empty');
+
+  if (!items.length) {
+    list.innerHTML = '';
+    empty.style.display = '';
+    return;
+  }
+  empty.style.display = 'none';
+
+  const statusColors = { todo: 'var(--amber)', inprog: 'var(--teal)', done: 'var(--green)' };
+  const statusLabels = { todo: 'To Do', inprog: 'In Progress', done: 'Done' };
+  const statusIcons = { todo: '⬜', inprog: '🔄', done: '✅' };
+
+  list.innerHTML = items.map(a => {
+    const typeBg = a.type === 'alert' ? 'var(--red-bg)' : 'var(--teal-bg)';
+    const typeColor = a.type === 'alert' ? 'var(--red)' : 'var(--teal)';
+    const meta = [a.route, a.hs, a.saving].filter(Boolean).join(' · ');
+
+    return `<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;border-left:4px solid ${statusColors[a.status] || 'var(--border)'};">
+      <div style="display:flex;justify-content:space-between;align-items:start;gap:10px;margin-bottom:8px;">
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px;">
+            <span style="font-size:14px;">${statusIcons[a.status] || '⬜'}</span>
+            <span style="background:${typeBg};color:${typeColor};padding:2px 8px;border-radius:4px;font-size:10px;font-weight:600;text-transform:uppercase;">${a.typeBadge}</span>
+            ${a.severity ? `<span style="font-size:10px;color:var(--text-3);">${a.severity}</span>` : ''}
+          </div>
+          <div style="font-weight:500;font-size:13px;line-height:1.4;">${a.headline}</div>
+          ${meta ? `<div style="font-family:var(--mono);font-size:11px;color:var(--text-3);margin-top:3px;">${meta}</div>` : ''}
+        </div>
+        <select onchange="updateActionStatus('${a.id}', this.value)" style="font-size:11px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);min-width:90px;">
+          <option value="todo" ${a.status === 'todo' ? 'selected' : ''}>To Do</option>
+          <option value="inprog" ${a.status === 'inprog' ? 'selected' : ''}>In Progress</option>
+          <option value="done" ${a.status === 'done' ? 'selected' : ''}>Done</option>
+        </select>
+      </div>
+      ${a.detail ? `<div style="font-size:12px;color:var(--text-2);line-height:1.5;margin-bottom:8px;">${a.detail.substring(0, 150)}${a.detail.length > 150 ? '...' : ''}</div>` : ''}
+      <div style="display:flex;gap:6px;align-items:center;">
+        <input type="text" value="${a.notes.replace(/"/g, '&quot;')}" placeholder="Add a note..."
+          onchange="updateActionNotes('${a.id}', this.value)"
+          style="flex:1;font-size:12px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg);">
+        <button onclick="shareVia('email', '${encodeURIComponent(a.headline + '\\n' + a.detail?.substring(0,200))}')"
+          style="font-size:11px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);cursor:pointer;">📤</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function updateActionStatus(actionId, status) {
+  localStorage.setItem('action-status-' + actionId, status);
+  loadActions();
+}
+
+function updateActionNotes(actionId, notes) {
+  localStorage.setItem('action-notes-' + actionId, notes);
+}
+
+function filterActions(el, filter) {
+  document.querySelectorAll('#screen-actions .filter-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  if (filter === 'all') {
+    renderActions(allActions);
+  } else {
+    renderActions(allActions.filter(a => a.status === filter));
+  }
 }
 
 // ── Alert Swipe View ─────────────────────────────────────────────────────────
@@ -6289,6 +6463,7 @@ const TOUR_STEPS = [
   { screen: 'opportunities', element: '.summary-bar', title: 'Step 5: Opportunities', desc: 'Duty savings, FTA advantages, and new market opportunities — generated from real tariff data matched to your profile. Each card shows the saving and affected trade route.' },
   { screen: 'opportunities', element: '#screen-opportunities .opp-list', title: 'Step 5: Share & Act', desc: 'Click any opportunity to expand details. Share instantly via Email, Microsoft Teams, or WhatsApp — one click sends a formatted summary to your team or freight forwarder.' },
   { screen: 'alerts', element: '#screen-alerts', title: 'Step 6: Trade Alerts', desc: 'Real-time alerts from government data: duty rate changes, new anti-dumping investigations, expiring preferential rates, and regulatory changes. Verified against our database — AI-generated alerts are tagged.' },
+  { screen: 'actions', element: '#screen-actions', title: 'Step 7: Action List', desc: 'When you swipe right on an opportunity or alert, it lands here. Track your follow-ups with To Do / In Progress / Done status, add notes, and share items with your team.' },
 ];
 
 let tourDriver = null;
