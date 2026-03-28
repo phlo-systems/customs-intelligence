@@ -321,12 +321,49 @@ Deno.serve(async (req: Request) => {
 
     const { data: matches } = await queryBuilder.order("commoditycode").limit(8);
 
-    const results = (matches || []).map((r: any) => ({
+    let results = (matches || []).map((r: any) => ({
       commoditycode: r.commoditycode,
       nationaldescription: (r.nationaldescription || "").replace(/^[\s\-]+/, "").substring(0, 60),
     }));
 
-    return json({ results });
+    // Fallback: if no results (e.g. Portuguese descriptions for BR),
+    // search English descriptions in other countries and map to target country codes
+    if (results.length === 0) {
+      let fallbackQuery = supabaseAdmin
+        .from("commodity_code")
+        .select("commoditycode, nationaldescription, subheadingcode")
+        .neq("countrycode", country)
+        .eq("isactive", true);
+      for (const kw of keywords) {
+        fallbackQuery = fallbackQuery.ilike("nationaldescription", `%${kw}%`);
+      }
+      const { data: fallbackMatches } = await fallbackQuery.limit(10);
+
+      if (fallbackMatches?.length) {
+        // Find matching codes in target country by subheading
+        const subheadings = [...new Set(fallbackMatches.map((m: any) => m.subheadingcode))];
+        for (const sh of subheadings.slice(0, 5)) {
+          const { data: targetCodes } = await supabaseAdmin
+            .from("commodity_code")
+            .select("commoditycode, nationaldescription")
+            .eq("countrycode", country)
+            .eq("subheadingcode", sh)
+            .eq("isactive", true)
+            .limit(2);
+          if (targetCodes?.length) {
+            const engDesc = fallbackMatches.find((m: any) => m.subheadingcode === sh)?.nationaldescription || "";
+            for (const tc of targetCodes) {
+              results.push({
+                commoditycode: tc.commoditycode,
+                nationaldescription: (engDesc.replace(/^[\s\-]+/, "") + " / " + tc.nationaldescription.replace(/^[\s\-]+/, "")).substring(0, 80),
+              });
+            }
+          }
+        }
+      }
+    }
+
+    return json({ results: results.slice(0, 8) });
   }
 
   return json({ error: "Unknown action. Use: signup, login, refresh, me, api_key, search_hs, reset_password, update_password, logout" }, 400);
