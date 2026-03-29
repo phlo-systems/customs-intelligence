@@ -1614,6 +1614,23 @@
       <div id="profile-xero-badge"></div>
     </div>
 
+    <!-- Subscription Plan -->
+    <div id="subscription-panel" style="margin-bottom:20px;padding:20px;border-radius:12px;border:1px solid var(--border);background:var(--surface);display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+        <div>
+          <div style="font-size:14px;font-weight:600;">
+            <span id="sub-plan-badge" style="display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;background:var(--border);color:var(--text-2);">FREE</span>
+            <span id="sub-plan-label" style="margin-left:8px;">Plan</span>
+          </div>
+          <div id="sub-usage" style="font-size:12px;color:var(--text-3);margin-top:6px;"></div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button id="sub-upgrade-btn" onclick="upgradePlan()" class="lookup-btn" style="padding:8px 16px;font-size:13px;">Upgrade</button>
+          <button id="sub-manage-btn" onclick="manageBilling()" class="lookup-btn" style="padding:8px 16px;font-size:13px;background:transparent;color:var(--text-2);border:1px solid var(--border);display:none;">Manage billing</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Trade Insights from ERP (auto-derived) -->
     <div id="profile-insights">
       <div class="page-loader"><div class="spinner" style="margin:0;"></div> Loading profile...</div>
@@ -2997,6 +3014,14 @@ async function runLookup() {
 
     const r    = await fetch(`${API_BASE}/tariff-lookup`, { method: 'POST', headers: getHeaders(), body: JSON.stringify(body) });
     const data = await r.json();
+    if (r.status === 429 && data.upgrade_url) {
+      panel.innerHTML = `<div style="text-align:center;padding:32px;">
+        <div style="font-size:32px;margin-bottom:12px;">&#128274;</div>
+        <div style="font-size:16px;font-weight:600;margin-bottom:8px;">${data.error}</div>
+        <button onclick="upgradePlan()" class="lookup-btn" style="margin-top:12px;">Upgrade now</button>
+      </div>`;
+      btn.disabled = false; btn.textContent = 'Run Lookup'; return;
+    }
     panel.innerHTML = renderResult(data);
   } catch(e) {
     panel.innerHTML = `<div class="result-empty">Error: ${e.message}</div>`;
@@ -4751,7 +4776,97 @@ function setProfileChipsFromData(p) {
   syncProfileChipsToHidden();
 }
 
+// ── Subscription / Billing ──────────────────────────────────────────
+async function loadSubscription() {
+  try {
+    const r = await fetch(`${API_BASE}/billing`, {
+      method: 'POST', headers: getHeaders(),
+      body: JSON.stringify({ action: 'status' }),
+    });
+    if (!r.ok) return;
+    const d = await r.json();
+    const panel = document.getElementById('subscription-panel');
+    if (!panel) return;
+    panel.style.display = 'block';
+
+    const badge = document.getElementById('sub-plan-badge');
+    const label = document.getElementById('sub-plan-label');
+    const usage = document.getElementById('sub-usage');
+    const upgradeBtn = document.getElementById('sub-upgrade-btn');
+    const manageBtn = document.getElementById('sub-manage-btn');
+
+    const plan = d.plan || 'FREE';
+    const colors = { FREE: '#94a3b8', STARTER: '#0891b2', PRO: '#059669', BUSINESS: '#7c3aed', ENTERPRISE: '#dc2626' };
+    badge.textContent = plan;
+    badge.style.background = (colors[plan] || '#94a3b8') + '18';
+    badge.style.color = colors[plan] || '#94a3b8';
+
+    if (plan === 'FREE') {
+      label.textContent = 'Plan — upgrade to unlock unlimited lookups and trade alerts';
+      usage.innerHTML = `Lookups: <strong>${d.usage?.lookups?.used || 0}/${d.usage?.lookups?.limit || 10}</strong> &middot; Classifications: <strong>${d.usage?.classifies?.used || 0}/${d.usage?.classifies?.limit || 5}</strong> &middot; Resets monthly`;
+      upgradeBtn.style.display = '';
+      manageBtn.style.display = 'none';
+    } else if (plan === 'STARTER') {
+      label.textContent = 'Plan';
+      usage.innerHTML = `Lookups: <strong>${d.usage?.lookups?.used || 0}/${d.usage?.lookups?.limit || 100}</strong> &middot; Classifications: <strong>${d.usage?.classifies?.used || 0}/${d.usage?.classifies?.limit || 50}</strong>`;
+      upgradeBtn.textContent = 'Upgrade to Pro';
+      upgradeBtn.style.display = '';
+      manageBtn.style.display = '';
+    } else {
+      label.textContent = d.cancel_at_period_end ? 'Plan — cancels at period end' : 'Plan';
+      usage.textContent = d.current_period_end ? `Renews ${new Date(d.current_period_end).toLocaleDateString()}` : 'Active';
+      upgradeBtn.style.display = plan === 'PRO' ? '' : 'none';
+      if (plan === 'PRO') upgradeBtn.textContent = 'Upgrade to Business';
+      manageBtn.style.display = '';
+    }
+
+    // Handle ?billing=success in URL
+    if (location.search.includes('billing=success')) {
+      showToast('Subscription activated! Welcome to ' + (new URLSearchParams(location.search).get('plan') || plan) + '.');
+      history.replaceState(null, '', location.pathname);
+    }
+  } catch(e) { console.log('Subscription load error:', e); }
+}
+
+async function upgradePlan() {
+  // Determine which plan to upgrade to
+  const panel = document.getElementById('sub-plan-badge');
+  const currentPlan = panel?.textContent || 'FREE';
+  let targetPlan = 'STARTER';
+  if (currentPlan === 'STARTER') targetPlan = 'PRO';
+  if (currentPlan === 'PRO') targetPlan = 'BUSINESS';
+
+  try {
+    const r = await fetch(`${API_BASE}/billing`, {
+      method: 'POST', headers: getHeaders(),
+      body: JSON.stringify({ action: 'checkout', plan: targetPlan }),
+    });
+    const d = await r.json();
+    if (d.checkout_url) {
+      window.location.href = d.checkout_url;
+    } else {
+      showToast(d.error || 'Could not create checkout session');
+    }
+  } catch(e) { showToast('Error: ' + e.message); }
+}
+
+async function manageBilling() {
+  try {
+    const r = await fetch(`${API_BASE}/billing`, {
+      method: 'POST', headers: getHeaders(),
+      body: JSON.stringify({ action: 'portal' }),
+    });
+    const d = await r.json();
+    if (d.portal_url) {
+      window.location.href = d.portal_url;
+    } else {
+      showToast(d.error || 'Could not open billing portal');
+    }
+  } catch(e) { showToast('Error: ' + e.message); }
+}
+
 async function loadProfile() {
+  loadSubscription();
   initProfileChips();
   try {
     const r = await fetch(`${API_BASE}/tenant-profile`, { headers: getHeaders() });
