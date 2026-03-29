@@ -63,6 +63,39 @@ Deno.serve(async (req: Request) => {
 
   if (!tenantId) return json({ error: "Authentication required." }, 401);
 
+  // ── Check subscription usage limits ─────────────────────────────────────
+  const { data: sub } = await supabase
+    .from("subscription")
+    .select("plancode, status, classifycount, lookupresetat")
+    .eq("tenantid", tenantId)
+    .maybeSingle();
+
+  if (sub && sub.plancode === "FREE" && sub.status === "ACTIVE") {
+    if (new Date(sub.lookupresetat) <= new Date()) {
+      const nextReset = new Date();
+      nextReset.setMonth(nextReset.getMonth() + 1, 1);
+      nextReset.setHours(0, 0, 0, 0);
+      await supabase.from("subscription")
+        .update({ classifycount: 0, lookupresetat: nextReset.toISOString() })
+        .eq("tenantid", tenantId);
+      sub.classifycount = 0;
+    }
+    if (sub.classifycount >= 5) {
+      return json({
+        error: "Free plan limit reached (5 classifications/month). Upgrade to Pro for unlimited.",
+        upgrade_url: "https://customs-compliance.ai/#pricing",
+        usage: { classifies_used: sub.classifycount, limit: 5 },
+      }, 429);
+    }
+  }
+
+  if (sub) {
+    supabase.from("subscription")
+      .update({ classifycount: (sub.classifycount || 0) + 1 })
+      .eq("tenantid", tenantId)
+      .then(() => {});
+  }
+
   // ── Parse request ──────────────────────────────────────────────────────────
   let body: Record<string, unknown>;
   try { body = await req.json(); }

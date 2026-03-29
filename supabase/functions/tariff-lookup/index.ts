@@ -51,6 +51,41 @@ Deno.serve(async (req: Request) => {
 
   if (!tenantId) return json({ error: "Authentication required." }, 401);
 
+  // ── Step 1b: Check subscription usage limits ────────────────────────────
+  const { data: sub } = await supabase
+    .from("subscription")
+    .select("plancode, status, lookupcount, lookupresetat")
+    .eq("tenantid", tenantId)
+    .maybeSingle();
+
+  if (sub && sub.plancode === "FREE" && sub.status === "ACTIVE") {
+    // Reset counter if past reset date
+    if (new Date(sub.lookupresetat) <= new Date()) {
+      const nextReset = new Date();
+      nextReset.setMonth(nextReset.getMonth() + 1, 1);
+      nextReset.setHours(0, 0, 0, 0);
+      await supabase.from("subscription")
+        .update({ lookupcount: 0, lookupresetat: nextReset.toISOString() })
+        .eq("tenantid", tenantId);
+      sub.lookupcount = 0;
+    }
+    if (sub.lookupcount >= 10) {
+      return json({
+        error: "Free plan limit reached (10 lookups/month). Upgrade to Pro for unlimited lookups.",
+        upgrade_url: "https://customs-compliance.ai/#pricing",
+        usage: { lookups_used: sub.lookupcount, limit: 10 },
+      }, 429);
+    }
+  }
+
+  // Increment usage counter (non-blocking)
+  if (sub) {
+    supabase.from("subscription")
+      .update({ lookupcount: (sub.lookupcount || 0) + 1 })
+      .eq("tenantid", tenantId)
+      .then(() => {});
+  }
+
   // ── Step 2: Parse request ──────────────────────────────────────────────────
   let body: Record<string, unknown>;
   try { body = await req.json(); }
