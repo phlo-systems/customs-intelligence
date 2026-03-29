@@ -8,9 +8,9 @@
 
 ## SEO Pages (deployed)
 - **50 product duty pages** — e.g., `/duty/cocoa-beans-hs-1801`
-- **28 trade route pages** — e.g., `/duty/route/india-to-united-kingdom`
+- **73 trade route pages** — e.g., `/duty/route/india-to-united-kingdom`
 - **5 tool landing pages** — calculator, landed cost, HS lookup, FTA finder, documents checker
-- **Sitemap:** https://customs-compliance.ai/sitemap.xml (86 URLs)
+- **Sitemap:** https://customs-compliance.ai/sitemap.xml (131 URLs)
 
 ## Search Engine Registration
 
@@ -19,12 +19,12 @@
 - Verification: HTML file (`googleb46e5193aa70bb65.html` in `ui/`)
 - Vercel route added in `vercel.json` for the verification file
 - Canonical tag added to `landing.html`: `<link rel="canonical" href="https://customs-compliance.ai/">`
-- Sitemap submitted: 86 URLs discovered
+- Sitemap submitted: 131 URLs discovered
 - Indexing requested for homepage
 
 ### Bing Webmaster Tools — DONE (29 Mar 2026)
 - Imported from Google Search Console (auto-verified)
-- Sitemap: 86 URLs discovered, status **Success**
+- Sitemap: 131 URLs discovered, status **Success**
 - Also feeds Yahoo and DuckDuckGo results
 
 ## AI Search Engine Discoverability
@@ -115,7 +115,7 @@
 |-----|---------|
 | https://customs-compliance.ai/ | Landing page |
 | https://customs-compliance.ai/app | Main application |
-| https://customs-compliance.ai/sitemap.xml | Sitemap (86 URLs) |
+| https://customs-compliance.ai/sitemap.xml | Sitemap (131 URLs) |
 | https://customs-compliance.ai/robots.txt | Crawler permissions |
 | https://customs-compliance.ai/llms.txt | AI model summary |
 | https://customs-compliance.ai/llms-full.txt | Full AI data reference |
