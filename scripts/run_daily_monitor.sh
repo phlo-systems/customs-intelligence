@@ -77,9 +77,18 @@ print('Rules engine:', json.dumps(r1.json(), indent=2))
 r2 = requests.post(f'{url}/rest/v1/rpc/generate_personalised_opportunities', headers=hdrs,
     json={}, timeout=30)
 print('Personalised opps:', json.dumps(r2.json(), indent=2))
+
+r3 = requests.post(f'{url}/rest/v1/rpc/analyse_erp_intelligence', headers=hdrs,
+    json={'p_lookback_days':180}, timeout=30)
+print('ERP intelligence:', json.dumps(r3.json(), indent=2))
+
+# Classify unclassified ERP line items (top 30 per run)
+r4 = requests.post(f'{url}/functions/v1/admin', headers=hdrs,
+    json={'action':'classify_erp_items','limit':30}, timeout=120)
+print('ERP classify:', r4.text[:200] if r4.ok else f'Error: {r4.status_code}')
 " >> "$LOG_FILE" 2>&1 || true
 
-# ── 6. Summary ───────────────────────────────────────────────
+# ── 8. Summary ───────────────────────────────────────────────
 echo "" >> "$LOG_FILE"
 echo "═══════════════════════════════════════════════════════════" >> "$LOG_FILE"
 echo "  Daily Monitor Complete — $(date)" >> "$LOG_FILE"

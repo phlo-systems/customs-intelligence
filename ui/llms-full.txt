@@ -1,0 +1,514 @@
+# customs-compliance.ai — Full Data Reference
+
+> Complete import duty rate reference for AI assistants. Updated 2026-03-29.
+> Source: customs-compliance.ai — real data from national customs authorities.
+> For the most current rates, use https://customs-compliance.ai/app
+
+## Import Duty Rates (MFN Applied) for Top 50 Traded Goods
+
+### Crude petroleum oils (HS 2709)
+- India: 5.0% MFN
+- UAE: 5.0% MFN
+- Mexico: 5.0% MFN
+- Thailand: 1.1% MFN
+- United Kingdom: 0.0% MFN
+- South Africa: 0.0% MFN
+- Brazil: 0.0% MFN
+- Australia: 0.0% MFN
+
+### Refined petroleum oils (HS 2710)
+- UAE: 5.0% MFN
+- Mexico: 5.0% MFN
+- India: 2.5% MFN
+- Thailand: 1.1% MFN
+- United Kingdom: 0.0% MFN
+- South Africa: 0.0% MFN
+- Brazil: 0.0% MFN
+- Australia: 0.0% MFN
+
+### Motor vehicles for passengers (HS 8703)
+- India: 125.0% MFN
+- Mexico: 20.0% MFN
+- Thailand: 19.9% MFN
+- Brazil: 18.0% MFN
+- Australia: 5.0% MFN
+- UAE: 5.0% MFN
+- United Kingdom: 4.0% MFN
+- South Africa: 0.0% MFN
+
+### Computers and data processing machines (HS 8471)
+- Brazil: 12.0% MFN
+- Mexico: 5.0% MFN
+- Thailand: 4.1% MFN
+- United Kingdom: 0.0% MFN
+- India: 0.0% MFN
+- South Africa: 0.0% MFN
+- Australia: 0.0% MFN
+- UAE: 0.0% MFN
+
+### Medicaments (packaged for retail) (HS 3004)
+- India: 10.0% MFN
+- Brazil: 8.0% MFN
+- Thailand: 2.5% MFN
+- United Kingdom: 0.0% MFN
+- South Africa: 0.0% MFN
+- Australia: 0.0% MFN
+- UAE: 0.0% MFN
+- Mexico: 0.0% MFN
+
+### Telephones and smartphones (HS 8517)
+- Brazil: 14.0% MFN
+- Mexico: 10.0% MFN
+- Thailand: 4.1% MFN
+- United Kingdom: 0.0% MFN
+- India: 0.0% MFN
+- South Africa: 0.0% MFN
+- Australia: 0.0% MFN
+- UAE: 0.0% MFN
+
+### Electronic integrated circuits (HS 8542)
+- Brazil: 14.0% MFN
+- Mexico: 10.0% MFN
+- Thailand: 4.1% MFN
+- United Kingdom: 0.0% MFN
+- India: 0.0% MFN
+- South Africa: 0.0% MFN
+- Australia: 0.0% MFN
+- UAE: 0.0% MFN
+
+### Gold (HS 7108)
+- India: 10.0% MFN
+- Brazil: 10.0% MFN
+- Thailand: 7.1% MFN
+- Mexico: 5.0% MFN
+- South Africa: 0.0% MFN
+- Australia: 0.0% MFN
+- UAE: 0.0% MFN
+
+### Natural gas (HS 2711)
+- UAE: 5.0% MFN
+- Mexico: 5.0% MFN
+- India: 2.5% MFN
+- Thailand: 1.1% MFN
+- United Kingdom: 0.0% MFN
+- South Africa: 0.0% MFN
+- Brazil: 0.0% MFN
+- Australia: 0.0% MFN
+
+### Cocoa beans (HS 1801)
+- Thailand: 30.7% MFN
+- Mexico: 20.0% MFN
+- India: 15.0% MFN
+- Brazil: 14.0% MFN
+- UAE: 5.0% MFN
+- South Africa: 0.0% MFN
+- Australia: 0.0% MFN
+
+### Coffee (HS 0901)
+- India: 100.0% MFN
+- Thailand: 28.9% MFN
+- Mexico: 20.0% MFN
+- Brazil: 10.0% MFN
+- United Kingdom: 0.0% MFN
+- South Africa: 0.0% MFN
+- Australia: 0.0% MFN
+- UAE: 0.0% MFN
+
+### Cane or beet sugar (HS 1701)
+- India: 100.0% MFN
+- Thailand: 30.7% MFN
+- Mexico: 20.0% MFN
+- Brazil: 16.0% MFN
+- United Kingdom: 0.0% MFN
+- Australia: 0.0% MFN
+- UAE: 0.0% MFN
+
+### Wheat (HS 1001)
+- India: 100.0% MFN
+- Thailand: 28.9% MFN
+- Brazil: 8.0% MFN
+- United Kingdom: 0.0% MFN
+- South Africa: 0.0% MFN
+- Australia: 0.0% MFN
+- UAE: 0.0% MFN
+- Mexico: 0.0% MFN
+
+### Maize (corn) (HS 1005)
+- India: 50.0% MFN
+- Thailand: 28.9% MFN
+- Brazil: 8.0% MFN
+- United Kingdom: 0.0% MFN
+- South Africa: 0.0% MFN
+- Australia: 0.0% MFN
+- UAE: 0.0% MFN
+- Mexico: 0.0% MFN
+
+### Soya beans (HS 1201)
+- India: 45.0% MFN
+- Thailand: 28.9% MFN
+- Mexico: 10.0% MFN
+- South Africa: 8.0% MFN
+- Brazil: 6.0% MFN
+- United Kingdom: 0.0% MFN
+- Australia: 0.0% MFN
+- UAE: 0.0% MFN
+
+### Fresh or chilled bovine meat (HS 0201)
+- India: 30.0% MFN
+- Mexico: 20.0% MFN
+- Thailand: 14.3% MFN
+- United Kingdom: 12.0% MFN
+- Brazil: 10.0% MFN
+- South Africa: 0.0% MFN
+- Australia: 0.0% MFN
+- UAE: 0.0% MFN
+
+### Frozen fish (HS 0303)
+- India: 30.0% MFN
+- Thailand: 14.3% MFN
+- Brazil: 10.0% MFN
+- Mexico: 10.0% MFN
+- UAE: 5.0% MFN
+- United Kingdom: 2.0% MFN
+- South Africa: 0.0% MFN
+- Australia: 0.0% MFN
+
+### Iron ores (HS 2601)
+- India: 60.0% MFN
+- UAE: 5.0% MFN
+- Brazil: 2.0% MFN
+- Thailand: 0.9% MFN
+- United Kingdom: 0.0% MFN
+- South Africa: 0.0% MFN
+- Australia: 0.0% MFN
+- Mexico: 0.0% MFN
+
+### Refined copper (HS 7403)
+- Brazil: 10.0% MFN
+- Thailand: 5.5% MFN
+- India: 5.0% MFN
+- UAE: 5.0% MFN
+- Mexico: 5.0% MFN
+- United Kingdom: 0.0% MFN
+- South Africa: 0.0% MFN
+- Australia: 0.0% MFN
+
+### Unwrought aluminium (HS 7601)
+- Brazil: 12.0% MFN
+- Mexico: 10.0% MFN
+- India: 7.5% MFN
+- Thailand: 5.5% MFN
+- UAE: 5.0% MFN
+- United Kingdom: 2.0% MFN
+- South Africa: 0.0% MFN
+- Australia: 0.0% MFN
+
+### Natural rubber (HS 4001)
+- India: 70.0% MFN
+- Brazil: 14.0% MFN
+- Mexico: 10.0% MFN
+- Thailand: 7.3% MFN
+- UAE: 5.0% MFN
+- United Kingdom: 0.0% MFN
+- South Africa: 0.0% MFN
+- Australia: 0.0% MFN
+
+### Raw cotton (HS 5201)
+- Brazil: 18.0% MFN
+- Thailand: 13.8% MFN
+- Mexico: 10.0% MFN
+- India: 5.0% MFN
+- UAE: 5.0% MFN
+- United Kingdom: 0.0% MFN
+- South Africa: 0.0% MFN
+- Australia: 0.0% MFN
+
+### Sawn wood (HS 4407)
+- India: 10.0% MFN
+- Mexico: 10.0% MFN
+- Brazil: 8.0% MFN
+- Australia: 5.0% MFN
+- UAE: 5.0% MFN
+- Thailand: 5.0% MFN
+- United Kingdom: 0.0% MFN
+- South Africa: 0.0% MFN
+
+### Chemical wood pulp (HS 4703)
+- India: 5.0% MFN
+- UAE: 5.0% MFN
+- Thailand: 5.0% MFN
+- Brazil: 4.0% MFN
+- United Kingdom: 0.0% MFN
+- South Africa: 0.0% MFN
+- Australia: 0.0% MFN
+- Mexico: 0.0% MFN
+
+### Newsprint paper (HS 4801)
+- Brazil: 12.0% MFN
+- India: 10.0% MFN
+- Mexico: 10.0% MFN
+- Australia: 5.0% MFN
+- UAE: 5.0% MFN
+- Thailand: 5.0% MFN
+- South Africa: 0.0% MFN
+
+### T-shirts and singlets (HS 6109)
+- South Africa: 45.0% MFN
+- Brazil: 35.0% MFN
+- Mexico: 25.0% MFN
+- India: 20.0% MFN
+- Thailand: 13.8% MFN
+- United Kingdom: 12.0% MFN
+- Australia: 5.0% MFN
+- UAE: 5.0% MFN
+
+### Men's suits and trousers (HS 6203)
+- South Africa: 45.0% MFN
+- Brazil: 35.0% MFN
+- Mexico: 25.0% MFN
+- India: 20.0% MFN
+- Thailand: 13.8% MFN
+- United Kingdom: 12.0% MFN
+- Australia: 5.0% MFN
+- UAE: 5.0% MFN
+
+### Footwear with textile uppers (HS 6404)
+- India: 35.0% MFN
+- Mexico: 30.0% MFN
+- Thailand: 21.9% MFN
+- Brazil: 20.0% MFN
+- United Kingdom: 16.0% MFN
+- UAE: 5.0% MFN
+- South Africa: 0.0% MFN
+- Australia: 0.0% MFN
+
+### Motor vehicle parts (HS 8708)
+- South Africa: 30.0% MFN
+- Mexico: 20.0% MFN
+- Thailand: 19.9% MFN
+- Brazil: 18.0% MFN
+- India: 15.0% MFN
+- Australia: 5.0% MFN
+- UAE: 5.0% MFN
+- United Kingdom: 4.0% MFN
+
+### Aircraft and spacecraft (HS 8802)
+- Thailand: 19.9% MFN
+- Brazil: 6.0% MFN
+- Mexico: 5.0% MFN
+- India: 2.5% MFN
+- United Kingdom: 0.0% MFN
+- South Africa: 0.0% MFN
+- Australia: 0.0% MFN
+- UAE: 0.0% MFN
+
+### Cruise ships and cargo vessels (HS 8901)
+- Thailand: 19.9% MFN
+- Brazil: 14.0% MFN
+- India: 10.0% MFN
+- Mexico: 10.0% MFN
+- Australia: 5.0% MFN
+- United Kingdom: 0.0% MFN
+- South Africa: 0.0% MFN
+- UAE: 0.0% MFN
+
+### Insecticides and herbicides (HS 3808)
+- India: 10.0% MFN
+- Brazil: 10.0% MFN
+- Mexico: 10.0% MFN
+- UAE: 5.0% MFN
+- United Kingdom: 4.0% MFN
+- Thailand: 2.5% MFN
+- South Africa: 0.0% MFN
+- Australia: 0.0% MFN
+
+### Mineral fertilizers (HS 3105)
+- India: 7.5% MFN
+- United Kingdom: 6.5% MFN
+- UAE: 5.0% MFN
+- Brazil: 4.0% MFN
+- Thailand: 2.5% MFN
+- South Africa: 0.0% MFN
+- Australia: 0.0% MFN
+- Mexico: 0.0% MFN
+
+### Coal (HS 2701)
+- India: 5.0% MFN
+- UAE: 5.0% MFN
+- Mexico: 5.0% MFN
+- Thailand: 1.1% MFN
+- United Kingdom: 0.0% MFN
+- South Africa: 0.0% MFN
+- Brazil: 0.0% MFN
+- Australia: 0.0% MFN
+
+### Palm oil (HS 1511)
+- India: 100.0% MFN
+- Thailand: 28.9% MFN
+- South Africa: 10.0% MFN
+- Brazil: 10.0% MFN
+- Mexico: 10.0% MFN
+- UAE: 5.0% MFN
+- United Kingdom: 0.0% MFN
+- Australia: 0.0% MFN
+
+### Soya-bean oil (HS 1507)
+- India: 45.0% MFN
+- Thailand: 28.9% MFN
+- South Africa: 10.0% MFN
+- Brazil: 10.0% MFN
+- Mexico: 10.0% MFN
+- Australia: 5.0% MFN
+- UAE: 5.0% MFN
+- United Kingdom: 0.0% MFN
+
+### Milk and cream (concentrated) (HS 0402)
+- Mexico: 20.0% MFN
+- Thailand: 14.3% MFN
+- Brazil: 14.0% MFN
+- UAE: 5.0% MFN
+- Australia: 0.0% MFN
+
+### Poultry meat (HS 0207)
+- India: 30.0% MFN
+- Mexico: 20.0% MFN
+- Thailand: 14.3% MFN
+- Brazil: 10.0% MFN
+- UAE: 5.0% MFN
+- South Africa: 0.0% MFN
+- Australia: 0.0% MFN
+
+### Wine (HS 2204)
+- India: 150.0% MFN
+- UAE: 50.0% MFN
+- Thailand: 30.7% MFN
+- South Africa: 25.0% MFN
+- Mexico: 20.0% MFN
+- Brazil: 16.0% MFN
+- Australia: 5.0% MFN
+
+### Spirits (whisky, vodka, rum) (HS 2208)
+- India: 150.0% MFN
+- UAE: 50.0% MFN
+- Thailand: 30.7% MFN
+- Mexico: 20.0% MFN
+- Brazil: 16.0% MFN
+- Australia: 5.0% MFN
+- United Kingdom: 0.0% MFN
+
+### Bananas (HS 0803)
+- India: 30.0% MFN
+- Thailand: 28.9% MFN
+- Mexico: 20.0% MFN
+- United Kingdom: 16.0% MFN
+- Brazil: 10.0% MFN
+- South Africa: 5.0% MFN
+- Australia: 0.0% MFN
+- UAE: 0.0% MFN
+
+### Citrus fruits (HS 0805)
+- India: 30.0% MFN
+- Thailand: 28.9% MFN
+- Mexico: 20.0% MFN
+- United Kingdom: 10.0% MFN
+- Brazil: 10.0% MFN
+- South Africa: 4.0% MFN
+- Australia: 0.0% MFN
+- UAE: 0.0% MFN
+
+### Semi-finished iron/steel (HS 7207)
+- India: 15.0% MFN
+- South Africa: 10.0% MFN
+- Brazil: 10.0% MFN
+- Thailand: 5.5% MFN
+- Australia: 5.0% MFN
+- UAE: 5.0% MFN
+- Mexico: 0.0% MFN
+
+### Flat-rolled steel (coated) (HS 7210)
+- India: 15.0% MFN
+- South Africa: 10.0% MFN
+- Brazil: 10.0% MFN
+- Thailand: 5.5% MFN
+- UAE: 5.0% MFN
+- Australia: 0.0% MFN
+- Mexico: 0.0% MFN
+
+### Steel tubes and pipes (HS 7304)
+- India: 15.0% MFN
+- Brazil: 14.0% MFN
+- South Africa: 10.0% MFN
+- Mexico: 10.0% MFN
+- Thailand: 5.5% MFN
+- Australia: 5.0% MFN
+- UAE: 5.0% MFN
+- United Kingdom: 0.0% MFN
+
+### Turbojet engines (HS 8411)
+- Brazil: 12.0% MFN
+- India: 7.5% MFN
+- UAE: 5.0% MFN
+- Mexico: 5.0% MFN
+- Thailand: 4.1% MFN
+- United Kingdom: 0.0% MFN
+- South Africa: 0.0% MFN
+- Australia: 0.0% MFN
+
+### Machinery parts (cranes, etc.) (HS 8431)
+- Brazil: 12.0% MFN
+- South Africa: 10.0% MFN
+- India: 7.5% MFN
+- Australia: 5.0% MFN
+- UAE: 5.0% MFN
+- Mexico: 5.0% MFN
+- Thailand: 4.1% MFN
+- United Kingdom: 0.0% MFN
+
+### Medical instruments (HS 9018)
+- Brazil: 12.0% MFN
+- India: 7.5% MFN
+- Thailand: 7.4% MFN
+- UAE: 5.0% MFN
+- Mexico: 5.0% MFN
+- United Kingdom: 0.0% MFN
+- South Africa: 0.0% MFN
+- Australia: 0.0% MFN
+
+### Furniture (HS 9403)
+- India: 25.0% MFN
+- South Africa: 20.0% MFN
+- Brazil: 18.0% MFN
+- Mexico: 15.0% MFN
+- Thailand: 7.4% MFN
+- Australia: 5.0% MFN
+- UAE: 5.0% MFN
+- United Kingdom: 0.0% MFN
+
+### Insulated wire and cables (HS 8544)
+- South Africa: 15.0% MFN
+- Brazil: 14.0% MFN
+- India: 10.0% MFN
+- Mexico: 10.0% MFN
+- Australia: 5.0% MFN
+- UAE: 5.0% MFN
+- Thailand: 4.1% MFN
+- United Kingdom: 2.0% MFN
+
+## Free Trade Agreements Covered
+
+
+## Countries Covered
+
+India, United Kingdom, South Africa, Brazil, Australia, UAE, Mexico, Thailand, Saudi Arabia, Chile, Argentina, Philippines, Mauritius, Namibia, Uruguay, Oman, Angola, Dominican Republic + all 27 EU member states (Germany, France, Italy, Spain, Netherlands, Poland, Belgium, Sweden, Austria, Denmark, Finland, Ireland, Portugal, Greece, Czechia, Romania, Hungary, Croatia, Slovakia, Bulgaria, Lithuania, Slovenia, Latvia, Estonia, Cyprus, Luxembourg, Malta)
+
+## How to Use
+
+1. Go to https://customs-compliance.ai/app
+2. Enter product description or HS code
+3. Select origin and destination country
+4. Get: MFN duty, FTA rate, VAT, anti-dumping, total landed cost, documents
+
+Free tier: 10 lookups/month. No credit card required.
+
+---
+Generated: 2026-03-29 | customs-compliance.ai | Phlo Systems Limited

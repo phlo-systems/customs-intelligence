@@ -105,12 +105,20 @@ Deno.serve(async (req: Request) => {
     accessToken = refreshResult.access_token!;
   }
 
-  // Incremental sync
+  // Incremental sync — use Date field (more reliable than LastModifiedDateTime across Acumatica versions)
   let sinceFilter = "";
   if (!body.full && integration.lastsyncat) {
-    const since = integration.lastsyncat as string;
-    sinceFilter = ` and LastModifiedDateTime gt datetimeoffset'${since}'`;
-    console.log("Incremental sync since:", since);
+    const sinceDate = (integration.lastsyncat as string).split("T")[0];
+    sinceFilter = ` and Date gt datetimeoffset'${sinceDate}T00:00:00+00:00'`;
+    console.log("Incremental sync since:", sinceDate);
+  }
+
+  // First sync cap: default to last 12 months if never synced before
+  if (!sinceFilter && !integration.lastsyncat && !body.full) {
+    const d = new Date(); d.setMonth(d.getMonth() - 12);
+    const capDate = d.toISOString().split("T")[0];
+    sinceFilter = ` and Date gt datetimeoffset'${capDate}T00:00:00+00:00'`;
+    console.log("First sync: capping to last 12 months from", capDate);
   }
 
   const apiHeaders = {
@@ -195,7 +203,7 @@ Deno.serve(async (req: Request) => {
           if (code) { vendorCountry.set(vendorId, code); return code; }
         }
       }
-      await sleep(300);
+      await sleep(100);
     } catch {}
     return null;
   };
@@ -214,7 +222,7 @@ Deno.serve(async (req: Request) => {
           if (code) { customerCountry.set(customerId, code); return code; }
         }
       }
-      await sleep(300);
+      await sleep(100);
     } catch {}
     return null;
   };
@@ -247,8 +255,8 @@ Deno.serve(async (req: Request) => {
       ce.usd += totalUSD;
       currencyTotals.set(currency, ce);
 
-      // Resolve country (limit to first 50 unique contacts to avoid rate limits)
-      if (!contactCountries.has(contactId) && contactCountries.size < 50) {
+      // Resolve country (limit to first 10 unique contacts to stay within edge function timeout)
+      if (!contactCountries.has(contactId) && contactCountries.size < 10) {
         const country = await resolveCountry(contactId);
         contactCountries.set(contactId, country);
       }
@@ -340,6 +348,92 @@ Deno.serve(async (req: Request) => {
     synced_at: new Date().toISOString(),
   };
 
+  // ── Persist line items to erp_line_item ─────────────────────────────────
+  const lineItemRows: any[] = [];
+
+  const persistOrderLines = (orders: any[], docType: "PURCHASE" | "SALE",
+    contactField: string, contactCountryMap: Map<string, string>) => {
+    for (const order of orders) {
+      const currency = v(order.CurrencyID) || "USD";
+      const contactId = v(order[contactField]) || "Unknown";
+      const orderDate = v(order.Date)?.substring(0, 10) || new Date().toISOString().substring(0, 10);
+      const orderRef = v(order.OrderNbr) || "";
+
+      let lineNum = 0;
+      for (const line of (order.Details || [])) {
+        lineNum++;
+        const desc = String(v(line.LineDescription) || v(line.Description) || "");
+        if (desc.length < 5) continue;
+
+        const lineAmt = Number(v(line.ExtendedCost) || v(line.ExtendedPrice) || 0);
+        const lineUSD = toUSD(lineAmt, currency);
+        const fxRate = currency === "USD" ? 1 : (fxRates[currency] || null);
+
+        lineItemRows.push({
+          tenantid: tenantId,
+          erptype: "ACUMATICA",
+          documenttype: docType,
+          documentref: String(orderRef),
+          linenumber: lineNum,
+          documentdate: orderDate,
+          contactname: String(contactId).substring(0, 500),
+          contactcountry: contactCountryMap.get(contactId) || null,
+          linedescription: desc.substring(0, 2000),
+          quantity: Number(v(line.OrderQty)) || null,
+          unitprice: Number(v(line.UnitCost) || v(line.UnitPrice)) || null,
+          lineamountlocal: lineAmt,
+          currencycode: String(currency).substring(0, 3),
+          lineamountusd: Math.round(lineUSD * 100) / 100,
+          fxrateused: fxRate,
+          hscodeauto: null,
+          hsconfidence: null,
+          hschapter: null,
+          syncedat: new Date().toISOString(),
+        });
+      }
+    }
+  };
+
+  let linesSaved = 0;
+  try {
+    persistOrderLines(purchaseOrders, "PURCHASE", "VendorID", vendorCountry);
+    persistOrderLines(salesOrders, "SALE", "CustomerID", customerCountry);
+    console.log(`Line items to persist: ${lineItemRows.length} (from ${purchaseOrders.length} POs + ${salesOrders.length} SOs)`);
+
+    if (lineItemRows.length > 0) {
+      console.log("Sample line:", JSON.stringify(lineItemRows[0]).substring(0, 300));
+    }
+
+    for (let i = 0; i < lineItemRows.length; i += 200) {
+      const chunk = lineItemRows.slice(i, i + 200);
+      const { error } = await supabase.from("erp_line_item")
+        .upsert(chunk, { onConflict: "tenantid,erptype,documentref,linenumber,documentdate" });
+      if (!error) linesSaved += chunk.length;
+      else {
+        stats.errors.push(`line_item upsert: ${error.message} ${(error.details || "").substring(0, 150)}`);
+      }
+    }
+  } catch (e) {
+    stats.errors.push(`line_item error: ${String(e).substring(0, 150)}`);
+  }
+  console.log(`Persisted ${linesSaved} of ${lineItemRows.length} line items`);
+
+  // Auto-classify is deferred — runs via admin/classify_erp_items or daily cron
+  const classifiedCount = 0;
+
+  // ── Run ERP intelligence analysis (non-blocking) ───────────────────────
+  let intelligenceResult = null;
+  try {
+    const { data, error: rpcErr } = await supabase.rpc("analyse_erp_intelligence", {
+      p_tenant_id: tenantId,
+      p_lookback_days: 180,
+    });
+    if (rpcErr) console.log("ERP intelligence RPC error:", rpcErr.message);
+    else intelligenceResult = data;
+  } catch (e) {
+    console.log("ERP intelligence skipped:", String(e).substring(0, 100));
+  }
+
   // ── Store insights ─────────────────────────────────────────────────────
   const existingConfig = integration.mappingconfig as Record<string, unknown> || {};
   const existingInsights = existingConfig.trade_insights as Record<string, unknown> || null;
@@ -354,7 +448,12 @@ Deno.serve(async (req: Request) => {
     mappingconfig: { ...existingConfig, trade_insights: finalInsights },
   }).eq("integrationid", integration.integrationid);
 
-  return json({ status: "ok", stats, trade_insights: tradeInsights });
+  return json({
+    status: "ok",
+    stats: { ...stats, lines_persisted: linesSaved, lines_attempted: lineItemRows.length, products_classified: classifiedCount },
+    intelligence: intelligenceResult,
+    trade_insights: tradeInsights,
+  });
 });
 
 
@@ -375,6 +474,11 @@ async function refreshToken(
   if (config.auth_method === "client_credentials") {
     params.grant_type = "client_credentials";
     params.scope = "api";
+  } else if (config.auth_method === "ropc") {
+    params.grant_type = "password";
+    params.username = config.username as string;
+    params.password = config.password as string;
+    params.scope = "api offline_access";
   } else {
     params.grant_type = "refresh_token";
     params.refresh_token = config.refresh_token as string;

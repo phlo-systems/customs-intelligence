@@ -243,7 +243,21 @@ async function generateAlerts(
     }
   }
 
-  // 4. Generate AI-powered alerts using Claude based on tenant context
+  // 4. ERP intelligence alerts (supplier concentration, spending trends, FX exposure)
+  try {
+    const { data: erpResult } = await supabase.rpc("analyse_erp_intelligence", {
+      p_tenant_id: tenantId,
+      p_lookback_days: 180,
+    });
+    if (erpResult?.alerts_created) {
+      alertCount += erpResult.alerts_created;
+      console.log("ERP intelligence alerts:", erpResult.alerts_created);
+    }
+  } catch (e) {
+    console.log("ERP intelligence skipped:", e);
+  }
+
+  // 5. Generate AI-powered alerts using Claude based on tenant context
   if (hsChapters.length > 0 && origins.length > 0) {
     try {
       const anthropic = new Anthropic({ apiKey: Deno.env.get("ANTHROPIC_API_KEY")! });

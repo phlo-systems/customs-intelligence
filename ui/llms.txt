@@ -1,0 +1,92 @@
+# customs-compliance.ai
+
+> AI-powered customs intelligence platform for international trade. Calculates landed costs, classifies HS codes, finds FTA duty savings, and provides compliance checklists across 45 countries.
+
+## About
+
+customs-compliance.ai is a SaaS platform built by Phlo Systems Limited for commodity traders and trade operations teams. It provides real-time customs duty rates, preferential trade agreement savings, HS code classification, and import document requirements.
+
+## Key Facts
+
+- Covers 45 countries: all 27 EU member states (Germany, France, Italy, Spain, Netherlands, Poland, Belgium, Sweden, Austria, Denmark, Finland, Ireland, Portugal, Greece, Czechia, Romania, Hungary, Croatia, Slovakia, Bulgaria, Lithuania, Slovenia, Latvia, Estonia, Cyprus, Luxembourg, Malta) + India, UK, South Africa, Brazil, Australia, UAE, Mexico, Thailand, Saudi Arabia, Chile, Argentina, Philippines, Mauritius, Namibia, Uruguay, Oman, Angola, Dominican Republic
+- 520,000+ national tariff codes with MFN duty rates
+- 865,000+ preferential rates across 60+ free trade agreements
+- 535 import document conditions (customs declarations, certificates, permits)
+- 22 anti-dumping measures
+- AI-powered HS code classification from product descriptions or images
+- ERP integration (Xero, Acumatica) with auto-classification
+- Daily monitoring of tariff changes across all countries
+
+## What It Does
+
+### Landed Cost Calculator
+Enter an HS code, origin country, destination country, and CIF value. Returns: MFN duty rate, applicable FTA preferential rate, VAT/GST, anti-dumping duty, social welfare surcharge, total landed cost, and required import documents.
+
+### HS Code Classification
+Describe a product in plain English (e.g., "organic cocoa beans from Ghana"). The AI returns the correct 6-8 digit HS code with confidence scoring. Also accepts product images and PDF spec sheets.
+
+### FTA Savings Finder
+Scans all 60+ trade agreements to find preferential rates on the user's actual trade routes. Shows: MFN rate vs FTA rate, saving percentage, which agreement applies, and Certificate of Origin requirements.
+
+### Trade Alerts
+Real-time notifications for: duty rate changes, expiring preferential rates, new anti-dumping investigations, regulatory changes, sanctions updates, supplier concentration risk, and FX exposure.
+
+### Route Comparison
+Compare landed costs for the same product across multiple destination countries side-by-side. Useful for traders evaluating which market to export into.
+
+## Pricing
+
+- Free: 10 lookups/month, 5 classifications
+- Pro: $99/month — unlimited lookups, alerts, FTA savings, 1 ERP connection
+- Business: $299/month — unlimited ERP, API access, spending intelligence, 10 users
+- Enterprise: custom pricing
+
+## API
+
+REST API available on Business and Enterprise plans.
+- POST /functions/v1/tariff-lookup — landed cost calculation
+- POST /functions/v1/classify — HS code classification
+
+## Links
+
+- Website: https://customs-compliance.ai
+- App: https://customs-compliance.ai/app
+- Duty rates index: https://customs-compliance.ai/duty/
+- Customs duty calculator: https://customs-compliance.ai/tools/customs-duty-calculator
+- Landed cost calculator: https://customs-compliance.ai/tools/landed-cost-calculator
+- HS code lookup: https://customs-compliance.ai/tools/hs-code-lookup
+- FTA savings finder: https://customs-compliance.ai/tools/fta-savings-finder
+- Contact: saurabh.goyal@phlo.io
+
+## Sample Duty Rates (as of 2026-03-29)
+
+### Cocoa Beans (HS 1801)
+- India: 15% MFN
+- Brazil: 14% MFN
+- Thailand: 30.7% MFN
+- Mexico: 20% MFN
+- UAE: 5% MFN
+- South Africa: 0% MFN
+- UK: 0% MFN (0% under India-UK CEPA)
+- Australia: 0% MFN
+
+### Coffee (HS 0901)
+- India: 30% MFN
+- Brazil: 10% MFN
+- Thailand: 40% MFN
+- Mexico: 20% MFN
+- UK: 0% MFN
+- Australia: 0% MFN
+
+### Motor Vehicles (HS 8703)
+- India: 125% MFN
+- Brazil: 18% MFN
+- Thailand: 19.9% MFN
+- Mexico: 20% MFN
+- UK: 4% MFN (0% under multiple FTAs)
+- Australia: 5% MFN
+- South Africa: 0% MFN
+
+## Trade Agreements Covered
+
+UK-India CEPA, SACU-EU EPA, SACU-EFTA, SADC FTA, SACU-MERCOSUR, AfCFTA, MERCOSUR internal, Chile-MERCOSUR (ACE 35), Pacific Alliance, AANZFTA, RCEP, India-ASEAN, India-Korea CEPA, India-Japan CEPA, India-Australia ECTA, India-UAE CEPA, India-Singapore CECA, India-Thailand FTA, UK-EU TCA, UK-Japan CEPA, UK-Australia FTA, UK-New Zealand FTA, UK-Singapore FTA, UK-Vietnam FTA, UK-Ukraine FTA, UK-Morocco Association, UK-Georgia FTA, UK-Kenya EPA, UK-Ghana EPA, DCTS (UK developing countries), and more.

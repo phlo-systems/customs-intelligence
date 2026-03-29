@@ -103,6 +103,13 @@ Deno.serve(async (req: Request) => {
     console.log("Incremental sync since:", sinceDate);
   }
 
+  // First sync cap: default to last 12 months if no sinceDate and no lastsyncat
+  if (!sinceDate && !integration.lastsyncat) {
+    const d = new Date(); d.setMonth(d.getMonth() - 12);
+    sinceDate = d.toISOString().split("T")[0];
+    console.log("First sync: capping to last 12 months from", sinceDate);
+  }
+
   // Check if token needs refresh
   const expiresAt = config?.expires_at as number || 0;
   if (Date.now() > expiresAt - 60000) { // Refresh 1 min before expiry
@@ -329,6 +336,83 @@ Deno.serve(async (req: Request) => {
     synced_at: new Date().toISOString(),
   };
 
+  // ── Persist line items to erp_line_item ─────────────────────────────────
+  const lineItemRows: any[] = [];
+
+  const persistLines = (invoices: any[], docType: "PURCHASE" | "SALE") => {
+    for (const inv of invoices) {
+      const currency = inv.CurrencyCode || "GBP";
+      const contact = inv.Contact || {};
+      const contactId = contact.ContactID || "";
+      const contactInfo = contacts.get(contactId);
+      const invDate = inv.DateString?.substring(0, 10) || new Date().toISOString().substring(0, 10);
+      const invRef = inv.InvoiceNumber || inv.InvoiceID || "";
+
+      let lineNum = 0;
+      for (const item of (inv.LineItems || [])) {
+        lineNum++;
+        const desc = item.Description || "";
+        if (desc.length < 5) continue;
+
+        const lineAmt = item.LineAmount || 0;
+        const lineUSD = toUSD(lineAmt, currency);
+        const fxRate = currency === "USD" ? 1 : (fxRates[currency] || null);
+
+        lineItemRows.push({
+          tenantid: tenantId,
+          erptype: "XERO",
+          documenttype: docType,
+          documentref: invRef,
+          linenumber: lineNum,
+          documentdate: invDate,
+          contactname: contactInfo?.name || contact.Name || null,
+          contactcountry: contactInfo?.country || null,
+          linedescription: desc.substring(0, 2000),
+          quantity: item.Quantity || null,
+          unitprice: item.UnitAmount || null,
+          lineamountlocal: lineAmt,
+          currencycode: currency,
+          lineamountusd: Math.round(lineUSD * 100) / 100,
+          fxrateused: fxRate,
+          hscodeauto: null,  // filled by classify step below
+          hsconfidence: null,
+          hschapter: null,
+          syncedat: new Date().toISOString(),
+        });
+      }
+    }
+  };
+
+  persistLines(purchaseInvoices, "PURCHASE");
+  persistLines(salesInvoices, "SALE");
+
+  // Upsert in batches
+  let linesSaved = 0;
+  for (let i = 0; i < lineItemRows.length; i += 200) {
+    const chunk = lineItemRows.slice(i, i + 200);
+    const { error } = await supabase.from("erp_line_item")
+      .upsert(chunk, { onConflict: "tenantid,erptype,documentref,linenumber,documentdate" });
+    if (!error) linesSaved += chunk.length;
+    else if (i === 0) console.log("Line item upsert error:", error.message);
+  }
+  console.log(`Persisted ${linesSaved} line items`);
+
+  // Auto-classify is deferred — runs via admin/classify_erp_items or daily cron
+  const classifiedCount = 0;
+
+  // ── Run ERP intelligence analysis ──────────────────────────────────────
+  let intelligenceResult = null;
+  try {
+    const { data } = await supabase.rpc("analyse_erp_intelligence", {
+      p_tenant_id: tenantId,
+      p_lookback_days: 180,
+    });
+    intelligenceResult = data;
+    console.log("ERP intelligence:", JSON.stringify(intelligenceResult));
+  } catch (e) {
+    console.log("ERP intelligence error:", e);
+  }
+
   // ── Update last sync timestamp ───────────────────────────────────────────
   await supabase.from("erp_integration")
     .update({ lastsyncat: new Date().toISOString() })
@@ -357,7 +441,8 @@ Deno.serve(async (req: Request) => {
 
   return json({
     status: "ok",
-    stats,
+    stats: { ...stats, lines_persisted: linesSaved, products_classified: classifiedCount },
+    intelligence: intelligenceResult,
     trade_insights: tradeInsights,
   });
 });

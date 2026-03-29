@@ -23,7 +23,7 @@ Repo: github.com/phlo-systems/customs-intelligence
 - Dependencies in `tariff_parser/requirements.txt`
 - Env vars needed: `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`
 
-## Database — 37 tables across 11 groups
+## Database — 38 tables across 12 groups
 ```
 Group 1 — HS Hierarchy:     COUNTRY, HS_SECTION, HS_HEADING, HS_SUBHEADING
 Group 2 — Commodity/Rates:  COMMODITY_CODE, MFN_RATE, TARIFF_RATE, TARIFF_RATE_HIST
@@ -36,6 +36,7 @@ Group 8 — Classification:   HS_DESCRIPTION_EMBEDDING, CLASSIFICATION_REQUEST, 
 Group 9 — ERP & Email:      ERP_INTEGRATION, EMAIL_CONTEXT_EXTRACT
 Group 10 — India-specific:  DRAWBACK_RATE, EXEMPTION_NOTIFICATION, EXCHANGE_RATE
 Group 11 — Monitoring:      NOTIFICATION_TRACKER, CBIC_CHAPTER_SYNC, DATA_FRESHNESS
+Group 12 — ERP Intelligence: ERP_LINE_ITEM
 ```
 
 ## Key schema rules
@@ -49,25 +50,27 @@ Group 11 — Monitoring:      NOTIFICATION_TRACKER, CBIC_CHAPTER_SYNC, DATA_FRES
 ## Data loaded (Supabase ci-phlo)
 | Table | Rows | Notes |
 |---|---|---|
-| COMMODITY_CODE | ~43,000 | ZA + NA + GB (13,562) + IN (12,083) |
-| MFN_RATE | ~43,000 | BCD rates per commodity per country |
-| TARIFF_RATE | ~43,000 | Summary rate table |
-| VAT_RATE | ~33,000 | ZA 15%, GB 0%/20%, IN IGST 0/3/5/18/28% |
-| TRADE_AGREEMENT | 6 | UK-SACU-EPA, EU-SACU-EPA, EFTA-SACU, SADC-FTA, SACU-MERCOSUR, AFCFTA |
-| PREFERENTIAL_RATE | 35,946 | ZA pref rates |
+| COMMODITY_CODE | ~523,000 | 45 countries (18 original + 27 EU, 13,565 codes each) |
+| MFN_RATE | ~865,000 | BCD/MFN rates per commodity per country |
+| TARIFF_RATE | ~765,000 | Summary rate table |
+| VAT_RATE | ~33,000+ | Country-specific: ZA 15%, GB 0/20%, IN 0-28%, EU 17-27% |
+| TRADE_AGREEMENT | 60 | 13 UK FTAs + 13 IN FTAs + 13 EU FTAs + MERCOSUR + others |
+| PREFERENTIAL_RATE | ~550,000+ | ZA + GB + IN + MERCOSUR + AU/AE/TH/PH + EU via GB base |
+| IMPORT_CONDITION | 535 | 45 countries (12 per EU, 8-24 per non-EU country) |
 | HS_DESCRIPTION_EMBEDDING | 16,814 | 5,613 international (UN Comtrade) + 11,201 national |
 | DRAWBACK_RATE | 2,732 | India drawback schedule (Notif 77/2023) |
 | EXEMPTION_NOTIFICATION | 532 | India Notification 50/2017 BCD exemptions |
-| AD_MEASURE | 10 | India anti-dumping + safeguard duties |
+| AD_MEASURE | 22 | IN 10 + ZA 3 + BR 3 + AU 2 + MX 2 + AR 2 |
 | EXCHANGE_RATE | 80 | Daily market rates (IN/ZA/GB/NA × 20 currencies) |
+| ERP_LINE_ITEM | ~663 | Universal line items from Xero/Acumatica (auto-classified) |
 | NOTIFICATION_TRACKER | ~4 | CBIC notifications detected by monitor |
 | CBIC_CHAPTER_SYNC | 97 | India chapter update timestamps for change detection |
-| DATA_FRESHNESS | 6 | Per-country per-datatype staleness tracking |
+| DATA_FRESHNESS | ~50 | Per-country per-datatype staleness tracking |
 | OPPORTUNITIES | ~200 | Data-driven + personalised per tenant |
-| ALERTS | ~80 | Rules-engine generated (verified) + AI (tagged) |
-| ERP_INTEGRATION | 3 | Xero (Phlo Systems), Acumatica (pending), Outlook |
+| ALERTS | ~80 | Rules-engine + ERP intelligence (concentration, trends, FX) |
+| ERP_INTEGRATION | 3 | Xero (Phlo Systems), Acumatica (connected), Outlook |
 | EMAIL_CONTEXT_EXTRACT | 2 | Outlook trade extracts |
-| TENANT_CONTEXT | 8 | Multi-tenant with 5-layer context |
+| TENANT_CONTEXT | 8 | Multi-tenant with 5-layer context + auto-populated from ERP |
 
 ## Live Edge Functions
 ```
@@ -79,8 +82,8 @@ POST   /functions/v1/enrich-opportunities  — generate Claude AIInsight per car
 POST   /functions/v1/upload-tariff         — admin upload PDF/CSV, Claude extraction
 GET/POST /functions/v1/xero-connect        — Xero OAuth2 connect/callback/status
 POST   /functions/v1/xero-sync             — pull Xero invoices (ACCPAY + ACCREC)
-POST   /functions/v1/acumatica-connect     — Acumatica OAuth2/client-credentials
-POST   /functions/v1/acumatica-sync        — pull Acumatica POs + SOs
+POST   /functions/v1/acumatica-connect     — Acumatica OAuth2/client-credentials/ROPC
+POST   /functions/v1/acumatica-sync        — pull Acumatica POs + SOs + line items + auto-classify
 GET/POST /functions/v1/email-connect       — Gmail/Outlook OAuth2 + extract review
 POST   /functions/v1/email-sync            — scan emails, Claude extracts trade context
 GET/POST /functions/v1/alerts              — trade alerts + generate (AI guardrails)
@@ -128,13 +131,21 @@ TenantUID: a0000000-0000-0000-0000-000000000001
 | -- | Mobile responsive — 3 breakpoints, iOS tap targets | ✅ |
 | -- | Multi-tenant auth (signup, per-tenant API keys) | ✅ |
 | -- | ZA + GB monitors + runbooks (all 3 countries now monitored) | ✅ |
-| -- | Import document requirements (43 conditions: IN 24, ZA 11, GB 8) | ✅ |
-| -- | Unified daily cron — `run_daily_monitor.sh` (IN + ZA + GB + forex + rules) | ✅ |
-| 17 | BR, CL, AU, TH, MX parsers (admin upload covers these) | ⬜ |
+| -- | Import document requirements (535 conditions across 45 countries) | ✅ |
+| -- | Unified daily cron — `run_daily_monitor.sh` (IN + ZA + GB + forex + rules + ERP intel) | ✅ |
+| -- | 18 countries loaded with national tariff data + preferential rates | ✅ |
+| -- | EU 27 — Common External Tariff loaded for all member states | ✅ |
+| -- | MX — 8,122 TIGIE national codes from INEGI API | ✅ |
+| -- | ERP intelligence — erp_line_item table, auto-classify, concentration/trend/FX alerts | ✅ |
+| -- | Acumatica ROPC auth + full sync (452 POs, 268 SOs, 667 line items) | ✅ |
+| -- | Landing page — customs-compliance.ai with dual persona (traders + ops) | ✅ |
+| -- | Pricing page — Free / Pro $99 / Business $299 / Enterprise | ✅ |
+| -- | SEO pages — 83 pages (50 products + 28 routes + 5 tools) + sitemap + llms.txt | ✅ |
+| 17 | National parsers for TH, PH, AO, DO (currently WTO heading-level) | ⬜ |
 | -- | **Server deployment** — move daily cron from laptop to cloud (see below) | ⬜ |
+| -- | Stripe payment integration for subscription tiers | ⬜ |
 | -- | Production hardening (Key Vault, rate limiting, monitoring) | ⬜ |
 | -- | DGFT import/export policy (free/restricted/prohibited per HS) | ⬜ |
-| -- | India HS embeddings for classify endpoint | ⬜ |
 
 ## Key scripts
 ```
@@ -170,8 +181,9 @@ python3 -m tariff_parser.embedding_loader --source all          # load HS embedd
 | SA/AE/OM | HTML | GCC CET — shared tariff | ⬜ |
 | PH | API JSON | AD investigation open on HS 2004.10 | ⬜ |
 
-## Countries in scope (19)
-`AO` `AR` `AU` `BR` `CL` `CN` `DO` `GB` `IN` `MU` `MX` `NA` `OM` `PH` `SA` `TH` `AE` `UY` `ZA`
+## Countries in scope (45)
+**Original 18+1:** `AO` `AR` `AU` `BR` `CL` `CN` `DO` `GB` `IN` `MU` `MX` `NA` `OM` `PH` `SA` `TH` `AE` `UY` `ZA`
+**EU 27:** `AT` `BE` `BG` `HR` `CY` `CZ` `DK` `EE` `FI` `FR` `DE` `GR` `HU` `IE` `IT` `LV` `LT` `LU` `MT` `NL` `PL` `PT` `RO` `SK` `SI` `ES` `SE`
 
 ## Countries with tariff data loaded
 | Country | Codes | Source | Notes |
@@ -180,6 +192,11 @@ python3 -m tariff_parser.embedding_loader --source all          # load HS embedd
 | ZA | ~17,000 | SARS Schedule 1 PDFs | MFN + VAT 15% + preferential rates (6 FTAs) |
 | NA | ~17,000 | Shared with ZA (SACU) | Same tariff schedule |
 | GB | 13,562 | UK Trade Tariff API (98 chapters) | MFN + VAT 0%/20% |
+| MX | 8,122 | INEGI TIGIE API | National 10-digit codes + LIGIE chapter rates |
+| EU 27 | 13,565 each | EU Common External Tariff (TARIC via GB base) | Same MFN rates, country-specific VAT (17-27%) |
+| BR | 10,515 | Siscomex NCM JSON API | 5-tax sequential stacking (II+IPI+PIS+COFINS+ICMS) |
+| AU, AE, SA, OM, CL, UY, AR | 5,613-8,000 | WCO + national sources | MFN + VAT + preferential rates |
+| TH, PH, AO, DO, MU | 5,613-6,506 | WTO TPR heading-level rates | Upgraded from sector defaults |
 
 ## Intelligence engine design
 - **Layer 1 — Data-driven (SQL rules engine):** 7 rules scan real DB data after each sync
@@ -271,7 +288,14 @@ customs-intelligence/
 │       ├── in_parser.py             ← India Customs Tariff Act PDF parser
 │       └── in_drawback_parser.py    ← India Drawback Schedule parser
 ├── ui/
-│   └── index.html                   ← 7-screen frontend (+ swipe view, mobile responsive)
+│   ├── index.html                   ← 7-screen app (Opportunities, Lookup, Classify, Compare, Profile, Alerts, Admin)
+│   ├── landing.html                 ← Marketing landing page (customs-compliance.ai)
+│   ├── sitemap.xml                  ← 86 URLs for Google/Bing
+│   ├── robots.txt                   ← Crawler permissions (allows AI bots)
+│   ├── llms.txt                     ← AI model summary (ChatGPT/Claude/Perplexity)
+│   ├── llms-full.txt                ← Full duty data for AI reference
+│   ├── duty/                        ← 50 product SEO pages + 28 route pages
+│   └── tools/                       ← 5 keyword landing pages (calculator, HS lookup, etc.)
 └── docs/
 ```
 

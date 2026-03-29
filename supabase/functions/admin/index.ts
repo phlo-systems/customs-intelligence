@@ -652,7 +652,88 @@ Deno.serve(async (req: Request) => {
     return json(results);
   }
 
-  return json({ error: "Unknown action. Use: dashboard, tenants, usage, set_admin, data_freshness, notifications, update_notification, run_monitor, suggestions, update_suggestion, referrals, reward_config" }, 400);
+  // ── Classify ERP line items (deferred from sync) ─────────────────────────
+  if (action === "classify_erp_items") {
+    const targetTenant = body.tenant_id ? String(body.tenant_id) : null;
+    const limit = Number(body.limit) || 50;
+
+    // Fetch unclassified line items (HSCodeAuto IS NULL) with unique descriptions
+    const query = supabase
+      .from("erp_line_item")
+      .select("linedescription, tenantid, erptype")
+      .is("hscodeauto", null)
+      .order("lineamountusd", { ascending: false })
+      .limit(limit * 3); // fetch extra to deduplicate
+
+    if (targetTenant) query.eq("tenantid", targetTenant);
+
+    const { data: items } = await query;
+    if (!items || items.length === 0) {
+      return json({ status: "ok", classified: 0, message: "No unclassified items" });
+    }
+
+    // Deduplicate by description prefix
+    const seen = new Set<string>();
+    const toClassify: Array<{ desc: string; tenantid: string; erptype: string }> = [];
+    for (const item of items) {
+      const key = (item.linedescription || "").substring(0, 60).toLowerCase().trim();
+      if (key.length >= 5 && !seen.has(key)) {
+        seen.add(key);
+        toClassify.push({ desc: item.linedescription, tenantid: item.tenantid, erptype: item.erptype });
+        if (toClassify.length >= limit) break;
+      }
+    }
+
+    const classifyUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/classify`;
+    const svcKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    let classified = 0;
+
+    for (const item of toClassify) {
+      try {
+        const resp = await fetch(classifyUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${svcKey}`,
+            "apikey": svcKey,
+          },
+          body: JSON.stringify({ description: item.desc, top_n: 1 }),
+          signal: AbortSignal.timeout(12000),
+        });
+
+        if (resp.ok) {
+          const result = await resp.json();
+          const topMatch = result.matches?.[0] || result.results?.[0];
+          if (topMatch) {
+            const hsCode = topMatch.hs_code || topMatch.commoditycode || topMatch.code || "";
+            const confidence = topMatch.confidence || topMatch.similarity || 0;
+            const chapter = hsCode.substring(0, 2);
+
+            if (hsCode && chapter) {
+              await supabase.from("erp_line_item")
+                .update({ hscodeauto: hsCode, hsconfidence: confidence, hschapter: chapter })
+                .eq("tenantid", item.tenantid)
+                .eq("erptype", item.erptype)
+                .ilike("linedescription", `${item.desc.substring(0, 60)}%`);
+              classified++;
+            }
+          }
+        }
+      } catch { /* skip */ }
+    }
+
+    // Run ERP intelligence after classification
+    try {
+      await supabase.rpc("analyse_erp_intelligence", {
+        p_tenant_id: targetTenant,
+        p_lookback_days: 180,
+      });
+    } catch { /* non-blocking */ }
+
+    return json({ status: "ok", classified, total_unclassified: items.length });
+  }
+
+  return json({ error: "Unknown action. Use: dashboard, tenants, usage, set_admin, data_freshness, notifications, update_notification, run_monitor, classify_erp_items, suggestions, update_suggestion, referrals, reward_config" }, 400);
 });
 
 function json(data: unknown, status = 200) {

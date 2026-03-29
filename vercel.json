@@ -1,6 +1,19 @@
 {
   "outputDirectory": "ui",
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+  "routes": [
+    { "src": "^/sitemap\\.xml$", "dest": "/sitemap.xml" },
+    { "src": "^/robots\\.txt$", "dest": "/robots.txt" },
+    { "src": "^/llms\\.txt$", "dest": "/llms.txt" },
+    { "src": "^/llms-full\\.txt$", "dest": "/llms-full.txt" },
+    { "src": "^/googleb46e5193aa70bb65\\.html$", "dest": "/googleb46e5193aa70bb65.html" },
+    { "src": "^/$", "dest": "/landing.html" },
+    { "src": "^/duty/?$", "dest": "/duty/index.html" },
+    { "src": "^/duty/(.+\\.html)$", "dest": "/duty/$1" },
+    { "src": "^/duty/route/(.+)$", "dest": "/duty/route/$1.html" },
+    { "src": "^/duty/(.+)$", "dest": "/duty/$1.html" },
+    { "src": "^/tools/(.+)$", "dest": "/tools/$1.html" },
+    { "src": "^/app(.*)", "dest": "/index.html" },
+    { "src": "^/landing.html$", "dest": "/landing.html" },
+    { "src": "/(.*)", "dest": "/index.html" }
   ]
 }

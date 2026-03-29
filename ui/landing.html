@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>customs-compliance.ai — Trade Smarter. Ship Compliant.</title>
+<meta name="description" content="AI-powered customs intelligence for traders and operations teams. Find new trade opportunities, optimise margins with FTA savings, and stay compliant across 45 countries.">
+<link rel="canonical" href="https://customs-compliance.ai/">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌐</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--cyan:#0891b2;--cyan-dark:#0e7490;--cyan-light:#06b6d4;--slate:#0f172a;--slate-700:#334155;--slate-400:#94a3b8;--slate-100:#f1f5f9;--white:#fff}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;color:var(--slate);background:var(--white);-webkit-font-smoothing:antialiased}
+a{color:var(--cyan);text-decoration:none}
+
+/* ── NAV ── */
+nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:16px 0;transition:all .3s}
+nav.scrolled{background:rgba(255,255,255,.95);backdrop-filter:blur(12px);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.nav-inner{max-width:1200px;margin:0 auto;padding:0 24px;display:flex;align-items:center;justify-content:space-between}
+.logo{font-weight:700;font-size:18px;color:var(--slate);display:flex;align-items:center;gap:8px}
+.logo span{color:var(--cyan)}
+.nav-links{display:flex;align-items:center;gap:32px}
+.nav-links a{font-size:14px;font-weight:500;color:var(--slate-700);transition:color .2s}
+.nav-links a:hover{color:var(--cyan)}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:10px 24px;border-radius:8px;font-weight:600;font-size:14px;transition:all .2s;cursor:pointer;border:none}
+.btn-primary{background:var(--cyan);color:var(--white)}
+.btn-primary:hover{background:var(--cyan-dark);transform:translateY(-1px);box-shadow:0 4px 12px rgba(8,145,178,.3)}
+.btn-outline{border:1.5px solid var(--slate-400);color:var(--slate-700);background:transparent}
+.btn-outline:hover{border-color:var(--cyan);color:var(--cyan)}
+.btn-large{padding:14px 32px;font-size:16px;border-radius:10px}
+.btn-white{background:var(--white);color:var(--cyan)}
+.btn-white:hover{background:var(--slate-100);transform:translateY(-1px)}
+
+/* ── HERO ── */
+.hero{min-height:100vh;display:flex;align-items:center;position:relative;overflow:hidden;padding:120px 24px 80px}
+.hero::before{content:'';position:absolute;top:-40%;right:-20%;width:80%;height:120%;background:radial-gradient(ellipse at center,rgba(8,145,178,.06) 0%,transparent 70%);pointer-events:none}
+.hero-inner{max-width:1200px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:80px;align-items:center}
+.hero-text h1{font-size:clamp(36px,5vw,56px);font-weight:800;line-height:1.1;letter-spacing:-.03em;margin-bottom:20px}
+.hero-text h1 .accent{background:linear-gradient(135deg,var(--cyan),var(--cyan-light));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero-text p{font-size:18px;line-height:1.7;color:var(--slate-700);margin-bottom:32px;max-width:520px}
+.hero-cta{display:flex;gap:16px;flex-wrap:wrap}
+.hero-visual{position:relative}
+.hero-card{background:var(--white);border-radius:16px;box-shadow:0 20px 60px rgba(15,23,42,.08),0 1px 3px rgba(15,23,42,.04);padding:28px;border:1px solid rgba(0,0,0,.04)}
+.hero-card .label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--slate-400);margin-bottom:12px}
+.hero-card .route{display:flex;align-items:center;gap:12px;margin-bottom:20px}
+.hero-card .route .flag{font-size:28px}
+.hero-card .route .arrow{color:var(--slate-400);font-size:20px}
+.hero-card .route-text{font-size:14px;font-weight:600;color:var(--slate)}
+.hero-card .rate-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.rate-box{background:var(--slate-100);border-radius:10px;padding:14px;text-align:center}
+.rate-box .rate-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-400);margin-bottom:4px}
+.rate-box .rate-value{font-size:20px;font-weight:700;color:var(--slate)}
+.rate-box.green{background:#ecfdf5}.rate-box.green .rate-value{color:#059669}
+.rate-box.amber{background:#fffbeb}.rate-box.amber .rate-value{color:#d97706}
+.saving-tag{display:inline-flex;align-items:center;gap:6px;margin-top:16px;padding:8px 14px;background:#ecfdf5;border-radius:8px;font-size:13px;font-weight:600;color:#059669}
+.hero-float{position:absolute;background:var(--white);border-radius:12px;box-shadow:0 8px 30px rgba(15,23,42,.1);padding:14px 18px;font-size:13px;font-weight:500;border:1px solid rgba(0,0,0,.04)}
+.hero-float.top-right{top:-20px;right:-10px;animation:float 4s ease-in-out infinite}
+.hero-float.bottom-left{bottom:-10px;left:-10px;animation:float 4s ease-in-out infinite 2s}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+
+/* ── STATS BAR ── */
+.stats-bar{background:var(--slate);padding:48px 24px}
+.stats-inner{max-width:1200px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr);gap:32px;text-align:center}
+.stat-item .stat-num{font-size:36px;font-weight:800;color:var(--cyan-light)}
+.stat-item .stat-label{font-size:13px;color:var(--slate-400);margin-top:4px}
+
+/* ── PERSONAS ── */
+.personas{padding:100px 24px;background:var(--white)}
+.persona-grid{max-width:1100px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:32px}
+.persona-card{padding:40px;border-radius:20px;position:relative;overflow:hidden}
+.persona-card.trader{background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);color:var(--white)}
+.persona-card.ops{background:var(--slate-100);color:var(--slate)}
+.persona-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:20px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;margin-bottom:20px}
+.persona-card.trader .persona-badge{background:rgba(6,182,212,.15);color:var(--cyan-light)}
+.persona-card.ops .persona-badge{background:rgba(8,145,178,.1);color:var(--cyan)}
+.persona-card h3{font-size:24px;font-weight:800;margin-bottom:12px;letter-spacing:-.01em}
+.persona-card .persona-subtitle{font-size:15px;line-height:1.6;margin-bottom:24px;opacity:.85}
+.persona-card.trader .persona-subtitle{color:var(--slate-400)}
+.persona-card.ops .persona-subtitle{color:var(--slate-700)}
+.persona-list{list-style:none;display:flex;flex-direction:column;gap:14px}
+.persona-list li{display:flex;gap:10px;font-size:14px;line-height:1.5;align-items:flex-start}
+.persona-list .check{flex-shrink:0;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;margin-top:1px}
+.persona-card.trader .check{background:rgba(6,182,212,.15);color:var(--cyan-light)}
+.persona-card.ops .check{background:rgba(8,145,178,.1);color:var(--cyan)}
+.persona-card.trader .persona-list li{color:rgba(255,255,255,.85)}
+.persona-card.ops .persona-list li{color:var(--slate-700)}
+.persona-stat{display:flex;gap:24px;margin-top:28px;padding-top:24px;border-top:1px solid rgba(255,255,255,.08)}
+.persona-card.ops .persona-stat{border-top-color:rgba(0,0,0,.06)}
+.persona-stat-item .ps-num{font-size:28px;font-weight:800}
+.persona-card.trader .ps-num{color:var(--cyan-light)}
+.persona-card.ops .ps-num{color:var(--cyan)}
+.persona-stat-item .ps-label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-top:2px}
+.persona-card.trader .ps-label{color:var(--slate-400)}
+.persona-card.ops .ps-label{color:var(--slate-400)}
+@media(max-width:900px){.persona-grid{grid-template-columns:1fr}}
+
+/* ── FEATURES ── */
+.features{padding:100px 24px;background:var(--white)}
+.section-header{text-align:center;margin-bottom:64px}
+.section-header .tag{display:inline-block;padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--cyan);background:rgba(8,145,178,.08);margin-bottom:16px}
+.section-header h2{font-size:clamp(28px,3.5vw,42px);font-weight:800;letter-spacing:-.02em;margin-bottom:12px}
+.section-header p{font-size:16px;color:var(--slate-700);max-width:560px;margin:0 auto}
+.feature-grid{max-width:1200px;margin:0 auto;display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+.feature-card{padding:32px;border-radius:16px;border:1px solid rgba(0,0,0,.06);transition:all .3s;cursor:default}
+.feature-card:hover{border-color:var(--cyan);box-shadow:0 8px 30px rgba(8,145,178,.08);transform:translateY(-2px)}
+.feature-icon{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:24px;margin-bottom:20px}
+.feature-card h3{font-size:17px;font-weight:700;margin-bottom:8px}
+.feature-card p{font-size:14px;line-height:1.65;color:var(--slate-700)}
+.fi-cyan{background:rgba(8,145,178,.08)}
+.fi-green{background:rgba(5,150,105,.08)}
+.fi-amber{background:rgba(217,119,6,.08)}
+.fi-purple{background:rgba(124,58,237,.08)}
+.fi-rose{background:rgba(225,29,72,.08)}
+.fi-blue{background:rgba(37,99,235,.08)}
+
+/* ── HOW IT WORKS ── */
+.how-it-works{padding:100px 24px;background:var(--slate-100)}
+.steps{max-width:900px;margin:0 auto;display:grid;gap:0}
+.step{display:grid;grid-template-columns:60px 1fr;gap:24px;padding-bottom:48px;position:relative}
+.step:not(:last-child)::after{content:'';position:absolute;left:29px;top:60px;bottom:0;width:2px;background:linear-gradient(180deg,var(--cyan),rgba(8,145,178,.1))}
+.step-num{width:60px;height:60px;border-radius:50%;background:var(--cyan);color:var(--white);display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;position:relative;z-index:1}
+.step-content h3{font-size:20px;font-weight:700;margin-bottom:8px;padding-top:4px}
+.step-content p{font-size:15px;color:var(--slate-700);line-height:1.65}
+
+/* ── PRICING ── */
+.pricing{padding:100px 24px;background:var(--white)}
+.pricing-grid{max-width:1100px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr);gap:20px;align-items:start}
+.price-card{border-radius:16px;padding:32px 28px;border:1.5px solid rgba(0,0,0,.06);position:relative;transition:all .3s}
+.price-card:hover{border-color:var(--cyan);box-shadow:0 8px 30px rgba(8,145,178,.08)}
+.price-card.featured{border-color:var(--cyan);background:linear-gradient(180deg,rgba(8,145,178,.03) 0%,var(--white) 100%)}
+.price-card.featured::before{content:'MOST POPULAR';position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:var(--cyan);color:var(--white);padding:4px 16px;border-radius:20px;font-size:10px;font-weight:700;letter-spacing:.08em}
+.price-card .tier-name{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--slate-400);margin-bottom:8px}
+.price-card .tier-price{font-size:42px;font-weight:800;color:var(--slate);letter-spacing:-.02em;margin-bottom:4px}
+.price-card .tier-price span{font-size:16px;font-weight:500;color:var(--slate-400)}
+.price-card .tier-desc{font-size:13px;color:var(--slate-700);margin-bottom:24px;line-height:1.5}
+.price-card .tier-btn{display:block;width:100%;text-align:center;padding:12px;border-radius:8px;font-weight:600;font-size:14px;margin-bottom:24px;transition:all .2s}
+.tier-btn.primary{background:var(--cyan);color:var(--white)}
+.tier-btn.primary:hover{background:var(--cyan-dark)}
+.tier-btn.outline{border:1.5px solid var(--slate-400);color:var(--slate-700)}
+.tier-btn.outline:hover{border-color:var(--cyan);color:var(--cyan)}
+.price-features{list-style:none;display:flex;flex-direction:column;gap:10px}
+.price-features li{font-size:13px;color:var(--slate-700);display:flex;align-items:flex-start;gap:8px;line-height:1.4}
+.price-features li::before{content:'\\2713';color:var(--cyan);font-weight:700;flex-shrink:0;margin-top:1px}
+.price-features li.disabled{color:var(--slate-400)}
+.price-features li.disabled::before{content:'\\2014';color:var(--slate-400)}
+.pricing-note{text-align:center;margin-top:40px;font-size:13px;color:var(--slate-400)}
+@media(max-width:900px){.pricing-grid{grid-template-columns:1fr 1fr;gap:16px}}
+@media(max-width:600px){.pricing-grid{grid-template-columns:1fr}}
+
+/* ── COUNTRIES ── */
+.countries{padding:80px 24px;background:var(--slate-100)}
+.country-flags{max-width:900px;margin:24px auto 0;display:flex;flex-wrap:wrap;justify-content:center;gap:12px}
+.country-pill{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:20px;background:var(--slate-100);font-size:13px;font-weight:500;transition:all .2s}
+.country-pill:hover{background:rgba(8,145,178,.08);color:var(--cyan)}
+
+/* ── CTA ── */
+.cta-section{padding:100px 24px;background:linear-gradient(135deg,var(--slate) 0%,#1e293b 100%);text-align:center}
+.cta-section h2{font-size:clamp(28px,4vw,44px);font-weight:800;color:var(--white);margin-bottom:16px;letter-spacing:-.02em}
+.cta-section p{font-size:17px;color:var(--slate-400);margin-bottom:36px;max-width:520px;margin-left:auto;margin-right:auto}
+.cta-buttons{display:flex;gap:16px;justify-content:center;flex-wrap:wrap}
+
+/* ── FOOTER ── */
+footer{padding:48px 24px;background:var(--slate);border-top:1px solid rgba(255,255,255,.06)}
+.footer-inner{max-width:1200px;margin:0 auto;display:flex;justify-content:space-between;align-items:center}
+.footer-inner .logo{color:var(--white)}
+.footer-links{display:flex;gap:24px}
+.footer-links a{font-size:13px;color:var(--slate-400)}
+.footer-links a:hover{color:var(--white)}
+.footer-copy{font-size:12px;color:var(--slate-400)}
+
+/* ── RESPONSIVE ── */
+@media(max-width:900px){
+  .hero-inner{grid-template-columns:1fr;gap:48px;text-align:center}
+  .hero-text p{margin-left:auto;margin-right:auto}
+  .hero-cta{justify-content:center}
+  .hero-visual{max-width:420px;margin:0 auto}
+  .feature-grid{grid-template-columns:1fr}
+  .stats-inner{grid-template-columns:repeat(2,1fr);gap:24px}
+  .nav-links a:not(.btn){display:none}
+  .footer-inner{flex-direction:column;gap:16px;text-align:center}
+}
+@media(max-width:480px){
+  .hero{padding-top:100px}
+  .stats-inner{grid-template-columns:1fr 1fr}
+  .hero-float{display:none}
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav id="nav">
+  <div class="nav-inner">
+    <div class="logo">🌐 customs-compliance<span>.ai</span></div>
+    <div class="nav-links">
+      <a href="#who">Who it's for</a>
+      <a href="#features">Features</a>
+      <a href="#pricing">Pricing</a>
+      <a href="/app" class="btn btn-outline" style="padding:8px 16px">Log in</a>
+      <a href="/app" class="btn btn-primary">Start free</a>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-inner">
+    <div class="hero-text">
+      <h1>Trade smarter. <span class="accent">Ship compliant.</span></h1>
+      <p>The AI platform that finds hidden margin in your trade routes and keeps every shipment compliant. Duty savings, HS classification, FTA opportunities, and document checklists across 45 countries.</p>
+      <div class="hero-cta">
+        <a href="/app" class="btn btn-primary btn-large">Start free &rarr;</a>
+        <a href="#features" class="btn btn-outline btn-large">See how it works</a>
+      </div>
+    </div>
+    <div class="hero-visual">
+      <div class="hero-card">
+        <div class="label">Landed Cost Calculator</div>
+        <div class="route">
+          <span class="flag">🇮🇳</span>
+          <span class="arrow">&rarr;</span>
+          <span class="flag">🇬🇧</span>
+          <span class="route-text">Cocoa Beans &middot; HS 1801.00</span>
+        </div>
+        <div class="rate-grid">
+          <div class="rate-box">
+            <div class="rate-label">MFN Duty</div>
+            <div class="rate-value">7.7%</div>
+          </div>
+          <div class="rate-box green">
+            <div class="rate-label">FTA Rate</div>
+            <div class="rate-value">0%</div>
+          </div>
+          <div class="rate-box amber">
+            <div class="rate-label">VAT</div>
+            <div class="rate-value">0%</div>
+          </div>
+        </div>
+        <div class="saving-tag">&#10003; Save 7.7% under India-UK CEPA</div>
+      </div>
+      <div class="hero-float top-right">
+        &#9889; <strong>HS classified</strong> in 0.4s
+      </div>
+      <div class="hero-float bottom-left">
+        &#128196; 5 documents required
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- STATS BAR -->
+<section class="stats-bar">
+  <div class="stats-inner">
+    <div class="stat-item"><div class="stat-num">18</div><div class="stat-label">Countries covered</div></div>
+    <div class="stat-item"><div class="stat-num">520K+</div><div class="stat-label">Tariff codes</div></div>
+    <div class="stat-item"><div class="stat-num">865K+</div><div class="stat-label">Preferential rates</div></div>
+    <div class="stat-item"><div class="stat-num">60+</div><div class="stat-label">Trade agreements</div></div>
+  </div>
+</section>
+
+<!-- PERSONAS -->
+<section class="personas" id="who">
+  <div class="section-header">
+    <div class="tag">Who it's for</div>
+    <h2>Built for traders and operations</h2>
+    <p>Two sides of the same trade. One platform that speaks both languages.</p>
+  </div>
+  <div class="persona-grid">
+
+    <div class="persona-card trader">
+      <div class="persona-badge">&#128200; For Traders</div>
+      <h3>Find margin others miss</h3>
+      <p class="persona-subtitle">Your competitors are paying duties you don't have to. We scan every FTA, preference, and drawback scheme across your routes to surface profit you're leaving on the table.</p>
+      <ul class="persona-list">
+        <li><span class="check">&#10003;</span>Discover FTA savings on routes you already trade</li>
+        <li><span class="check">&#10003;</span>Compare landed costs across 18 destinations instantly</li>
+        <li><span class="check">&#10003;</span>Spot new markets where your product lands cheaper than competitors'</li>
+        <li><span class="check">&#10003;</span>Get alerts when duty changes create an arbitrage window</li>
+        <li><span class="check">&#10003;</span>Auto-analyse your ERP data to find overlooked drawback refunds</li>
+      </ul>
+      <div class="persona-stat">
+        <div class="persona-stat-item"><div class="ps-num">865K+</div><div class="ps-label">Preferential rates</div></div>
+        <div class="persona-stat-item"><div class="ps-num">60+</div><div class="ps-label">Trade agreements</div></div>
+      </div>
+    </div>
+
+    <div class="persona-card ops">
+      <div class="persona-badge">&#128196; For Operations</div>
+      <h3>Ship compliant, every time</h3>
+      <p class="persona-subtitle">No more scrambling for the right document at the port. Know exactly what's needed, what's changed, and what will hold up your shipment before it leaves.</p>
+      <ul class="persona-list">
+        <li><span class="check">&#10003;</span>Full document checklist per country, per commodity, per shipment</li>
+        <li><span class="check">&#10003;</span>AI-powered HS classification from product descriptions or images</li>
+        <li><span class="check">&#10003;</span>Real-time regulatory alerts: tariff changes, AD duties, sanctions</li>
+        <li><span class="check">&#10003;</span>Accurate landed cost with all taxes, surcharges, and exemptions</li>
+        <li><span class="check">&#10003;</span>Branded PDF reports to share with customs brokers and clients</li>
+      </ul>
+      <div class="persona-stat">
+        <div class="persona-stat-item"><div class="ps-num">535</div><div class="ps-label">Import conditions</div></div>
+        <div class="persona-stat-item"><div class="ps-num">520K+</div><div class="ps-label">Tariff codes</div></div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="features" id="features">
+  <div class="section-header">
+    <div class="tag">Features</div>
+    <h2>Everything your trade desk needs</h2>
+    <p>One platform for duty calculation, classification, compliance, and cost optimisation.</p>
+  </div>
+  <div class="feature-grid">
+    <div class="feature-card">
+      <div class="feature-icon fi-cyan">&#128200;</div>
+      <h3>Landed Cost Calculator</h3>
+      <p>Instant duty, tax, and total landed cost for any HS code, origin, and destination. Includes FTA preferences, anti-dumping duties, and excise.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon fi-purple">&#129302;</div>
+      <h3>AI Classification</h3>
+      <p>Describe your product in plain English, upload a spec sheet, or snap a photo. Our AI returns the correct HS code with confidence scoring.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon fi-green">&#128176;</div>
+      <h3>Duty Savings Finder</h3>
+      <p>Automatically scans your trade routes for FTA savings, duty reductions, and drawback refunds. Personalised to your ERP data.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon fi-amber">&#128227;</div>
+      <h3>Real-time Alerts</h3>
+      <p>Tariff changes, expiring preferences, new anti-dumping duties, sanctions updates. Know before it hits your shipment.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon fi-rose">&#128196;</div>
+      <h3>Document Checklist</h3>
+      <p>Country-specific import documents, certificates, and permits. Never miss a phytosanitary cert or ANVISA registration again.</p>
+    </div>
+    <div class="feature-card">
+      <div class="feature-icon fi-blue">&#128279;</div>
+      <h3>ERP Integration</h3>
+      <p>Connect Xero, Acumatica, or any ERP. Auto-classify your products, track supplier concentration, and detect spending trends.</p>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="how-it-works" id="how">
+  <div class="section-header">
+    <div class="tag">How it works</div>
+    <h2>Up and running in 3 minutes</h2>
+    <p>No implementation. No consultants. Just sign up and go.</p>
+  </div>
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <h3>Tell us what you trade</h3>
+        <p>Pick your product categories and countries. Four taps on mobile, zero typing. Our wizard learns your business in 30 seconds.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <h3>Connect your ERP (optional)</h3>
+        <p>Link Xero, Acumatica, or Outlook. We auto-classify your products, map your trade routes, and start finding savings from your actual invoices.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <h3>Get personalised intelligence</h3>
+        <p>Duty savings, compliance alerts, and route comparisons tailored to YOUR shipments. Swipe right on opportunities. Export as branded PDF.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section class="pricing" id="pricing">
+  <div class="section-header">
+    <div class="tag">Pricing</div>
+    <h2>Start free. Scale as you grow.</h2>
+    <p>No credit card required. Upgrade when you're ready.</p>
+  </div>
+  <div class="pricing-grid">
+
+    <div class="price-card">
+      <div class="tier-name">Free</div>
+      <div class="tier-price">$0 <span>/mo</span></div>
+      <div class="tier-desc">Try the platform. No commitment.</div>
+      <a href="/app" class="tier-btn outline">Get started</a>
+      <ul class="price-features">
+        <li>10 tariff lookups / month</li>
+        <li>5 HS classifications / month</li>
+        <li>3 country comparisons</li>
+        <li>Document checklists</li>
+        <li>1 user</li>
+        <li class="disabled">ERP integration</li>
+        <li class="disabled">API access</li>
+        <li class="disabled">Trade alerts</li>
+      </ul>
+    </div>
+
+    <div class="price-card featured">
+      <div class="tier-name">Pro</div>
+      <div class="tier-price">$99 <span>/mo</span></div>
+      <div class="tier-desc">For individual traders and ops managers.</div>
+      <a href="/app" class="tier-btn primary">Start 14-day trial</a>
+      <ul class="price-features">
+        <li>Unlimited tariff lookups</li>
+        <li>Unlimited HS classifications</li>
+        <li>Unlimited route comparisons</li>
+        <li>Document checklists + PDF export</li>
+        <li>Trade alerts + opportunity feed</li>
+        <li>FTA savings finder</li>
+        <li>1 ERP connection (Xero or Acumatica)</li>
+        <li>3 users</li>
+        <li class="disabled">API access</li>
+      </ul>
+    </div>
+
+    <div class="price-card">
+      <div class="tier-name">Business</div>
+      <div class="tier-price">$299 <span>/mo</span></div>
+      <div class="tier-desc">For trading desks and operations teams.</div>
+      <a href="/app" class="tier-btn outline">Start 14-day trial</a>
+      <ul class="price-features">
+        <li>Everything in Pro</li>
+        <li>Unlimited ERP connections</li>
+        <li>ERP intelligence (spend trends, FX exposure)</li>
+        <li>Auto-classify products from invoices</li>
+        <li>Supplier concentration alerts</li>
+        <li>Full API access (REST)</li>
+        <li>Email trade context scanning</li>
+        <li>10 users</li>
+        <li>Priority support</li>
+      </ul>
+    </div>
+
+    <div class="price-card">
+      <div class="tier-name">Enterprise</div>
+      <div class="tier-price">Custom</div>
+      <div class="tier-desc">For large trading houses and freight forwarders.</div>
+      <a href="mailto:saurabh.goyal@phlo.io" class="tier-btn outline">Contact us</a>
+      <ul class="price-features">
+        <li>Everything in Business</li>
+        <li>Unlimited users</li>
+        <li>Custom country additions</li>
+        <li>Dedicated account manager</li>
+        <li>SAP / Oracle / NAV connectors</li>
+        <li>SSO / SAML authentication</li>
+        <li>On-premise deployment option</li>
+        <li>Custom SLA</li>
+        <li>Volume discounts</li>
+      </ul>
+    </div>
+
+  </div>
+  <div class="pricing-note">All plans include 45 countries, 520K+ tariff codes, and 865K+ preferential rates. Prices in USD, billed monthly. Annual billing saves 20%.</div>
+</section>
+
+<!-- COUNTRIES -->
+<section class="countries" id="countries">
+  <div class="section-header">
+    <h2>45 countries. Real data.</h2>
+    <p>National tariff codes, MFN rates, preferential rates, VAT, anti-dumping duties, and import documents. All 27 EU member states share the Common External Tariff.</p>
+  </div>
+  <div class="country-flags">
+    <span class="country-pill" style="background:rgba(8,145,178,.1);color:#0891b2;font-weight:600">&#127466;&#127482; EU 27 (Common Tariff)</span>
+    <span class="country-pill">&#127468;&#127463; United Kingdom</span>
+    <span class="country-pill">&#127470;&#127475; India</span>
+    <span class="country-pill">&#127463;&#127479; Brazil</span>
+    <span class="country-pill">&#127487;&#127462; South Africa</span>
+    <span class="country-pill">&#127462;&#127482; Australia</span>
+    <span class="country-pill">&#127474;&#127485; Mexico</span>
+    <span class="country-pill">&#127462;&#127466; UAE</span>
+    <span class="country-pill">&#127480;&#127462; Saudi Arabia</span>
+    <span class="country-pill">&#127481;&#127469; Thailand</span>
+    <span class="country-pill">&#127464;&#127473; Chile</span>
+    <span class="country-pill">&#127462;&#127479; Argentina</span>
+    <span class="country-pill">&#127477;&#127469; Philippines</span>
+    <span class="country-pill">&#127474;&#127482; Mauritius</span>
+    <span class="country-pill">&#127475;&#127462; Namibia</span>
+    <span class="country-pill">&#127482;&#127486; Uruguay</span>
+    <span class="country-pill">&#127476;&#127474; Oman</span>
+    <span class="country-pill">&#127462;&#127476; Angola</span>
+    <span class="country-pill">&#127465;&#127476; Dominican Republic</span>
+  </div>
+  <p style="text-align:center;font-size:12px;color:#94a3b8;margin-top:16px">EU 27: Germany, France, Italy, Spain, Netherlands, Poland, Belgium, Sweden, Austria, Denmark, Finland, Ireland, Portugal, Greece, Czechia, Romania, Hungary, Croatia, Slovakia, Bulgaria, Lithuania, Slovenia, Latvia, Estonia, Cyprus, Luxembourg, Malta</p>
+</section>
+
+<!-- CTA -->
+<section class="cta-section">
+  <h2>Your competitors already know their duty rates. Do you?</h2>
+  <p>Traders use us to find margin. Operations use us to stay compliant. Everyone saves time.</p>
+  <div class="cta-buttons">
+    <a href="/app" class="btn btn-white btn-large">Get started free &rarr;</a>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-inner">
+    <div class="logo">🌐 customs-compliance<span>.ai</span></div>
+    <div class="footer-links">
+      <a href="/app">App</a>
+      <a href="mailto:saurabh.goyal@phlo.io">Contact</a>
+      <a href="https://github.com/phlo-systems/customs-intelligence" target="_blank">API Docs</a>
+    </div>
+    <div class="footer-copy">&copy; 2026 Phlo Systems Limited. All rights reserved.</div>
+  </div>
+</footer>
+
+<script>
+// Nav scroll effect
+const nav = document.getElementById('nav');
+window.addEventListener('scroll', () => {
+  nav.classList.toggle('scrolled', window.scrollY > 40);
+});
+
+// Smooth scroll for anchor links
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+  a.addEventListener('click', e => {
+    e.preventDefault();
+    const target = document.querySelector(a.getAttribute('href'));
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+});
+
+// Animate stats on scroll
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.querySelectorAll('.stat-num').forEach(el => {
+        const final = el.textContent;
+        const num = parseInt(final.replace(/[^0-9]/g, ''));
+        if (!num) return;
+        const suffix = final.replace(/[0-9]/g, '');
+        let current = 0;
+        const step = Math.ceil(num / 30);
+        const interval = setInterval(() => {
+          current += step;
+          if (current >= num) { current = num; clearInterval(interval); }
+          el.textContent = current.toLocaleString() + suffix;
+        }, 30);
+      });
+      observer.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.5 });
+document.querySelectorAll('.stats-bar').forEach(el => observer.observe(el));
+</script>
+</body>
+</html>

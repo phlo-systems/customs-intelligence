@@ -10,6 +10,8 @@
 //     — exchange auth code for tokens
 //   { "action": "connect_credentials", "instance_url": "...", "client_id": "...", "client_secret": "..." }
 //     — client credentials flow (no user redirect needed)
+//   { "action": "connect_ropc", "instance_url": "...", "client_id": "...", "client_secret": "...", "username": "...", "password": "..." }
+//     — Resource Owner Password Credentials flow (ROPC)
 //   { "action": "status" }
 //   { "action": "refresh" }
 //   { "action": "disconnect" }
@@ -164,6 +166,90 @@ Deno.serve(async (req: Request) => {
     }
   }
 
+  // ── Connect via ROPC (Resource Owner Password Credentials) ──────────────
+  if (action === "connect_ropc") {
+    const instanceUrl = String(body.instance_url || "").replace(/\/+$/, "");
+    const clientId = String(body.client_id || "");
+    const clientSecret = String(body.client_secret || "");
+    const username = String(body.username || "");
+    const password = String(body.password || "");
+    const companyName = String(body.company_name || "");
+
+    if (!instanceUrl || !clientId || !clientSecret || !username || !password) {
+      return json({ error: "instance_url, client_id, client_secret, username, and password are required" }, 400);
+    }
+
+    try {
+      const tokenResp = await fetch(`${instanceUrl}/identity/connect/token`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "password",
+          client_id: clientId,
+          client_secret: clientSecret,
+          username: username,
+          password: password,
+          scope: "api offline_access",
+        }),
+      });
+
+      if (!tokenResp.ok) {
+        const err = await tokenResp.text();
+        return json({ error: "ROPC token exchange failed", detail: err.substring(0, 300) }, 502);
+      }
+
+      const tokens = await tokenResp.json();
+
+      // Test the connection
+      const apiVersion = "24.200.001";
+      const testResp = await fetch(`${instanceUrl}/entity/Default/${apiVersion}/Branch?$top=1`, {
+        headers: { "Authorization": `Bearer ${tokens.access_token}` },
+      });
+
+      let detectedCompany = companyName;
+      if (testResp.ok) {
+        const branches = await testResp.json();
+        if (Array.isArray(branches) && branches.length > 0) {
+          detectedCompany = branches[0].BranchID?.value || companyName;
+        }
+      }
+
+      // Store integration
+      await supabase.from("erp_integration").upsert({
+        tenantid: tenantId,
+        erptype: "ACUMATICA",
+        erptenantid: instanceUrl,
+        authtokenref: "acumatica_ropc",
+        syncenabled: true,
+        isactive: true,
+        mappingconfig: {
+          instance_url: instanceUrl,
+          client_id: clientId,
+          client_secret: clientSecret,
+          username: username,
+          password: password,
+          access_token: tokens.access_token,
+          refresh_token: tokens.refresh_token || null,
+          expires_at: Date.now() + ((tokens.expires_in || 3600) * 1000),
+          auth_method: "ropc",
+          company_name: detectedCompany || instanceUrl,
+          api_version: apiVersion,
+        },
+      }, { onConflict: "tenantid,erptype,erptenantid" });
+
+      return json({
+        status: "ok",
+        connected: true,
+        company_name: detectedCompany,
+        instance_url: instanceUrl,
+        auth_method: "ropc",
+      });
+
+    } catch (e) {
+      return json({ error: "ROPC connection failed", detail: String(e) }, 502);
+    }
+  }
+
   // ── OAuth2 redirect URL ──────────────────────────────────────────────────
   if (action === "auth") {
     const instanceUrl = String(body.instance_url || "").replace(/\/+$/, "");
@@ -278,6 +364,39 @@ Deno.serve(async (req: Request) => {
 
       await supabase.from("erp_integration").update({
         mappingconfig: { ...config, access_token: tokens.access_token, expires_at: Date.now() + ((tokens.expires_in || 3600) * 1000) },
+      }).eq("integrationid", integration.integrationid);
+
+      return json({ status: "refreshed" });
+    }
+
+    // For ROPC, re-authenticate with stored username/password
+    if (config.auth_method === "ropc") {
+      const tokenResp = await fetch(`${instanceUrl}/identity/connect/token`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "password",
+          client_id: config.client_id as string,
+          client_secret: config.client_secret as string,
+          username: config.username as string,
+          password: config.password as string,
+          scope: "api offline_access",
+        }),
+      });
+
+      if (!tokenResp.ok) {
+        const err = await tokenResp.text();
+        return json({ error: "ROPC token refresh failed", detail: err.substring(0, 200) }, 502);
+      }
+      const tokens = await tokenResp.json();
+
+      await supabase.from("erp_integration").update({
+        mappingconfig: {
+          ...config,
+          access_token: tokens.access_token,
+          refresh_token: tokens.refresh_token || config.refresh_token,
+          expires_at: Date.now() + ((tokens.expires_in || 3600) * 1000),
+        },
       }).eq("integrationid", integration.integrationid);
 
       return json({ status: "refreshed" });
