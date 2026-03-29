@@ -1,5 +1,58 @@
 # Changelog
 
+## [0.6.0] — 29 Mar 2026 — EU Expansion, ERP Intelligence, GTM
+
+### Added
+- **EU 27 countries** — Common External Tariff loaded for all member states (13,565 codes each, country-specific VAT 17-27%)
+- **13 EU FTAs** registered (EU-UK TCA, EU-Japan EPA, EU-Korea, EU-Canada CETA, EU-Vietnam, EU-Singapore, EU-Mercosur, EU-EFTA, EU-Turkey CU, EU-SADC EPA, EU-GSP, EU-Chile, EU-Mexico, EU-Australia)
+- **ERP intelligence layer** — `database/ddl/17_erp_line_item.sql` universal line item storage
+- `database/functions/analyse_erp_intelligence.sql` — supplier concentration, spending trends, FX exposure alerts
+- **Acumatica ROPC auth** — Resource Owner Password Credentials flow for Acumatica instances using `grant_type=password`
+- Xero + Acumatica sync: persist line items to `erp_line_item`, 12-month first sync cap, deferred auto-classification
+- `admin/classify_erp_items` action — deferred HS classification of ERP line items
+- **13 sanctions measures** — Russia (EU/UK/US), Belarus, Iran (US/EU), North Korea (UNSC), Syria, Myanmar, Cuba, Venezuela, plus commodity-specific (Russian oil HS 2709, Russian gold HS 7108)
+- **Landing page** — `ui/landing.html` with dual persona (traders + ops), pricing tiers (Free/$99/$299/Enterprise)
+- **83 SEO pages** — 50 product duty pages, 73 route pages (incl. EU), 5 tool landing pages
+- `ui/sitemap.xml` (131 URLs), `ui/robots.txt`, `ui/llms.txt` + `ui/llms-full.txt` for AI discoverability
+- **535 import conditions** across 45 countries (12 per EU member, 8-24 per non-EU)
+- Mexico: 8,122 national TIGIE codes from INEGI API
+
+### Changed
+- `supabase/functions/xero-sync/index.ts` — line item persistence, 12-month cap, deferred classify
+- `supabase/functions/acumatica-sync/index.ts` — ROPC refresh, line items, 12-month cap
+- `supabase/functions/acumatica-connect/index.ts` — added `connect_ropc` action
+- `supabase/functions/alerts/index.ts` — ERP intelligence alerts (SUPPLIER_CONCENTRATION, SPENDING_TREND, FX_EXPOSURE)
+- `supabase/functions/admin/index.ts` — added `classify_erp_items` action
+- `scripts/run_daily_monitor.sh` — added ERP intelligence + deferred classify to daily cron
+- `vercel.json` — routing for landing page, SEO pages, sitemap, llms.txt
+
+### Fixed
+- 260 invalid preferential rates deleted (ZA pref > MFN violations)
+- EU CET data verified consistent across all 27 members
+- Acumatica line item persistence: fixed `desc.substring` TypeError, unique constraint with line numbers
+
+### Data
+- 45 countries with tariff data (18 original + 27 EU)
+- 523K+ commodity codes, 865K+ MFN rates, 622K+ preferential rates
+- 60 trade agreements, 535 import conditions, 22 AD measures, 13 sanctions
+- Acumatica connected: 452 POs, 268 SOs, 667 line items, 20 products auto-classified
+
+---
+
+## [0.5.0] — 28 Mar 2026 — 18-Country Expansion + Monitoring
+
+### Added
+- 18 countries loaded with national tariff data + preferential rates
+- Import document requirements for all 18 countries (211 conditions)
+- Anti-dumping measures: IN 10, ZA 3, BR 3, AU 2, MX 2, AR 2 (22 total)
+- India preferential rates: 147,209 entries across 13 FTAs
+- GB preferential rates: 141,419 entries across 13 FTAs (from UK Tariff SQLite)
+- MERCOSUR + Chile preferential rates (BR/AR/UY/CL ~120K entries)
+- Unified daily cron `scripts/run_daily_monitor.sh` for all countries
+- `scripts/country_monitors.py` — monitor for 11 additional countries
+
+---
+
 ## [0.4.0] — 26 Mar 2026 — Build Sprint 3
 
 ### Added

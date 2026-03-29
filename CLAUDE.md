@@ -61,6 +61,7 @@ Group 12 — ERP Intelligence: ERP_LINE_ITEM
 | DRAWBACK_RATE | 2,732 | India drawback schedule (Notif 77/2023) |
 | EXEMPTION_NOTIFICATION | 532 | India Notification 50/2017 BCD exemptions |
 | AD_MEASURE | 22 | IN 10 + ZA 3 + BR 3 + AU 2 + MX 2 + AR 2 |
+| SANCTIONS_MEASURE | 13 | RU (EU/UK/US), BY, IR (US/EU), KP (UNSC), SY, MM, CU, VE + commodity-specific (RU oil, RU gold) |
 | EXCHANGE_RATE | 80 | Daily market rates (IN/ZA/GB/NA × 20 currencies) |
 | ERP_LINE_ITEM | ~663 | Universal line items from Xero/Acumatica (auto-classified) |
 | NOTIFICATION_TRACKER | ~4 | CBIC notifications detected by monitor |
