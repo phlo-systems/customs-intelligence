@@ -1,0 +1,46 @@
+name: Daily Tariff Monitor
+
+on:
+  schedule:
+    # 00:30 UTC daily (6:00 AM IST / 2:30 AM SAST / 1:30 AM GMT)
+    - cron: '30 0 * * *'
+  workflow_dispatch: # Allow manual trigger from GitHub UI
+
+env:
+  CI_PROJECT_DIR: ${{ github.workspace }}
+  CI_PYTHON: python3
+  SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+  SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+  ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install -r tariff_parser/requirements.txt
+
+      - name: Run daily monitor
+        run: |
+          chmod +x scripts/run_daily_monitor.sh
+          bash scripts/run_daily_monitor.sh
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: monitor-logs-${{ github.run_number }}
+          path: scripts/logs/
+          retention-days: 30
