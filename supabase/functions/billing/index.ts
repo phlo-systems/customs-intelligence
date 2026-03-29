@@ -20,6 +20,8 @@ const APP_URL = "https://customs-compliance.ai";
 
 // Price IDs — set these after creating products in Stripe Dashboard
 const PRICE_MAP: Record<string, string> = {
+  STARTER_MONTHLY: Deno.env.get("STRIPE_PRICE_STARTER_MONTHLY") || "",
+  STARTER_ANNUAL: Deno.env.get("STRIPE_PRICE_STARTER_ANNUAL") || "",
   PRO_MONTHLY: Deno.env.get("STRIPE_PRICE_PRO_MONTHLY") || "",
   PRO_ANNUAL: Deno.env.get("STRIPE_PRICE_PRO_ANNUAL") || "",
   BUSINESS_MONTHLY: Deno.env.get("STRIPE_PRICE_BUSINESS_MONTHLY") || "",
@@ -29,8 +31,9 @@ const PRICE_MAP: Record<string, string> = {
 // Plan limits
 const PLAN_LIMITS: Record<string, { lookups: number; classifies: number; users: number; erp: number; api: boolean }> = {
   FREE:       { lookups: 10,       classifies: 5,        users: 1,  erp: 0,  api: false },
-  PRO:        { lookups: 999999,   classifies: 999999,   users: 3,  erp: 1,  api: false },
-  BUSINESS:   { lookups: 999999,   classifies: 999999,   users: 10, erp: 99, api: true },
+  STARTER:    { lookups: 100,      classifies: 50,       users: 1,  erp: 0,  api: false },
+  PRO:        { lookups: 999999,   classifies: 999999,   users: 5,  erp: 1,  api: false },
+  BUSINESS:   { lookups: 999999,   classifies: 999999,   users: 15, erp: 99, api: true },
   ENTERPRISE: { lookups: 999999,   classifies: 999999,   users: 999, erp: 99, api: true },
 };
 

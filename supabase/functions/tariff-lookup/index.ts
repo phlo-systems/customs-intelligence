@@ -58,8 +58,10 @@ Deno.serve(async (req: Request) => {
     .eq("tenantid", tenantId)
     .maybeSingle();
 
-  if (sub && sub.plancode === "FREE" && sub.status === "ACTIVE") {
-    // Reset counter if past reset date
+  const LOOKUP_LIMITS: Record<string, number> = { FREE: 10, STARTER: 100 };
+  const planLimit = LOOKUP_LIMITS[sub?.plancode || "FREE"];
+
+  if (sub && planLimit && sub.status === "ACTIVE") {
     if (new Date(sub.lookupresetat) <= new Date()) {
       const nextReset = new Date();
       nextReset.setMonth(nextReset.getMonth() + 1, 1);
@@ -69,11 +71,11 @@ Deno.serve(async (req: Request) => {
         .eq("tenantid", tenantId);
       sub.lookupcount = 0;
     }
-    if (sub.lookupcount >= 10) {
+    if (sub.lookupcount >= planLimit) {
       return json({
-        error: "Free plan limit reached (10 lookups/month). Upgrade to Pro for unlimited lookups.",
+        error: `${sub.plancode} plan limit reached (${planLimit} lookups/month). Upgrade for more.`,
         upgrade_url: "https://customs-compliance.ai/#pricing",
-        usage: { lookups_used: sub.lookupcount, limit: 10 },
+        usage: { lookups_used: sub.lookupcount, limit: planLimit },
       }, 429);
     }
   }

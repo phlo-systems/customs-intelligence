@@ -5,7 +5,7 @@ CREATE TABLE SUBSCRIPTION (
     SubscriptionID      BIGSERIAL       PRIMARY KEY,
     TenantID            UUID            NOT NULL UNIQUE,
     PlanCode            VARCHAR(20)     NOT NULL DEFAULT 'FREE'
-        CHECK (PlanCode IN ('FREE','PRO','BUSINESS','ENTERPRISE')),
+        CHECK (PlanCode IN ('FREE','STARTER','PRO','BUSINESS','ENTERPRISE')),
     StripeCustomerID    VARCHAR(255),
     StripeSubscriptionID VARCHAR(255),
     StripePriceID       VARCHAR(255),

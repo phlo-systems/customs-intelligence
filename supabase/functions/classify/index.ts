@@ -70,7 +70,10 @@ Deno.serve(async (req: Request) => {
     .eq("tenantid", tenantId)
     .maybeSingle();
 
-  if (sub && sub.plancode === "FREE" && sub.status === "ACTIVE") {
+  const CLASSIFY_LIMITS: Record<string, number> = { FREE: 5, STARTER: 50 };
+  const classifyLimit = CLASSIFY_LIMITS[sub?.plancode || "FREE"];
+
+  if (sub && classifyLimit && sub.status === "ACTIVE") {
     if (new Date(sub.lookupresetat) <= new Date()) {
       const nextReset = new Date();
       nextReset.setMonth(nextReset.getMonth() + 1, 1);
@@ -80,11 +83,11 @@ Deno.serve(async (req: Request) => {
         .eq("tenantid", tenantId);
       sub.classifycount = 0;
     }
-    if (sub.classifycount >= 5) {
+    if (sub.classifycount >= classifyLimit) {
       return json({
-        error: "Free plan limit reached (5 classifications/month). Upgrade to Pro for unlimited.",
+        error: `${sub.plancode} plan limit reached (${classifyLimit} classifications/month). Upgrade for more.`,
         upgrade_url: "https://customs-compliance.ai/#pricing",
-        usage: { classifies_used: sub.classifycount, limit: 5 },
+        usage: { classifies_used: sub.classifycount, limit: classifyLimit },
       }, 429);
     }
   }
