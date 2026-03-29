@@ -733,7 +733,244 @@ Deno.serve(async (req: Request) => {
     return json({ status: "ok", classified, total_unclassified: items.length });
   }
 
-  return json({ error: "Unknown action. Use: dashboard, tenants, usage, set_admin, data_freshness, notifications, update_notification, run_monitor, classify_erp_items, suggestions, update_suggestion, referrals, reward_config" }, 400);
+  // ── Cron Job Monitor ─────────────────────────────────────────────────────
+  if (action === "cron_status") {
+    // Read last 7 days of data_freshness to show cron health
+    const { data: freshness } = await supabase
+      .from("data_freshness")
+      .select("countrycode, datatype, sourcename, lastupdated, recordcount, sourceversion")
+      .order("lastupdated", { ascending: false });
+
+    // Check last monitor run from notification_tracker
+    const { data: lastNotifs } = await supabase
+      .from("notification_tracker")
+      .select("source, title, status, createdat")
+      .order("createdat", { ascending: false })
+      .limit(10);
+
+    // Check ERP sync status
+    const { data: erpSyncs } = await supabase
+      .from("erp_integration")
+      .select("tenantid, erptype, lastsyncat, isactive, syncenabled, mappingconfig")
+      .eq("isactive", true);
+
+    const erpStatus = (erpSyncs || []).map(e => ({
+      tenant: e.tenantid?.substring(0, 8),
+      erp: e.erptype,
+      last_sync: e.lastsyncat,
+      hours_ago: e.lastsyncat ? Math.round((Date.now() - new Date(e.lastsyncat).getTime()) / 3600000) : null,
+      sync_enabled: e.syncenabled,
+      company: (e.mappingconfig as any)?.company_name || (e.mappingconfig as any)?.xero_tenant_name || "—",
+    }));
+
+    // Data freshness summary — flag stale countries (>7 days)
+    const stale: any[] = [];
+    const healthy: any[] = [];
+    for (const f of (freshness || [])) {
+      const hoursAgo = Math.round((Date.now() - new Date(f.lastupdated).getTime()) / 3600000);
+      const entry = { country: f.countrycode, type: f.datatype, source: f.sourcename, hours_ago: hoursAgo, records: f.recordcount };
+      if (hoursAgo > 168) stale.push(entry); // >7 days
+      else healthy.push(entry);
+    }
+
+    // ERP line item stats
+    const { count: totalLines } = await supabase.from("erp_line_item").select("*", { count: "exact", head: true });
+    const { count: unclassified } = await supabase.from("erp_line_item").select("*", { count: "exact", head: true }).is("hscodeauto", null);
+
+    return json({
+      cron_health: {
+        total_data_sources: (freshness || []).length,
+        stale_sources: stale.length,
+        healthy_sources: healthy.length,
+      },
+      stale_data: stale.slice(0, 20),
+      recent_notifications: lastNotifs,
+      erp_syncs: erpStatus,
+      erp_line_items: { total: totalLines, unclassified },
+    });
+  }
+
+  // ── Billing Dashboard ───────────────────────────────────────────────────
+  if (action === "billing_dashboard") {
+    const { data: subs } = await supabase
+      .from("subscription")
+      .select("tenantid, plancode, status, stripecustomerid, stripesubscriptionid, currentperiodend, cancelatperiodend, trialendsat, lookupcount, classifycount, createdat");
+
+    const plans: Record<string, number> = {};
+    const statuses: Record<string, number> = {};
+    let totalPaid = 0;
+    let trialing = 0;
+    let cancelled = 0;
+    const mrr_map: Record<string, number> = { STARTER: 14, PRO: 39, BUSINESS: 99, ENTERPRISE: 0 };
+    let mrr = 0;
+
+    for (const s of (subs || [])) {
+      plans[s.plancode] = (plans[s.plancode] || 0) + 1;
+      statuses[s.status] = (statuses[s.status] || 0) + 1;
+      if (s.plancode !== "FREE" && s.status === "ACTIVE") {
+        totalPaid++;
+        mrr += mrr_map[s.plancode] || 0;
+      }
+      if (s.status === "TRIALING") trialing++;
+      if (s.status === "CANCELLED") cancelled++;
+    }
+
+    // Get user emails for subscriber list
+    const subscriberList: any[] = [];
+    for (const s of (subs || []).filter(s => s.plancode !== "FREE")) {
+      try {
+        const { data: { user: u } } = await supabase.auth.admin.getUserById(s.tenantid);
+        subscriberList.push({
+          tenant_id: s.tenantid,
+          email: u?.email || "—",
+          company: u?.user_metadata?.company_name || "—",
+          plan: s.plancode,
+          status: s.status,
+          period_end: s.currentperiodend,
+          cancel_at_end: s.cancelatperiodend,
+          trial_ends: s.trialendsat,
+          lookups: s.lookupcount,
+          classifies: s.classifycount,
+          stripe_customer: s.stripecustomerid,
+        });
+      } catch {}
+    }
+
+    return json({
+      summary: {
+        total_subscriptions: (subs || []).length,
+        paid: totalPaid,
+        trialing,
+        cancelled,
+        mrr_gbp: mrr,
+        arr_gbp: mrr * 12,
+      },
+      by_plan: plans,
+      by_status: statuses,
+      subscribers: subscriberList,
+    });
+  }
+
+  // ── Override Plan (comp access) ─────────────────────────────────────────
+  if (action === "override_plan") {
+    const targetTenantId = String(body.tenant_id || "");
+    const newPlan = String(body.plan || "").toUpperCase();
+    const reason = String(body.reason || "Admin override");
+
+    if (!targetTenantId) return json({ error: "tenant_id required" }, 400);
+    if (!["FREE", "STARTER", "PRO", "BUSINESS", "ENTERPRISE"].includes(newPlan)) {
+      return json({ error: "plan must be FREE, STARTER, PRO, BUSINESS, or ENTERPRISE" }, 400);
+    }
+
+    // Upsert subscription
+    const { error: subErr } = await supabase.from("subscription").upsert({
+      tenantid: targetTenantId,
+      plancode: newPlan,
+      status: "ACTIVE",
+      updatedat: new Date().toISOString(),
+    }, { onConflict: "tenantid" });
+
+    if (subErr) return json({ error: subErr.message }, 500);
+
+    // Log the override
+    console.log(`Plan override: ${targetTenantId} → ${newPlan} (${reason}) by admin ${user.email}`);
+
+    return json({
+      status: "ok",
+      tenant_id: targetTenantId,
+      new_plan: newPlan,
+      reason,
+      overridden_by: user.email,
+    });
+  }
+
+  // ── Data Completeness Report ────────────────────────────────────────────
+  if (action === "data_completeness") {
+    const countries = ["IN","GB","ZA","BR","AU","AE","MX","TH","SA","CL","AR","PH","MU","NA","UY","OM","AO","DO",
+                       "DE","FR","IT","ES","NL","PL","AT","SE","DK","IE","FI","PT","GR","CZ","RO","HU","BE","BG","HR","SK","SI","LV","LT","LU","MT","CY","EE"];
+
+    const report: any[] = [];
+    for (const cc of countries) {
+      const checks: Record<string, any> = { country: cc };
+
+      // Commodity codes
+      const { count: ccCount } = await supabase.from("commodity_code").select("*", { count: "exact", head: true }).eq("countrycode", cc);
+      checks.commodity_codes = ccCount || 0;
+
+      // MFN rates
+      const { count: mfnCount } = await supabase.from("mfn_rate").select("*", { count: "exact", head: true }).eq("countrycode", cc).is("effectiveto", null);
+      checks.mfn_rates = mfnCount || 0;
+
+      // VAT
+      const { data: vatData } = await supabase.from("vat_rate").select("standardrate").eq("countrycode", cc).limit(1);
+      checks.vat = vatData?.length ? `${vatData[0].standardrate}%` : "MISSING";
+
+      // Import conditions
+      const { count: icCount } = await supabase.from("import_condition").select("*", { count: "exact", head: true }).eq("countrycode", cc);
+      checks.import_conditions = icCount || 0;
+
+      // Preferential rates
+      const { count: prefCount } = await supabase.from("preferential_rate").select("*", { count: "exact", head: true }).eq("importcountrycode", cc).is("effectiveto", null);
+      checks.preferential_rates = prefCount || 0;
+
+      // Score (0-5)
+      let score = 0;
+      if ((ccCount || 0) > 0) score++;
+      if ((mfnCount || 0) > 0) score++;
+      if (vatData?.length) score++;
+      if ((icCount || 0) > 0) score++;
+      if ((prefCount || 0) > 0) score++;
+      checks.completeness_score = `${score}/5`;
+      checks.status = score === 5 ? "COMPLETE" : score >= 3 ? "PARTIAL" : "INCOMPLETE";
+
+      report.push(checks);
+    }
+
+    // Summary
+    const complete = report.filter(r => r.status === "COMPLETE").length;
+    const partial = report.filter(r => r.status === "PARTIAL").length;
+    const incomplete = report.filter(r => r.status === "INCOMPLETE").length;
+
+    return json({
+      summary: { total: countries.length, complete, partial, incomplete },
+      countries: report,
+    });
+  }
+
+  // ── Popular HS Codes & Routes ───────────────────────────────────────────
+  if (action === "analytics") {
+    const days = Number(body.days) || 30;
+    const since = new Date(Date.now() - days * 86400000).toISOString();
+
+    // Top HS codes from API usage
+    const { data: usageData } = await supabase
+      .from("api_usage_log")
+      .select("commoditycode, importcountry, exportcountry")
+      .gte("createdat", since)
+      .not("commoditycode", "is", null)
+      .limit(5000);
+
+    const hsCounts: Record<string, number> = {};
+    const routeCounts: Record<string, number> = {};
+
+    for (const u of (usageData || [])) {
+      if (u.commoditycode) {
+        const hs4 = u.commoditycode.substring(0, 4);
+        hsCounts[hs4] = (hsCounts[hs4] || 0) + 1;
+      }
+      if (u.exportcountry && u.importcountry) {
+        const route = `${u.exportcountry}→${u.importcountry}`;
+        routeCounts[route] = (routeCounts[route] || 0) + 1;
+      }
+    }
+
+    const topHS = Object.entries(hsCounts).sort((a, b) => b[1] - a[1]).slice(0, 20).map(([code, count]) => ({ hs4: code, lookups: count }));
+    const topRoutes = Object.entries(routeCounts).sort((a, b) => b[1] - a[1]).slice(0, 20).map(([route, count]) => ({ route, lookups: count }));
+
+    return json({ period_days: days, top_hs_codes: topHS, top_routes: topRoutes });
+  }
+
+  return json({ error: "Unknown action. Use: dashboard, tenants, usage, set_admin, data_freshness, notifications, update_notification, run_monitor, classify_erp_items, cron_status, billing_dashboard, override_plan, data_completeness, analytics" }, 400);
 });
 
 function json(data: unknown, status = 200) {

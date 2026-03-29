@@ -1877,6 +1877,10 @@
       <div class="nav-tab" onclick="showAdminTab('rewards', this)">Rewards</div>
       <div class="nav-tab" onclick="showAdminTab('freshness', this)">Data Freshness</div>
       <div class="nav-tab" onclick="showAdminTab('notifications', this)">Notifications</div>
+      <div class="nav-tab" onclick="showAdminTab('billing', this)">Billing</div>
+      <div class="nav-tab" onclick="showAdminTab('cron', this)">Cron</div>
+      <div class="nav-tab" onclick="showAdminTab('completeness', this)">Data Quality</div>
+      <div class="nav-tab" onclick="showAdminTab('analytics', this)">Analytics</div>
     </div>
 
     <!-- ── Overview ── -->
@@ -2172,6 +2176,124 @@
         </table>
       </div>
       <div id="notif-empty" style="display:none;text-align:center;padding:40px;color:var(--text-3);font-size:13px;">No notifications matching this filter.</div>
+    </div>
+
+    <!-- ── Billing ── -->
+    <div class="admin-panel" id="admin-billing" style="display:none;">
+      <div style="font-weight:600;font-size:15px;margin-bottom:16px;">Billing &amp; Subscriptions</div>
+      <div class="summary-bar" style="grid-template-columns:repeat(4,1fr);margin-bottom:20px;">
+        <div class="stat-card"><div class="stat-label">MRR</div><div class="stat-value teal" id="billing-mrr">—</div></div>
+        <div class="stat-card"><div class="stat-label">Paid Users</div><div class="stat-value" id="billing-paid">—</div></div>
+        <div class="stat-card"><div class="stat-label">Trialing</div><div class="stat-value" id="billing-trialing">—</div></div>
+        <div class="stat-card"><div class="stat-label">Cancelled</div><div class="stat-value" id="billing-cancelled">—</div></div>
+      </div>
+      <div class="summary-bar" style="grid-template-columns:repeat(4,1fr);margin-bottom:20px;">
+        <div class="stat-card"><div class="stat-label">FREE</div><div class="stat-value" id="billing-free">—</div></div>
+        <div class="stat-card"><div class="stat-label">STARTER</div><div class="stat-value" id="billing-starter">—</div></div>
+        <div class="stat-card"><div class="stat-label">PRO</div><div class="stat-value" id="billing-pro">—</div></div>
+        <div class="stat-card"><div class="stat-label">BUSINESS</div><div class="stat-value" id="billing-business">—</div></div>
+      </div>
+
+      <!-- Override Plan -->
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px;">
+        <div style="font-weight:600;font-size:13px;margin-bottom:10px;">Override Plan (comp access / manual upgrade)</div>
+        <div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;">
+          <div class="form-group" style="margin:0;flex:1;min-width:200px;">
+            <label style="font-size:12px;">User Email or Tenant ID</label>
+            <input type="text" id="override-tenant" placeholder="user@company.com or UUID" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label style="font-size:12px;">New Plan</label>
+            <select id="override-plan" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+              <option value="STARTER">Starter</option>
+              <option value="PRO" selected>Pro</option>
+              <option value="BUSINESS">Business</option>
+              <option value="ENTERPRISE">Enterprise</option>
+              <option value="FREE">FREE (downgrade)</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label style="font-size:12px;">Reason</label>
+            <input type="text" id="override-reason" placeholder="e.g. Beta tester, partner" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;" value="Comp access">
+          </div>
+          <button onclick="doOverridePlan()" style="padding:8px 16px;background:var(--teal);color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;white-space:nowrap;">Apply</button>
+        </div>
+        <div id="override-result" style="font-size:12px;margin-top:8px;display:none;"></div>
+      </div>
+
+      <!-- Subscriber Table -->
+      <div style="font-weight:600;font-size:13px;margin-bottom:8px;">Paying &amp; Trial Subscribers</div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;" id="billing-table">
+          <thead><tr style="border-bottom:2px solid var(--border);text-align:left;">
+            <th style="padding:6px 10px;">Email</th><th style="padding:6px 10px;">Company</th><th style="padding:6px 10px;">Plan</th><th style="padding:6px 10px;">Status</th><th style="padding:6px 10px;">Period End</th><th style="padding:6px 10px;">Lookups</th><th style="padding:6px 10px;">Classifies</th>
+          </tr></thead>
+          <tbody id="billing-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── Cron Monitor ── -->
+    <div class="admin-panel" id="admin-cron" style="display:none;">
+      <div style="font-weight:600;font-size:15px;margin-bottom:16px;">Cron &amp; System Health</div>
+      <div class="summary-bar" style="grid-template-columns:repeat(4,1fr);margin-bottom:20px;">
+        <div class="stat-card"><div class="stat-label">Data Sources</div><div class="stat-value" id="cron-sources">—</div></div>
+        <div class="stat-card"><div class="stat-label">Healthy</div><div class="stat-value green" id="cron-healthy">—</div></div>
+        <div class="stat-card"><div class="stat-label">Stale (&gt;7d)</div><div class="stat-value" style="color:var(--red);" id="cron-stale">—</div></div>
+        <div class="stat-card"><div class="stat-label">ERP Line Items</div><div class="stat-value" id="cron-lines">—</div></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+        <div>
+          <div style="font-weight:600;font-size:13px;margin-bottom:8px;">Stale Data Sources</div>
+          <div id="cron-stale-list" style="font-size:12px;"></div>
+        </div>
+        <div>
+          <div style="font-weight:600;font-size:13px;margin-bottom:8px;">ERP Sync Status</div>
+          <div id="cron-erp-list" style="font-size:12px;"></div>
+        </div>
+      </div>
+      <div style="margin-top:20px;">
+        <div style="font-weight:600;font-size:13px;margin-bottom:8px;">Recent Notifications</div>
+        <div id="cron-notif-list" style="font-size:12px;"></div>
+      </div>
+    </div>
+
+    <!-- ── Data Quality / Completeness ── -->
+    <div class="admin-panel" id="admin-completeness" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <div style="font-weight:600;font-size:15px;">Data Completeness Report</div>
+        <div style="font-size:12px;color:var(--text-3);" id="completeness-summary">—</div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;" id="completeness-table">
+          <thead><tr style="border-bottom:2px solid var(--border);text-align:left;">
+            <th style="padding:6px 10px;">Country</th><th style="padding:6px 10px;">Codes</th><th style="padding:6px 10px;">MFN Rates</th><th style="padding:6px 10px;">VAT</th><th style="padding:6px 10px;">Import Docs</th><th style="padding:6px 10px;">Pref Rates</th><th style="padding:6px 10px;">Score</th><th style="padding:6px 10px;">Status</th>
+          </tr></thead>
+          <tbody id="completeness-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── Analytics ── -->
+    <div class="admin-panel" id="admin-analytics" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <div style="font-weight:600;font-size:15px;">Usage Analytics</div>
+        <select id="analytics-period" onchange="loadAdminAnalytics()" style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;">
+          <option value="7">Last 7 days</option>
+          <option value="30" selected>Last 30 days</option>
+          <option value="90">Last 90 days</option>
+        </select>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
+        <div>
+          <div style="font-weight:600;font-size:13px;margin-bottom:8px;">Most Searched HS Codes</div>
+          <div id="analytics-hs" style="font-size:12px;"></div>
+        </div>
+        <div>
+          <div style="font-weight:600;font-size:13px;margin-bottom:8px;">Most Searched Routes</div>
+          <div id="analytics-routes" style="font-size:12px;"></div>
+        </div>
+      </div>
     </div>
 
   </div>
@@ -5908,6 +6030,160 @@ function showAdminTab(tab, el) {
   if (tab === 'rewards') loadAdminRewards();
   if (tab === 'freshness') loadAdminFreshness();
   if (tab === 'notifications') loadAdminNotifications();
+  if (tab === 'billing') loadAdminBilling();
+  if (tab === 'cron') loadAdminCron();
+  if (tab === 'completeness') loadAdminCompleteness();
+  if (tab === 'analytics') loadAdminAnalytics();
+}
+
+// ── Billing Dashboard ──
+async function loadAdminBilling() {
+  try {
+    const r = await fetch(API_BASE + '/admin', { method: 'POST', headers: getHeaders(), body: JSON.stringify({ action: 'billing_dashboard' }) });
+    const d = await r.json();
+    const s = d.summary || {};
+    document.getElementById('billing-mrr').textContent = '£' + (s.mrr_gbp || 0).toLocaleString();
+    document.getElementById('billing-paid').textContent = s.paid || 0;
+    document.getElementById('billing-trialing').textContent = s.trialing || 0;
+    document.getElementById('billing-cancelled').textContent = s.cancelled || 0;
+    const bp = d.by_plan || {};
+    document.getElementById('billing-free').textContent = bp.FREE || 0;
+    document.getElementById('billing-starter').textContent = bp.STARTER || 0;
+    document.getElementById('billing-pro').textContent = bp.PRO || 0;
+    document.getElementById('billing-business').textContent = (bp.BUSINESS || 0) + (bp.ENTERPRISE || 0);
+
+    const tbody = document.getElementById('billing-tbody');
+    tbody.innerHTML = (d.subscribers || []).map(sub =>
+      `<tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:6px 10px;">${sub.email}</td>
+        <td style="padding:6px 10px;">${sub.company}</td>
+        <td style="padding:6px 10px;"><span style="padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;background:${sub.plan==='PRO'?'#dcfce7':sub.plan==='BUSINESS'?'#f3e8ff':'#e0f2fe'};color:${sub.plan==='PRO'?'#166534':sub.plan==='BUSINESS'?'#6b21a8':'#0369a1'}">${sub.plan}</span></td>
+        <td style="padding:6px 10px;">${sub.status}</td>
+        <td style="padding:6px 10px;">${sub.period_end ? new Date(sub.period_end).toLocaleDateString() : '—'}</td>
+        <td style="padding:6px 10px;">${sub.lookups || 0}</td>
+        <td style="padding:6px 10px;">${sub.classifies || 0}</td>
+      </tr>`
+    ).join('') || '<tr><td colspan="7" style="padding:20px;text-align:center;color:var(--text-3);">No paid subscribers yet</td></tr>';
+  } catch(e) { console.log('Billing load error:', e); }
+}
+
+async function doOverridePlan() {
+  const tenant = document.getElementById('override-tenant').value.trim();
+  const plan = document.getElementById('override-plan').value;
+  const reason = document.getElementById('override-reason').value;
+  const result = document.getElementById('override-result');
+  if (!tenant) { result.style.display = 'block'; result.style.color = 'var(--red)'; result.textContent = 'Enter a user email or tenant ID'; return; }
+
+  // If it looks like an email, resolve to tenant ID
+  let tenantId = tenant;
+  if (tenant.includes('@')) {
+    try {
+      const r = await fetch(API_BASE + '/admin', { method: 'POST', headers: getHeaders(), body: JSON.stringify({ action: 'tenants' }) });
+      const d = await r.json();
+      const match = (d.tenants || []).find(t => t.email?.toLowerCase() === tenant.toLowerCase());
+      if (match) tenantId = match.id;
+      else { result.style.display = 'block'; result.style.color = 'var(--red)'; result.textContent = 'User not found'; return; }
+    } catch { result.style.display = 'block'; result.style.color = 'var(--red)'; result.textContent = 'Error looking up user'; return; }
+  }
+
+  try {
+    const r = await fetch(API_BASE + '/admin', { method: 'POST', headers: getHeaders(), body: JSON.stringify({ action: 'override_plan', tenant_id: tenantId, plan, reason }) });
+    const d = await r.json();
+    result.style.display = 'block';
+    if (d.status === 'ok') { result.style.color = 'var(--green)'; result.textContent = `Plan set to ${d.new_plan} for ${tenantId.substring(0,8)}...`; loadAdminBilling(); }
+    else { result.style.color = 'var(--red)'; result.textContent = d.error || 'Failed'; }
+  } catch(e) { result.style.display = 'block'; result.style.color = 'var(--red)'; result.textContent = e.message; }
+}
+
+// ── Cron Monitor ──
+async function loadAdminCron() {
+  try {
+    const r = await fetch(API_BASE + '/admin', { method: 'POST', headers: getHeaders(), body: JSON.stringify({ action: 'cron_status' }) });
+    const d = await r.json();
+    const h = d.cron_health || {};
+    document.getElementById('cron-sources').textContent = h.total_data_sources || 0;
+    document.getElementById('cron-healthy').textContent = h.healthy_sources || 0;
+    document.getElementById('cron-stale').textContent = h.stale_sources || 0;
+    document.getElementById('cron-lines').textContent = `${d.erp_line_items?.total || 0} (${d.erp_line_items?.unclassified || 0} unclassified)`;
+
+    // Stale data
+    const staleEl = document.getElementById('cron-stale-list');
+    if ((d.stale_data || []).length === 0) {
+      staleEl.innerHTML = '<div style="color:var(--green);padding:8px;">All data sources up to date</div>';
+    } else {
+      staleEl.innerHTML = (d.stale_data || []).map(s =>
+        `<div style="padding:4px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;">
+          <span><strong>${s.country}</strong> ${s.type}</span>
+          <span style="color:var(--red);">${Math.round(s.hours_ago/24)}d ago</span>
+        </div>`
+      ).join('');
+    }
+
+    // ERP syncs
+    const erpEl = document.getElementById('cron-erp-list');
+    erpEl.innerHTML = (d.erp_syncs || []).map(e =>
+      `<div style="padding:4px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;">
+        <span>${e.erp} — ${e.company}</span>
+        <span style="color:${e.hours_ago && e.hours_ago < 48 ? 'var(--green)' : 'var(--red)'};">${e.hours_ago != null ? e.hours_ago + 'h ago' : 'Never'}</span>
+      </div>`
+    ).join('') || '<div style="color:var(--text-3);padding:8px;">No active ERP connections</div>';
+
+    // Recent notifications
+    const notifEl = document.getElementById('cron-notif-list');
+    notifEl.innerHTML = (d.recent_notifications || []).map(n =>
+      `<div style="padding:4px 0;border-bottom:1px solid var(--border);">
+        <span style="font-weight:600;">${n.source}</span> — ${n.title || '—'} <span style="color:var(--text-3);font-size:11px;">${new Date(n.createdat).toLocaleDateString()}</span>
+        <span style="float:right;padding:1px 6px;border-radius:4px;font-size:10px;background:${n.status==='NEW'?'#fef3c7':'#d1fae5'};color:${n.status==='NEW'?'#92400e':'#065f46'};">${n.status}</span>
+      </div>`
+    ).join('') || '<div style="color:var(--text-3);padding:8px;">No recent notifications</div>';
+  } catch(e) { console.log('Cron load error:', e); }
+}
+
+// ── Data Completeness ──
+async function loadAdminCompleteness() {
+  const tbody = document.getElementById('completeness-tbody');
+  tbody.innerHTML = '<tr><td colspan="8" style="padding:20px;text-align:center;"><div class="spinner" style="margin:0 auto;"></div></td></tr>';
+  try {
+    const r = await fetch(API_BASE + '/admin', { method: 'POST', headers: getHeaders(), body: JSON.stringify({ action: 'data_completeness' }) });
+    const d = await r.json();
+    const s = d.summary || {};
+    document.getElementById('completeness-summary').textContent = `${s.complete} complete, ${s.partial} partial, ${s.incomplete} incomplete of ${s.total}`;
+
+    tbody.innerHTML = (d.countries || []).map(c => {
+      const statusColor = c.status === 'COMPLETE' ? 'var(--green)' : c.status === 'PARTIAL' ? '#d97706' : 'var(--red)';
+      return `<tr style="border-bottom:1px solid var(--border);">
+        <td style="padding:6px 10px;font-weight:600;">${c.country}</td>
+        <td style="padding:6px 10px;">${(c.commodity_codes || 0).toLocaleString()}</td>
+        <td style="padding:6px 10px;">${(c.mfn_rates || 0).toLocaleString()}</td>
+        <td style="padding:6px 10px;${c.vat === 'MISSING' ? 'color:var(--red);font-weight:600;' : ''}">${c.vat}</td>
+        <td style="padding:6px 10px;">${c.import_conditions || 0}</td>
+        <td style="padding:6px 10px;">${(c.preferential_rates || 0).toLocaleString()}</td>
+        <td style="padding:6px 10px;">${c.completeness_score}</td>
+        <td style="padding:6px 10px;color:${statusColor};font-weight:600;">${c.status}</td>
+      </tr>`;
+    }).join('');
+  } catch(e) { tbody.innerHTML = `<tr><td colspan="8" style="padding:20px;color:var(--red);">${e.message}</td></tr>`; }
+}
+
+// ── Analytics ──
+async function loadAdminAnalytics() {
+  const days = document.getElementById('analytics-period').value;
+  try {
+    const r = await fetch(API_BASE + '/admin', { method: 'POST', headers: getHeaders(), body: JSON.stringify({ action: 'analytics', days: Number(days) }) });
+    const d = await r.json();
+
+    document.getElementById('analytics-hs').innerHTML = (d.top_hs_codes || []).map((h, i) =>
+      `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);">
+        <span>${i+1}. HS ${h.hs4}</span><span style="font-weight:600;">${h.lookups} lookups</span>
+      </div>`
+    ).join('') || '<div style="color:var(--text-3);padding:8px;">No data yet</div>';
+
+    document.getElementById('analytics-routes').innerHTML = (d.top_routes || []).map((r2, i) =>
+      `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);">
+        <span>${i+1}. ${r2.route}</span><span style="font-weight:600;">${r2.lookups} lookups</span>
+      </div>`
+    ).join('') || '<div style="color:var(--text-3);padding:8px;">No data yet</div>';
+  } catch(e) { console.log('Analytics error:', e); }
 }
 
 // ── Data Freshness ──────────────────────────────────────────────────────
