@@ -7,7 +7,8 @@
 # Can run on: local Mac (cron), Linux server, Docker, GitHub Actions
 # ═══════════════════════════════════════════════════════════════
 
-set -e
+# Note: do NOT use set -e — individual steps have || true guards
+# and the India monitor exits non-zero intentionally when changes are found
 
 PROJ_DIR="${CI_PROJECT_DIR:-/Users/saurabh/Desktop/Customs-Intelligence}"
 PYTHON="${CI_PYTHON:-/Library/Frameworks/Python.framework/Versions/3.12/bin/python3}"
@@ -30,8 +31,8 @@ echo "════════════════════════�
 # ── 1. India Monitor ─────────────────────────────────────────
 echo "" >> "$LOG_FILE"
 echo "── INDIA ──────────────────────────────────────────────" >> "$LOG_FILE"
-$PYTHON -m scripts.india_tariff_monitor >> "$LOG_FILE" 2>&1
-IN_EXIT=$?
+$PYTHON -m scripts.india_tariff_monitor >> "$LOG_FILE" 2>&1 || IN_EXIT=$?
+IN_EXIT=${IN_EXIT:-0}
 if [ $IN_EXIT -ne 0 ]; then
     echo "  India: action items found — running auto-updater" >> "$LOG_FILE"
     $PYTHON -m scripts.india_chapter_updater >> "$LOG_FILE" 2>&1 || true
@@ -112,10 +113,12 @@ r4 = requests.post(f'{url}/functions/v1/admin', headers=hdrs,
 print('ERP classify:', r4.text[:200] if r4.ok else f'Error: {r4.status_code}')
 " >> "$LOG_FILE" 2>&1 || true
 
-# ── 8. AI CMO Marketing Agent ────────────────────────────────
-echo "" >> "$LOG_FILE"
-echo "── AI CMO (MARKETING) ───────────────────────────────────" >> "$LOG_FILE"
-$PYTHON -m scripts.marketing.orchestrator >> "$LOG_FILE" 2>&1 || true
+# ── 8. AI CMO Marketing Agent (optional — only runs if scripts/marketing exists)
+if [ -f "$PROJ_DIR/scripts/marketing/orchestrator.py" ]; then
+    echo "" >> "$LOG_FILE"
+    echo "── AI CMO (MARKETING) ───────────────────────────────────" >> "$LOG_FILE"
+    $PYTHON -m scripts.marketing.orchestrator >> "$LOG_FILE" 2>&1 || true
+fi
 
 # ── 10. Summary ──────────────────────────────────────────────
 echo "" >> "$LOG_FILE"
