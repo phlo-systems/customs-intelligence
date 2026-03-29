@@ -37,6 +37,7 @@ Group 9 — ERP & Email:      ERP_INTEGRATION, EMAIL_CONTEXT_EXTRACT
 Group 10 — India-specific:  DRAWBACK_RATE, EXEMPTION_NOTIFICATION, EXCHANGE_RATE
 Group 11 — Monitoring:      NOTIFICATION_TRACKER, CBIC_CHAPTER_SYNC, DATA_FRESHNESS
 Group 12 — ERP Intelligence: ERP_LINE_ITEM
+Group 13 — AI CMO:        MARKETING_METRICS, MARKETING_CONTENT, MARKETING_STRATEGY, MARKETING_EXPERIMENTS
 ```
 
 ## Key schema rules
@@ -143,6 +144,7 @@ TenantUID: a0000000-0000-0000-0000-000000000001
 | -- | Pricing page — Free / Pro $99 / Business $299 / Enterprise | ✅ |
 | -- | SEO pages — 83 pages (50 products + 28 routes + 5 tools) + sitemap + llms.txt | ✅ |
 | 17 | National parsers for TH, PH, AO, DO (currently WTO heading-level) | ⬜ |
+| -- | AI CMO marketing agent — autonomous content gen + publish (LinkedIn, Reddit, Twitter) | ✅ |
 | -- | **Server deployment** — move daily cron from laptop to cloud (see below) | ⬜ |
 | -- | Stripe payment integration for subscription tiers | ⬜ |
 | -- | Production hardening (Key Vault, rate limiting, monitoring) | ⬜ |
@@ -150,6 +152,14 @@ TenantUID: a0000000-0000-0000-0000-000000000001
 
 ## Key scripts
 ```
+# AI CMO (Marketing Agent)
+python3 -m scripts.marketing.orchestrator                 # full pipeline: collect → strategy → generate → publish → report
+python3 -m scripts.marketing.orchestrator --collect-only  # metrics only
+python3 -m scripts.marketing.orchestrator --strategy-only # daily strategy brief + brainstorm ideas
+python3 -m scripts.marketing.orchestrator --generate-only # generate content for all channels
+python3 -m scripts.marketing.orchestrator --publish-only  # publish all queued content
+./scripts/run_marketing_agent.sh                          # cron entry point (daily 07:00 UTC)
+
 # India tariff
 python3 -m tariff_parser.in_full_load --pdf-dir ~/Downloads --upload-pdfs  # all 97 IN chapters
 python3 -m tariff_parser.in_full_load --pdf-dir ~/Downloads --chapters 27 85  # specific chapters
@@ -177,13 +187,16 @@ python3 -m tariff_parser.embedding_loader --source all          # load HS embedd
 | IN | PDF + API | cbic.gov.in (base64-JSON PDFs), CBIC API for change detection | ✅ Built + automated |
 | GB | API JSON | trade-tariff.service.gov.uk/api/v2/ | ✅ Built |
 | ZA/NA | PDF | SARS Schedule 1 | ✅ Built |
+| US | API JSON | hts.usitc.gov/reststop/getRates (98 chapters) | ✅ Built + monitored |
+| CN | WTO + static | WTO TPR chapter rates + VAT 13%/9% + consumption tax | ✅ Built + monitored |
 | BR | API JSON | Full NCM ~50MB — hash full file then diff | ⬜ Next priority |
 | AU/TH/MX/AR/UY | HTML scrape | Country-specific | ⬜ |
 | SA/AE/OM | HTML | GCC CET — shared tariff | ⬜ |
 | PH | API JSON | AD investigation open on HS 2004.10 | ⬜ |
 
-## Countries in scope (45)
+## Countries in scope (47)
 **Original 18+1:** `AO` `AR` `AU` `BR` `CL` `CN` `DO` `GB` `IN` `MU` `MX` `NA` `OM` `PH` `SA` `TH` `AE` `UY` `ZA`
+**US + CN:** `US` `CN`
 **EU 27:** `AT` `BE` `BG` `HR` `CY` `CZ` `DK` `EE` `FI` `FR` `DE` `GR` `HU` `IE` `IT` `LV` `LT` `LU` `MT` `NL` `PL` `PT` `RO` `SK` `SI` `ES` `SE`
 
 ## Countries with tariff data loaded
@@ -197,6 +210,8 @@ python3 -m tariff_parser.embedding_loader --source all          # load HS embedd
 | EU 27 | 13,565 each | EU Common External Tariff (TARIC via GB base) | Same MFN rates, country-specific VAT (17-27%) |
 | BR | 10,515 | Siscomex NCM JSON API | 5-tax sequential stacking (II+IPI+PIS+COFINS+ICMS) |
 | AU, AE, SA, OM, CL, UY, AR | 5,613-8,000 | WCO + national sources | MFN + VAT + preferential rates |
+| US | 10,200 | USITC HTS API (98 chapters) | MFN (FOB basis), no import VAT, Section 301 refs |
+| CN | 4,748 | WCO base + WTO TPR chapter rates | MFN + VAT 13%/9% + consumption tax (213 items) |
 | TH, PH, AO, DO, MU | 5,613-6,506 | WTO TPR heading-level rates | Upgraded from sector defaults |
 
 ## Intelligence engine design
@@ -256,7 +271,16 @@ customs-intelligence/
 │   ├── india_chapter_updater.py     ← auto-download + reparse stale chapters with diff
 │   ├── exchange_rate_updater.py     ← daily exchange rates from open API
 │   ├── run_india_monitor.sh         ← cron wrapper (daily 6AM IST)
+│   ├── run_marketing_agent.sh       ← AI CMO cron wrapper (daily 07:00 UTC)
 │   ├── INDIA_UPDATE_RUNBOOK.md      ← manual update procedures for 7 scenarios
+│   ├── marketing/                   ← AI CMO autonomous marketing agent
+│   │   ├── orchestrator.py          ← full pipeline: collect → strategy → generate → publish → report
+│   │   ├── config.py               ← brand voice, channel settings, API config
+│   │   ├── report_generator.py     ← daily report for morning brainstorm
+│   │   ├── collectors/             ← supabase, GSC, Stripe metric collectors
+│   │   ├── generators/             ← content_generator.py + prompt_library.py
+│   │   ├── publishers/             ← linkedin, reddit, twitter auto-publishers
+│   │   └── strategy/              ← strategy_brain.py — daily analysis + brainstorm
 │   └── logs/                        ← daily monitor logs
 ├── supabase/
 │   └── functions/
@@ -319,6 +343,7 @@ Pipeline: `run_daily_monitor.sh` (unified for all countries):
 3. UK: `gb_tariff_monitor.py` (checks API sections structure)
 4. Exchange rates: `exchange_rate_updater.py` (20 currencies × 4 countries)
 5. Rules engine: `run_rules_engine()` + `generate_personalised_opportunities()`
+6. AI CMO: `scripts.marketing.orchestrator` (collect → strategy → generate → publish → report)
 
 ## Deployment
 - **Frontend:** Vercel — `vercel --prod` → https://customs-intelligence.vercel.app

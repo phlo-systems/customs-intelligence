@@ -22,6 +22,8 @@ from tariff_parser.parsers.za_parser import TariffRow, RateValue
 from tariff_parser.parsers.gb_parser import GBCommodity
 from tariff_parser.parsers.in_parser import INCommodity
 from tariff_parser.parsers.br_parser import BRCommodity
+from tariff_parser.parsers.us_parser import USCommodity
+from tariff_parser.parsers.cn_parser import CNCommodity
 
 logger = logging.getLogger(__name__)
 
@@ -379,6 +381,197 @@ class SupabaseWriter:
         logger.info(
             "BR: wrote %d rows — commodity=%d mfn=%d vat=%d",
             len(commodities), len(commodity_batch), len(mfn_batch), len(vat_batch),
+        )
+        return stats
+
+    # ── US writer ─────────────────────────────────────────────────────────────
+
+    def write_us_rows(
+        self,
+        commodities: list[USCommodity],
+        hs_version: str = "HS 2022",
+        batch_size: int = 200,
+    ) -> dict:
+        """Write parsed USCommodity objects to Supabase.
+        US has no federal import VAT — only commodity_code + mfn_rate + tariff_rate.
+        """
+        stats = {"inserted": 0, "updated": 0, "errored": 0}
+
+        # Deduplicate by commodity code (keep last)
+        seen = {}
+        for c in commodities:
+            seen[c.commodity_code] = c
+        deduped = list(seen.values())
+
+        commodity_batch = []
+        mfn_batch = []
+        tariff_batch = []
+
+        for c in deduped:
+            commodity_batch.append({
+                "commoditycode": c.commodity_code,
+                "countrycode": "US",
+                "subheadingcode": c.subheading_code,
+                "hsversion": hs_version,
+                "nationaldescription": c.description[:500],
+                "supplementaryunit": c.supplementary_unit,
+                "codelength": "8-digit",
+                "isactive": True,
+            })
+
+            duty_basis = self._duty_basis_type_str(c.mfn_duty_type)
+            mfn_batch.append({
+                "commoditycode": c.commodity_code,
+                "countrycode": "US",
+                "ratecategory": "APPLIED",
+                "dutybasistype": duty_basis,
+                "appliedmfnrate": c.mfn_duty_pct,
+                "specificdutyamt": c.mfn_specific_amt,
+                "specificdutyuom": c.mfn_specific_uom,
+                "dutyexpression": c.mfn_duty_expression,
+                "valuationbasis": "FOB",
+                "effectivefrom": self.effective_date,
+                "effectiveto": None,
+            })
+
+            tariff_batch.append({
+                "commoditycode": c.commodity_code,
+                "countrycode": "US",
+                "subheadingcode": c.subheading_code,
+                "appliedmfnrate": c.mfn_duty_pct,
+                "valuationbasis": "FOB",
+                "dutyexpression": c.mfn_duty_expression,
+                "effectivefrom": self.effective_date,
+                "effectiveto": None,
+                "lastreviewedat": self.effective_date,
+            })
+
+        # Write in batches
+        for i in range(0, len(commodity_batch), batch_size):
+            result = self._upsert("commodity_code", commodity_batch[i:i + batch_size])
+            stats["inserted"] += result.get("count", 0)
+
+        for i in range(0, len(mfn_batch), batch_size):
+            self._upsert("mfn_rate", mfn_batch[i:i + batch_size])
+
+        for i in range(0, len(tariff_batch), batch_size):
+            self._upsert("tariff_rate", tariff_batch[i:i + batch_size])
+
+        logger.info(
+            "US: wrote %d rows — commodity=%d mfn=%d tariff=%d",
+            len(deduped), len(commodity_batch), len(mfn_batch), len(tariff_batch),
+        )
+        return stats
+
+    # ── CN (China) writer ──────────────────────────────────────────────────
+
+    def write_cn_rows(
+        self,
+        commodities: list[CNCommodity],
+        hs_version: str = "HS 2022",
+        batch_size: int = 200,
+    ) -> dict:
+        """Write parsed CNCommodity objects to Supabase.
+        China has VAT (13%/9%) and optional consumption tax.
+        """
+        stats = {"inserted": 0, "updated": 0, "errored": 0}
+
+        # Deduplicate
+        seen = {}
+        for c in commodities:
+            seen[c.commodity_code] = c
+        deduped = list(seen.values())
+
+        commodity_batch = []
+        mfn_batch = []
+        tariff_batch = []
+        vat_batch = []
+        consumption_batch = []
+
+        for c in deduped:
+            commodity_batch.append({
+                "commoditycode": c.commodity_code,
+                "countrycode": "CN",
+                "subheadingcode": c.subheading_code,
+                "hsversion": hs_version,
+                "nationaldescription": c.description[:500],
+                "codelength": "8-digit",
+                "isactive": True,
+            })
+
+            duty_basis = self._duty_basis_type_str(c.mfn_duty_type)
+            mfn_batch.append({
+                "commoditycode": c.commodity_code,
+                "countrycode": "CN",
+                "ratecategory": "APPLIED",
+                "dutybasistype": duty_basis,
+                "appliedmfnrate": c.mfn_duty_pct,
+                "dutyexpression": c.mfn_duty_expression,
+                "valuationbasis": "CIF",
+                "effectivefrom": self.effective_date,
+                "effectiveto": None,
+            })
+
+            tariff_batch.append({
+                "commoditycode": c.commodity_code,
+                "countrycode": "CN",
+                "subheadingcode": c.subheading_code,
+                "appliedmfnrate": c.mfn_duty_pct,
+                "valuationbasis": "CIF",
+                "dutyexpression": c.mfn_duty_expression,
+                "effectivefrom": self.effective_date,
+                "effectiveto": None,
+                "lastreviewedat": self.effective_date,
+            })
+
+            # VAT (13% or 9%)
+            vat_category = "REDUCED" if c.vat_rate == 9.0 else "STANDARD"
+            vat_batch.append({
+                "commoditycode": c.commodity_code,
+                "countrycode": "CN",
+                "taxtype": "VAT",
+                "taxcategory": vat_category,
+                "rate": c.vat_rate,
+                "vatbasis": "CUSTOMS_VALUE_PLUS_DUTY",
+                "effectivefrom": self.effective_date,
+                "effectiveto": None,
+            })
+
+            # Consumption tax (if applicable) — written in separate batch
+            # to avoid Supabase "All object keys must match" error
+            if c.consumption_tax_rate:
+                consumption_batch.append({
+                    "commoditycode": c.commodity_code,
+                    "countrycode": "CN",
+                    "taxtype": "CONSUMPTION_TAX",
+                    "taxcategory": "STANDARD",
+                    "rate": c.consumption_tax_rate,
+                    "vatbasis": "CUSTOMS_VALUE_PLUS_DUTY",
+                    "effectivefrom": self.effective_date,
+                    "effectiveto": None,
+                })
+
+        # Write in batches
+        for i in range(0, len(commodity_batch), batch_size):
+            result = self._upsert("commodity_code", commodity_batch[i:i + batch_size])
+            stats["inserted"] += result.get("count", 0)
+
+        for i in range(0, len(mfn_batch), batch_size):
+            self._upsert("mfn_rate", mfn_batch[i:i + batch_size])
+
+        for i in range(0, len(tariff_batch), batch_size):
+            self._upsert("tariff_rate", tariff_batch[i:i + batch_size])
+
+        for i in range(0, len(vat_batch), batch_size):
+            self._upsert("vat_rate", vat_batch[i:i + batch_size])
+
+        for i in range(0, len(consumption_batch), batch_size):
+            self._upsert("vat_rate", consumption_batch[i:i + batch_size])
+
+        logger.info(
+            "CN: wrote %d rows — commodity=%d mfn=%d tariff=%d vat=%d consumption=%d",
+            len(deduped), len(commodity_batch), len(mfn_batch),
+            len(tariff_batch), len(vat_batch), len(consumption_batch),
         )
         return stats
 

@@ -52,17 +52,41 @@ echo "" >> "$LOG_FILE"
 echo "── UNITED KINGDOM ─────────────────────────────────────" >> "$LOG_FILE"
 $PYTHON -m scripts.gb_tariff_monitor >> "$LOG_FILE" 2>&1 || true
 
-# ── 5. All other country monitors ─────────────────────────────
+# ── 5. US Monitor (USITC HTS + Federal Register) ────────────────
+echo "" >> "$LOG_FILE"
+echo "── UNITED STATES ──────────────────────────────────────" >> "$LOG_FILE"
+$PYTHON -c "
+from scripts.monitors.us_monitor import UnitedStatesMonitor
+import os
+m = UnitedStatesMonitor(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_KEY'])
+results = m.run_full_checklist(skip_cross_verify=True)
+report = m.generate_report()
+print(f'US: {report[\"summary\"]}')
+" >> "$LOG_FILE" 2>&1 || true
+
+# ── 6. China Monitor (MOF + MOFCOM) ─────────────────────────────
+echo "" >> "$LOG_FILE"
+echo "── CHINA ────────────────────────────────────────────────" >> "$LOG_FILE"
+$PYTHON -c "
+from scripts.monitors.cn_monitor import ChinaMonitor
+import os
+m = ChinaMonitor(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_KEY'])
+results = m.run_full_checklist(skip_cross_verify=True)
+report = m.generate_report()
+print(f'CN: {report[\"summary\"]}')
+" >> "$LOG_FILE" 2>&1 || true
+
+# ── 7. All other country monitors ─────────────────────────────
 echo "" >> "$LOG_FILE"
 echo "── OTHER COUNTRIES (UY,CL,AE,AR,AU,MX,TH,PH,AO,DO,MU) ─" >> "$LOG_FILE"
 $PYTHON -m scripts.country_monitors >> "$LOG_FILE" 2>&1 || true
 
-# ── 6. Exchange Rates ────────────────────────────────────────
+# ── 8. Exchange Rates ────────────────────────────────────────
 echo "" >> "$LOG_FILE"
 echo "── EXCHANGE RATES ─────────────────────────────────────" >> "$LOG_FILE"
 $PYTHON -m scripts.exchange_rate_updater >> "$LOG_FILE" 2>&1 || true
 
-# ── 7. Rules Engine ──────────────────────────────────────────
+# ── 9. Rules Engine ──────────────────────────────────────────
 echo "" >> "$LOG_FILE"
 echo "── RULES ENGINE + OPPORTUNITIES ──────────────────────" >> "$LOG_FILE"
 $PYTHON -c "
@@ -88,7 +112,12 @@ r4 = requests.post(f'{url}/functions/v1/admin', headers=hdrs,
 print('ERP classify:', r4.text[:200] if r4.ok else f'Error: {r4.status_code}')
 " >> "$LOG_FILE" 2>&1 || true
 
-# ── 8. Summary ───────────────────────────────────────────────
+# ── 8. AI CMO Marketing Agent ────────────────────────────────
+echo "" >> "$LOG_FILE"
+echo "── AI CMO (MARKETING) ───────────────────────────────────" >> "$LOG_FILE"
+$PYTHON -m scripts.marketing.orchestrator >> "$LOG_FILE" 2>&1 || true
+
+# ── 10. Summary ──────────────────────────────────────────────
 echo "" >> "$LOG_FILE"
 echo "═══════════════════════════════════════════════════════════" >> "$LOG_FILE"
 echo "  Daily Monitor Complete — $(date)" >> "$LOG_FILE"

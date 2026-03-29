@@ -40,9 +40,9 @@
 - No publisher registration needed — access is controlled via `robots.txt`
 - `robots.txt` allows `GPTBot` and `ChatGPT-User`
 
-### Perplexity — TODO
-- Email publishers@perplexity.ai requesting priority crawling
-- Draft email:
+### Perplexity — DONE (29 Mar 2026)
+- Emailed publishers@perplexity.ai requesting priority crawling
+- Draft email sent:
   > Subject: Priority crawling request — customs-compliance.ai (customs duty database, 18 countries)
   >
   > Hi, we'd like to request priority crawling for customs-compliance.ai — a customs duty rate database covering 18 countries with 153K+ tariff codes, including MFN rates, FTA preferential rates, VAT/GST, anti-dumping duties, and landed cost calculations. We have llms.txt deployed at https://customs-compliance.ai/llms.txt and full structured data at https://customs-compliance.ai/llms-full.txt. Our robots.txt explicitly allows PerplexityBot. Thank you, Saurabh Goyal, Phlo Systems Limited
