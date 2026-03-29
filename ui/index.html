@@ -2980,16 +2980,11 @@ async function deleteSelectedAlerts() {
 }
 
 // ── Navigation ────────────────────────────────────────────────────────────────
-// Premium screens — require paid plan
+// Premium screens — show sample data then upsell for FREE users
 const PREMIUM_SCREENS = ['compare', 'opportunities', 'alerts'];
 let currentPlan = 'FREE'; // updated by loadSubscription()
 
 function showScreen(name, el) {
-  // Gate premium screens for FREE users
-  if (PREMIUM_SCREENS.includes(name) && currentPlan === 'FREE') {
-    showPaywall(name);
-    return;
-  }
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('nav .nav-tab').forEach(t => t.classList.remove('active'));
   document.getElementById(`screen-${name}`).classList.add('active');
@@ -2997,26 +2992,41 @@ function showScreen(name, el) {
   if (name === 'admin') onAdminScreenShow();
   if (name === 'profile') initProfileChips();
   if (name === 'actions') loadActions();
+
+  // Show upgrade banner on premium screens for FREE users
+  if (PREMIUM_SCREENS.includes(name) && currentPlan === 'FREE') {
+    setTimeout(() => injectUpgradeBanner(name), 800);
+  }
 }
 
-function showPaywall(screen) {
-  const labels = { compare: 'Route Comparison', opportunities: 'Trade Opportunities', alerts: 'Trade Alerts' };
-  const descs = {
-    compare: 'Compare landed costs across multiple countries side-by-side to find the cheapest import route.',
-    opportunities: 'AI-generated duty arbitrage opportunities personalised to your trade routes and ERP data.',
-    alerts: 'Real-time alerts for tariff changes, expiring FTA preferences, anti-dumping duties, and sanctions.',
-  };
-  const el = document.getElementById('paywall-overlay');
-  el.innerHTML = `
-    <div style="position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:999;display:flex;align-items:center;justify-content:center;padding:24px;" onclick="this.remove()">
-      <div style="background:#fff;border-radius:16px;padding:40px;max-width:420px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.15);" onclick="event.stopPropagation()">
-        <div style="font-size:40px;margin-bottom:16px;">&#128274;</div>
-        <div style="font-size:20px;font-weight:700;margin-bottom:8px;">${labels[screen] || screen} is a premium feature</div>
-        <div style="font-size:14px;color:#64748b;margin-bottom:24px;line-height:1.6;">${descs[screen] || ''}<br><br>Upgrade to <strong>Starter (£14/mo)</strong> or higher to unlock.</div>
-        <button onclick="upgradePlan()" style="width:100%;padding:14px;border:none;border-radius:10px;background:#0891b2;color:#fff;font-weight:600;font-size:15px;cursor:pointer;margin-bottom:10px;">Upgrade now</button>
-        <button onclick="this.closest('[style*=fixed]').remove()" style="width:100%;padding:12px;border:none;background:transparent;color:#64748b;font-size:14px;cursor:pointer;">Maybe later</button>
+function injectUpgradeBanner(screen) {
+  // Remove any existing banner
+  document.querySelectorAll('.upgrade-banner').forEach(b => b.remove());
+
+  const screenEl = document.getElementById(`screen-${screen}`);
+  if (!screenEl) return;
+
+  const banner = document.createElement('div');
+  banner.className = 'upgrade-banner';
+  banner.style.cssText = 'position:relative;margin-top:16px;';
+  banner.innerHTML = `
+    <div style="position:relative;overflow:hidden;border-radius:16px;">
+      <!-- Blur overlay -->
+      <div style="position:absolute;inset:0;background:linear-gradient(180deg,transparent 0%,rgba(255,255,255,.85) 30%,rgba(255,255,255,.97) 60%);z-index:2;display:flex;align-items:center;justify-content:center;">
+        <div style="text-align:center;padding:32px;max-width:400px;">
+          <div style="font-size:32px;margin-bottom:12px;">&#128161;</div>
+          <div style="font-size:17px;font-weight:700;color:#0f172a;margin-bottom:8px;">Want to see all your personalised ${screen === 'opportunities' ? 'opportunities' : screen === 'alerts' ? 'alerts' : 'route comparisons'}?</div>
+          <div style="font-size:13px;color:#64748b;margin-bottom:20px;line-height:1.6;">
+            ${screen === 'opportunities' ? 'We found duty savings on your trade routes. Upgrade to see all opportunities with AI insights and estimated savings.' :
+              screen === 'alerts' ? 'Tariff changes and regulatory updates are happening. Upgrade to get real-time alerts personalised to your products and routes.' :
+              'Compare landed costs across all 45 countries. Upgrade to unlock unlimited route comparisons.'}
+          </div>
+          <button onclick="upgradePlan()" style="padding:12px 28px;border:none;border-radius:10px;background:#0891b2;color:#fff;font-weight:600;font-size:14px;cursor:pointer;">Upgrade from £14/mo &rarr;</button>
+        </div>
       </div>
     </div>`;
+
+  screenEl.appendChild(banner);
 }
 
 // ── Tariff Lookup ─────────────────────────────────────────────────────────────
@@ -4852,23 +4862,9 @@ async function loadSubscription() {
       manageBtn.style.display = '';
     }
 
-    // Update nav tabs with lock icons for FREE users
-    document.querySelectorAll('nav .nav-tab').forEach(tab => {
-      const text = tab.textContent.replace(' &#128274;','').replace(' 🔒','').trim();
-      // Remove old lock if plan upgraded
-      if (tab.querySelector('.lock-icon')) tab.querySelector('.lock-icon').remove();
-    });
-    if (plan === 'FREE') {
-      document.querySelectorAll('nav .nav-tab').forEach(tab => {
-        const onclick = tab.getAttribute('onclick') || '';
-        if (PREMIUM_SCREENS.some(s => onclick.includes(`'${s}'`)) && !tab.querySelector('.lock-icon')) {
-          const lock = document.createElement('span');
-          lock.className = 'lock-icon';
-          lock.style.cssText = 'font-size:10px;margin-left:4px;opacity:0.5;';
-          lock.textContent = '🔒';
-          tab.appendChild(lock);
-        }
-      });
+    // Remove upgrade banners if user has upgraded
+    if (plan !== 'FREE') {
+      document.querySelectorAll('.upgrade-banner').forEach(b => b.remove());
     }
 
     // Handle ?billing=success in URL
