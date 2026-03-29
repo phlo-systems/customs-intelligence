@@ -207,43 +207,51 @@ footer{padding:48px 24px;background:var(--slate);border-top:1px solid rgba(255,2
 <section class="hero">
   <div class="hero-inner">
     <div class="hero-text">
-      <h1>Trade smarter. <span class="accent">Ship compliant.</span></h1>
-      <p>The AI platform that finds hidden margin in your trade routes and keeps every shipment compliant. Duty savings, HS classification, FTA opportunities, and document checklists across 45 countries.</p>
+      <h1>Find <span class="accent">duty arbitrage</span> your competitors miss</h1>
+      <p>We scan 60+ trade agreements across 45 countries to surface customs savings you're not using. FTA rate gaps, drawback refunds, route alternatives — delivered as actionable opportunities, not spreadsheets.</p>
+      <div style="display:flex;gap:24px;margin-bottom:28px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:#059669"><span style="width:8px;height:8px;border-radius:50%;background:#059669;flex-shrink:0"></span>AI-generated arbitrage opportunities</div>
+        <div style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--cyan)"><span style="width:8px;height:8px;border-radius:50%;background:var(--cyan);flex-shrink:0"></span>Landed cost in seconds</div>
+        <div style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--slate-700)"><span style="width:8px;height:8px;border-radius:50%;background:var(--slate-700);flex-shrink:0"></span>Full compliance checklists</div>
+      </div>
       <div class="hero-cta">
-        <a href="/app" class="btn btn-primary btn-large">Start free &rarr;</a>
-        <a href="#features" class="btn btn-outline btn-large">See how it works</a>
+        <a href="/app" class="btn btn-primary btn-large">Find my savings &rarr;</a>
+        <a href="#who" class="btn btn-outline btn-large">See how it works</a>
       </div>
     </div>
     <div class="hero-visual">
       <div class="hero-card">
-        <div class="label">Landed Cost Calculator</div>
+        <div class="label" style="color:#059669">Arbitrage Opportunity Found</div>
         <div class="route">
           <span class="flag">🇮🇳</span>
           <span class="arrow">&rarr;</span>
-          <span class="flag">🇬🇧</span>
+          <span class="flag">🇩🇪</span>
           <span class="route-text">Cocoa Beans &middot; HS 1801.00</span>
         </div>
         <div class="rate-grid">
-          <div class="rate-box">
+          <div class="rate-box" style="background:#fef2f2">
             <div class="rate-label">MFN Duty</div>
-            <div class="rate-value">7.7%</div>
+            <div class="rate-value" style="color:#dc2626;text-decoration:line-through">9.6%</div>
           </div>
           <div class="rate-box green">
-            <div class="rate-label">FTA Rate</div>
+            <div class="rate-label">EU-GSP Rate</div>
             <div class="rate-value">0%</div>
           </div>
-          <div class="rate-box amber">
-            <div class="rate-label">VAT</div>
-            <div class="rate-value">0%</div>
+          <div class="rate-box">
+            <div class="rate-label">Your Saving</div>
+            <div class="rate-value" style="color:#059669">9.6%</div>
           </div>
         </div>
-        <div class="saving-tag">&#10003; Save 7.7% under India-UK CEPA</div>
+        <div class="saving-tag">&#10003; Save $9,600 per $100K shipment under EU GSP</div>
+        <div style="margin-top:12px;padding:12px;background:var(--slate-100);border-radius:8px;font-size:12px;color:var(--slate-700);line-height:1.5">
+          <strong>AI Insight:</strong> Your Acumatica data shows $2M in cocoa purchases. Switching from MFN to GSP origin declaration could save ~$192K/year.
+        </div>
       </div>
       <div class="hero-float top-right">
-        &#9889; <strong>HS classified</strong> in 0.4s
+        &#9889; <strong>3 more opportunities</strong> found
       </div>
       <div class="hero-float bottom-left">
-        &#128196; 5 documents required
+        &#128200; <strong>$340K</strong> total savings identified
       </div>
     </div>
   </div>
