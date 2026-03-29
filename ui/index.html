@@ -2473,6 +2473,8 @@ function enterApp() {
   }
   // Initialize all app modules
   init();
+  // Load subscription status early (sets currentPlan for paywall gating)
+  loadSubscription();
 
   // Check if user needs onboarding (new user with no profile)
   setTimeout(async function() {
@@ -2978,7 +2980,16 @@ async function deleteSelectedAlerts() {
 }
 
 // ── Navigation ────────────────────────────────────────────────────────────────
+// Premium screens — require paid plan
+const PREMIUM_SCREENS = ['compare', 'opportunities', 'alerts'];
+let currentPlan = 'FREE'; // updated by loadSubscription()
+
 function showScreen(name, el) {
+  // Gate premium screens for FREE users
+  if (PREMIUM_SCREENS.includes(name) && currentPlan === 'FREE') {
+    showPaywall(name);
+    return;
+  }
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.querySelectorAll('nav .nav-tab').forEach(t => t.classList.remove('active'));
   document.getElementById(`screen-${name}`).classList.add('active');
@@ -2986,6 +2997,26 @@ function showScreen(name, el) {
   if (name === 'admin') onAdminScreenShow();
   if (name === 'profile') initProfileChips();
   if (name === 'actions') loadActions();
+}
+
+function showPaywall(screen) {
+  const labels = { compare: 'Route Comparison', opportunities: 'Trade Opportunities', alerts: 'Trade Alerts' };
+  const descs = {
+    compare: 'Compare landed costs across multiple countries side-by-side to find the cheapest import route.',
+    opportunities: 'AI-generated duty arbitrage opportunities personalised to your trade routes and ERP data.',
+    alerts: 'Real-time alerts for tariff changes, expiring FTA preferences, anti-dumping duties, and sanctions.',
+  };
+  const el = document.getElementById('paywall-overlay');
+  el.innerHTML = `
+    <div style="position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:999;display:flex;align-items:center;justify-content:center;padding:24px;" onclick="this.remove()">
+      <div style="background:#fff;border-radius:16px;padding:40px;max-width:420px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.15);" onclick="event.stopPropagation()">
+        <div style="font-size:40px;margin-bottom:16px;">&#128274;</div>
+        <div style="font-size:20px;font-weight:700;margin-bottom:8px;">${labels[screen] || screen} is a premium feature</div>
+        <div style="font-size:14px;color:#64748b;margin-bottom:24px;line-height:1.6;">${descs[screen] || ''}<br><br>Upgrade to <strong>Starter (£14/mo)</strong> or higher to unlock.</div>
+        <button onclick="upgradePlan()" style="width:100%;padding:14px;border:none;border-radius:10px;background:#0891b2;color:#fff;font-weight:600;font-size:15px;cursor:pointer;margin-bottom:10px;">Upgrade now</button>
+        <button onclick="this.closest('[style*=fixed]').remove()" style="width:100%;padding:12px;border:none;background:transparent;color:#64748b;font-size:14px;cursor:pointer;">Maybe later</button>
+      </div>
+    </div>`;
 }
 
 // ── Tariff Lookup ─────────────────────────────────────────────────────────────
@@ -4796,6 +4827,7 @@ async function loadSubscription() {
     const manageBtn = document.getElementById('sub-manage-btn');
 
     const plan = d.plan || 'FREE';
+    currentPlan = plan; // update global for paywall gating
     const colors = { FREE: '#94a3b8', STARTER: '#0891b2', PRO: '#059669', BUSINESS: '#7c3aed', ENTERPRISE: '#dc2626' };
     badge.textContent = plan;
     badge.style.background = (colors[plan] || '#94a3b8') + '18';
@@ -4818,6 +4850,25 @@ async function loadSubscription() {
       upgradeBtn.style.display = plan === 'PRO' ? '' : 'none';
       if (plan === 'PRO') upgradeBtn.textContent = 'Upgrade to Business';
       manageBtn.style.display = '';
+    }
+
+    // Update nav tabs with lock icons for FREE users
+    document.querySelectorAll('nav .nav-tab').forEach(tab => {
+      const text = tab.textContent.replace(' &#128274;','').replace(' 🔒','').trim();
+      // Remove old lock if plan upgraded
+      if (tab.querySelector('.lock-icon')) tab.querySelector('.lock-icon').remove();
+    });
+    if (plan === 'FREE') {
+      document.querySelectorAll('nav .nav-tab').forEach(tab => {
+        const onclick = tab.getAttribute('onclick') || '';
+        if (PREMIUM_SCREENS.some(s => onclick.includes(`'${s}'`)) && !tab.querySelector('.lock-icon')) {
+          const lock = document.createElement('span');
+          lock.className = 'lock-icon';
+          lock.style.cssText = 'font-size:10px;margin-left:4px;opacity:0.5;';
+          lock.textContent = '🔒';
+          tab.appendChild(lock);
+        }
+      });
     }
 
     // Handle ?billing=success in URL
@@ -6780,5 +6831,6 @@ function closeReferralPrompt() {
 
 // init() is called from enterApp() after successful authentication
 </script>
+<div id="paywall-overlay"></div>
 </body>
 </html>
